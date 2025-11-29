@@ -37,6 +37,9 @@ async def get_wishlist(
             uid=item.uid,
             title=item.title,
             year=item.year,
+            user_name=item.user_name,
+            plex_token=item.plex_token,
+            rating_key=item.rating_key,
             added_at=item.added_at,
             last_seen_at=item.last_seen_at,
         )
@@ -60,6 +63,9 @@ async def get_wishlist_item(uid: str, db: Session = Depends(get_db)):
         uid=item.uid,
         title=item.title,
         year=item.year,
+        user_name=item.user_name,
+        plex_token=item.plex_token,
+        rating_key=item.rating_key,
         added_at=item.added_at,
         last_seen_at=item.last_seen_at,
     )
@@ -84,6 +90,64 @@ async def get_wishlist_stats(db: Session = Depends(get_db)):
         total_items=total_items or 0,
         items_by_year=items_by_year,
     )
+
+
+@router.delete("/remove-by-rating-key/{rating_key}")
+async def remove_wishlist_item_by_rating_key(rating_key: str, db: Session = Depends(get_db)):
+    """
+    Remove an item from the watchlist using its ratingKey.
+    Looks up the item in the database to find the user's token and removes it from Plex.
+    If multiple users have the same item (same ratingKey), it removes for all of them.
+    """
+    from app.services.plex_client import remove_from_watchlist
+    from fastapi import HTTPException, status
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Find all items with this ratingKey
+    items = db.query(WishlistItem).filter(WishlistItem.rating_key == rating_key).all()
+    
+    if not items:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No items found with ratingKey '{rating_key}'",
+        )
+    
+    success_count = 0
+    errors = []
+    
+    for item in items:
+        if not item.plex_token:
+            logger.warning(f"Item {item.id} (ratingKey: {rating_key}) has no plex_token, skipping")
+            continue
+            
+        try:
+            result = await remove_from_watchlist(item.plex_token, rating_key)
+            if result:
+                success_count += 1
+                # Optionally delete from our DB too, or let the next sync handle it
+                # For immediate feedback, we can delete from DB
+                db.delete(item)
+            else:
+                errors.append(f"Failed to remove item for user {item.user_name}")
+        except Exception as e:
+            logger.error(f"Error removing item {rating_key}: {e}")
+            errors.append(str(e))
+    
+    if success_count > 0:
+        db.commit()
+        return {
+            "message": f"Successfully removed item from {success_count} watchlists",
+            "errors": errors
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to remove item. Errors: {'; '.join(errors)}",
+        )
+
+
 
 
 

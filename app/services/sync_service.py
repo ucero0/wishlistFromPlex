@@ -48,12 +48,16 @@ async def sync_all_users(db: Session) -> Dict:
     for user in active_users:
         try:
             logger.info(f"Fetching watchlist for user: {user.name} (ID: {user.id})")
+            # Try to get watchlist (will auto-discover servers)
             items = await get_watchlist(user.plex_token)
             
             user_items[user.id] = []
             for item in items:
                 uid = item["uid"]
                 # Store item (last user's data wins if duplicate, but that's okay)
+                item["user_name"] = user.name
+                item["plex_token"] = user.plex_token
+                
                 all_items_by_uid[uid] = item
                 user_items[user.id].append(uid)
             
@@ -83,6 +87,18 @@ async def sync_all_users(db: Session) -> Dict:
             if existing_item.year != item_data.get("year"):
                 existing_item.year = item_data.get("year")
                 updated = True
+                
+            # Update new fields
+            if existing_item.user_name != item_data.get("user_name"):
+                existing_item.user_name = item_data.get("user_name")
+                updated = True
+            if existing_item.plex_token != item_data.get("plex_token"):
+                existing_item.plex_token = item_data.get("plex_token")
+                updated = True
+            if existing_item.rating_key != item_data.get("rating_key"):
+                existing_item.rating_key = item_data.get("rating_key")
+                updated = True
+                
             existing_item.last_seen_at = datetime.now(timezone.utc)
             
             if updated:
@@ -94,6 +110,9 @@ async def sync_all_users(db: Session) -> Dict:
                 uid=uid,
                 title=item_data["title"],
                 year=item_data.get("year"),
+                user_name=item_data.get("user_name"),
+                plex_token=item_data.get("plex_token"),
+                rating_key=item_data.get("rating_key"),
                 added_at=datetime.now(timezone.utc),
                 last_seen_at=datetime.now(timezone.utc),
             )

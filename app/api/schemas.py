@@ -32,6 +32,9 @@ class WishlistItemResponse(BaseModel):
     uid: str
     title: str
     year: Optional[int]
+    user_name: Optional[str] = None
+    plex_token: Optional[str] = None
+    rating_key: Optional[str] = None
     added_at: datetime
     last_seen_at: datetime
 
@@ -53,6 +56,8 @@ class SyncResponse(BaseModel):
     total_items: int
     errors: list
     sync_time: str
+
+
 
 
 

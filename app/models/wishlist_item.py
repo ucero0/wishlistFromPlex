@@ -11,6 +11,9 @@ class WishlistItem(Base):
     uid = Column(String, unique=True, nullable=False, index=True)  # Plex GUID
     title = Column(String, nullable=False, index=True)
     year = Column(Integer, nullable=True, index=True)
+    user_name = Column(String, nullable=True)
+    plex_token = Column(String, nullable=True)
+    rating_key = Column(String, nullable=True)
     added_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_seen_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
