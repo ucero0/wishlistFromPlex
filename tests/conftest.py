@@ -1,48 +1,54 @@
+"""Pytest configuration and fixtures."""
 import pytest
-from fastapi.testclient import TestClient
+import os
+from datetime import datetime, timezone
+from typing import Generator
+from unittest.mock import MagicMock, patch
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
-from unittest.mock import patch
+from fastapi.testclient import TestClient
+
+# Set test environment variables BEFORE importing app modules
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["API_KEY"] = "test-api-key-12345"
+os.environ["PLEX_SYNC_INTERVAL_HOURS"] = "6"
+os.environ["LOG_LEVEL"] = "DEBUG"
 
 from app.core.db import Base, get_db
-from app.core.config import Settings, settings
 from app.main import app
+from app.modules.plex.models import PlexUser, WishlistItem, WishlistItemSource, MediaType
 
 
-# Test database URL (SQLite in-memory for tests)
-TEST_DATABASE_URL = "sqlite:///:memory:"
-
-# Create test engine
-test_engine = create_engine(
-    TEST_DATABASE_URL,
+# Test database engine (in-memory SQLite)
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
-
-# Create test session factory
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 @pytest.fixture(scope="function")
-def db_session():
+def db_session() -> Generator[Session, None, None]:
     """Create a fresh database session for each test."""
     # Create all tables
-    Base.metadata.create_all(bind=test_engine)
+    Base.metadata.create_all(bind=engine)
     
-    # Create session
     session = TestingSessionLocal()
     try:
         yield session
     finally:
         session.close()
         # Drop all tables after test
-        Base.metadata.drop_all(bind=test_engine)
+        Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(scope="function")
-def client(db_session):
-    """Create a test client with database override."""
+def client(db_session: Session) -> Generator[TestClient, None, None]:
+    """Create a test client with the test database."""
     def override_get_db():
         try:
             yield db_session
@@ -51,46 +57,164 @@ def client(db_session):
     
     app.dependency_overrides[get_db] = override_get_db
     
-    # Override settings for testing
-    with patch.object(settings, 'api_key', 'test-api-key'):
-        with TestClient(app) as test_client:
-            yield test_client
+    with TestClient(app) as test_client:
+        yield test_client
     
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def test_settings():
-    """Test settings with test values."""
-    return Settings(
-        database_url=TEST_DATABASE_URL,
-        api_key="test-api-key",
-        plex_sync_interval_hours=1,
-        log_level="DEBUG",
+def api_key_header() -> dict:
+    """Return headers with valid API key."""
+    return {"X-API-Key": "test-api-key-12345"}
+
+
+@pytest.fixture
+def sample_user(db_session: Session) -> PlexUser:
+    """Create a sample Plex user for testing."""
+    user = PlexUser(
+        name="TestUser",
+        plex_token="test-token-abc123xyz",
+        active=True,
     )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
 
 
 @pytest.fixture
-def sample_plex_token():
-    """Sample Plex token for testing."""
-    return "test-plex-token-12345"
+def sample_inactive_user(db_session: Session) -> PlexUser:
+    """Create an inactive Plex user for testing."""
+    user = PlexUser(
+        name="InactiveUser",
+        plex_token="inactive-token-xyz",
+        active=False,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
 
 
 @pytest.fixture
-def sample_plex_user_data():
-    """Sample Plex user data for testing."""
-    return {
-        "name": "Test User",
-        "token": "test-plex-token-12345",
-    }
+def sample_wishlist_item(db_session: Session) -> WishlistItem:
+    """Create a sample wishlist item for testing."""
+    item = WishlistItem(
+        guid="plex://movie/5d776825880197001ec90a21",
+        rating_key="12345",
+        title="Inception",
+        year=2010,
+        media_type=MediaType.MOVIE,
+        summary="A skilled thief is offered a chance to have his past crimes forgiven.",
+        thumb="/library/metadata/12345/thumb",
+        art="/library/metadata/12345/art",
+        content_rating="PG-13",
+        studio="Warner Bros.",
+        added_at=datetime.now(timezone.utc),
+        last_seen_at=datetime.now(timezone.utc),
+    )
+    db_session.add(item)
+    db_session.commit()
+    db_session.refresh(item)
+    return item
 
 
 @pytest.fixture
-def sample_wishlist_item_data():
-    """Sample wishlist item data for testing."""
-    return {
-        "uid": "plex://movie/guid/tmdb://12345",
-        "title": "Test Movie",
-        "year": 2023,
-    }
+def sample_wishlist_item_with_source(
+    db_session: Session, 
+    sample_user: PlexUser,
+    sample_wishlist_item: WishlistItem
+) -> WishlistItem:
+    """Create a wishlist item with an associated source."""
+    source = WishlistItemSource(
+        wishlist_item_id=sample_wishlist_item.id,
+        plex_user_id=sample_user.id,
+        first_added_at=datetime.now(timezone.utc),
+        last_seen_at=datetime.now(timezone.utc),
+    )
+    db_session.add(source)
+    db_session.commit()
+    db_session.refresh(sample_wishlist_item)
+    return sample_wishlist_item
 
+
+@pytest.fixture
+def multiple_wishlist_items(db_session: Session) -> list:
+    """Create multiple wishlist items for testing."""
+    items = [
+        WishlistItem(
+            guid="plex://movie/test1",
+            rating_key="1001",
+            title="The Matrix",
+            year=1999,
+            media_type=MediaType.MOVIE,
+            summary="A computer hacker discovers reality is a simulation.",
+        ),
+        WishlistItem(
+            guid="plex://movie/test2",
+            rating_key="1002",
+            title="The Matrix Reloaded",
+            year=2003,
+            media_type=MediaType.MOVIE,
+            summary="Neo and the rebels fight against the machines.",
+        ),
+        WishlistItem(
+            guid="plex://show/test3",
+            rating_key="1003",
+            title="Breaking Bad",
+            year=2008,
+            media_type=MediaType.SHOW,
+            summary="A chemistry teacher turns to making drugs.",
+        ),
+        WishlistItem(
+            guid="plex://movie/test4",
+            rating_key="1004",
+            title="Interstellar",
+            year=2014,
+            media_type=MediaType.MOVIE,
+            summary="Explorers travel through a wormhole in space.",
+        ),
+    ]
+    
+    for item in items:
+        item.added_at = datetime.now(timezone.utc)
+        item.last_seen_at = datetime.now(timezone.utc)
+        db_session.add(item)
+    
+    db_session.commit()
+    
+    for item in items:
+        db_session.refresh(item)
+    
+    return items
+
+
+@pytest.fixture
+def mock_plex_item():
+    """Create a mock Plex API item."""
+    mock_item = MagicMock()
+    mock_item.guid = "plex://movie/mock123"
+    mock_item.ratingKey = "99999"
+    mock_item.title = "Mock Movie"
+    mock_item.year = 2024
+    mock_item.type = "movie"
+    mock_item.summary = "A mock movie for testing."
+    mock_item.thumb = "/library/metadata/99999/thumb"
+    mock_item.art = "/library/metadata/99999/art"
+    mock_item.contentRating = "R"
+    mock_item.studio = "Mock Studios"
+    return mock_item
+
+
+@pytest.fixture
+def mock_plex_account(mock_plex_item):
+    """Create a mock Plex account."""
+    mock_account = MagicMock()
+    mock_account.username = "testuser"
+    mock_account.email = "test@example.com"
+    mock_account.title = "Test User"
+    mock_account.uuid = "uuid-12345"
+    mock_account.watchlist.return_value = [mock_plex_item]
+    mock_account.searchDiscover.return_value = [mock_plex_item]
+    return mock_account

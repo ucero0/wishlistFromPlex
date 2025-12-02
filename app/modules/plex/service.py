@@ -5,43 +5,85 @@ from typing import Dict, List, Optional, Set
 import httpx
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from plexapi.myplex import MyPlexAccount
-from plexapi.exceptions import Unauthorized
 
 from app.modules.plex.models import PlexUser, WishlistItem, WishlistItemSource, MediaType
 from app.modules.plex.schemas import PlexItemData, PlexAccountInfo
 
 logger = logging.getLogger(__name__)
 
+# Plex API base URLs
+PLEX_DISCOVER_API = "https://discover.provider.plex.tv"
+PLEX_API_HEADERS = {
+    "Accept": "application/json",
+    "X-Plex-Client-Identifier": "plex-wishlist-service",
+    "X-Plex-Product": "Plex Wishlist Service",
+    "X-Plex-Version": "1.0.0",
+}
+
 
 # ============================================================================
 # PLEX API CLIENT
 # ============================================================================
 
-def get_plex_account(token: str) -> Optional[MyPlexAccount]:
+async def verify_token(token: str) -> bool:
     """
-    Create a MyPlexAccount instance from a token.
+    Verify if a Plex token is valid.
     
     Args:
         token: Plex user token
         
     Returns:
-        MyPlexAccount instance or None if authentication fails
+        True if valid, False otherwise
     """
-    try:
-        account = MyPlexAccount(token=token)
-        return account
-    except Unauthorized:
-        logger.error("Invalid Plex token (Unauthorized)")
-        return None
-    except Exception as e:
-        logger.error(f"Error creating Plex account: {e}")
-        return None
+    url = "https://plex.tv/api/v2/user"
+    headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
+    
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            response = await client.get(url, headers=headers)
+            return response.status_code == 200
+        except Exception as e:
+            logger.error(f"Error verifying token: {e}")
+            return False
+
+
+async def get_account_info(token: str) -> Optional[PlexAccountInfo]:
+    """
+    Get Plex account information using direct API call.
+    
+    Args:
+        token: Plex user token
+        
+    Returns:
+        PlexAccountInfo with account details, or None if failed
+    """
+    url = "https://plex.tv/api/v2/user"
+    headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
+    
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            response = await client.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return PlexAccountInfo(
+                    username=data.get("username", ""),
+                    email=data.get("email"),
+                    title=data.get("title"),
+                    uuid=data.get("uuid", ""),
+                )
+            else:
+                logger.error(f"Failed to get account info: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting account info: {e}")
+            return None
 
 
 async def get_watchlist(token: str) -> List[PlexItemData]:
     """
-    Fetch watchlist from Plex using the plexapi library.
+    Fetch watchlist from Plex using direct API calls.
     
     Args:
         token: Plex user token
@@ -49,135 +91,185 @@ async def get_watchlist(token: str) -> List[PlexItemData]:
     Returns:
         List of normalized watchlist items as PlexItemData schemas
     """
-    account = get_plex_account(token)
-    if not account:
-        return []
-    
     all_items: List[PlexItemData] = []
     
-    try:
-        logger.info("Fetching watchlist using plexapi")
-        watchlist = account.watchlist()
-        
-        for item in watchlist:
-            normalized = normalize_plex_item(item)
-            if normalized:
-                all_items.append(normalized)
-        
-        logger.info(f"Fetched {len(all_items)} items from Plex watchlist")
-        
-    except Exception as e:
-        logger.error(f"Error fetching watchlist: {e}")
+    url = f"{PLEX_DISCOVER_API}/library/sections/watchlist/all"
+    headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            logger.info("Fetching watchlist from Plex Discover API")
+            response = await client.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                media_container = data.get("MediaContainer", {})
+                metadata_list = media_container.get("Metadata", [])
+                
+                for item in metadata_list:
+                    normalized = normalize_api_item(item)
+                    if normalized:
+                        all_items.append(normalized)
+                
+                logger.info(f"Fetched {len(all_items)} items from Plex watchlist")
+            else:
+                logger.error(f"Failed to fetch watchlist: {response.status_code} - {response.text}")
+                
+        except Exception as e:
+            logger.error(f"Error fetching watchlist: {e}")
     
     return all_items
 
 
-async def remove_from_watchlist(token: str, guid: str) -> bool:
+async def remove_from_watchlist(token: str, rating_key: str) -> bool:
     """
-    Remove an item from the Plex account watchlist using its GUID.
-    Uses direct API call for efficiency.
+    Remove an item from the Plex account watchlist using its ratingKey.
     
     Args:
         token: Plex user token
-        guid: The GUID of the item to remove
+        rating_key: The ratingKey of the item to remove (e.g., "5d776d1847dd6e001f6f002f")
         
     Returns:
         bool: True if successful, False otherwise
     """
-    url = "https://discover.provider.plex.tv/actions/removeFromWatchlist"
-    
-    headers = {
-        "X-Plex-Token": token,
-        "Accept": "application/json",
-    }
-    
-    params = {"ratingKey": guid}
+    url = f"{PLEX_DISCOVER_API}/actions/removeFromWatchlist"
+    headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
+    params = {"ratingKey": rating_key}
     
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            logger.info(f"Removing item {guid} from watchlist")
+            logger.info(f"Removing item {rating_key} from watchlist")
             response = await client.put(url, headers=headers, params=params)
             
             if response.status_code == 200:
-                logger.info(f"Successfully removed item {guid} from watchlist")
+                logger.info(f"Successfully removed item {rating_key} from watchlist")
                 return True
             else:
-                logger.error(f"Failed to remove item {guid}: {response.status_code} - {response.text}")
+                logger.error(f"Failed to remove item {rating_key}: {response.status_code} - {response.text}")
                 return False
                 
         except Exception as e:
-            logger.error(f"Error removing item {guid} from watchlist: {e}")
+            logger.error(f"Error removing item {rating_key} from watchlist: {e}")
             return False
 
 
-async def add_to_watchlist(token: str, guid: str) -> bool:
+async def add_to_watchlist(token: str, rating_key: str) -> bool:
     """
-    Add an item to the Plex account watchlist using its GUID.
-    Uses direct API call for efficiency.
+    Add an item to the Plex account watchlist using its ratingKey.
     
     Args:
         token: Plex user token
-        guid: The GUID of the item to add
+        rating_key: The ratingKey of the item to add (e.g., "5d776d1847dd6e001f6f002f")
         
     Returns:
         bool: True if successful, False otherwise
     """
-    url = "https://discover.provider.plex.tv/actions/addToWatchlist"
-    
-    headers = {
-        "X-Plex-Token": token,
-        "Accept": "application/json",
-    }
-    
-    params = {"ratingKey": guid}
+    url = f"{PLEX_DISCOVER_API}/actions/addToWatchlist"
+    headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
+    params = {"ratingKey": rating_key}
     
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            logger.info(f"Adding item {guid} to watchlist")
+            logger.info(f"Adding item {rating_key} to watchlist")
             response = await client.put(url, headers=headers, params=params)
             
             if response.status_code == 200:
-                logger.info(f"Successfully added item {guid} to watchlist")
+                logger.info(f"Successfully added item {rating_key} to watchlist")
                 return True
             else:
-                logger.error(f"Failed to add item {guid}: {response.status_code} - {response.text}")
+                logger.error(f"Failed to add item {rating_key}: {response.status_code} - {response.text}")
                 return False
                 
         except Exception as e:
-            logger.error(f"Error adding item {guid} to watchlist: {e}")
+            logger.error(f"Error adding item {rating_key} to watchlist: {e}")
             return False
 
 
-def normalize_plex_item(item) -> Optional[PlexItemData]:
+async def search_plex(token: str, query: str, limit: int = 10) -> List[PlexItemData]:
     """
-    Normalize a plexapi media item to our standard format.
+    Search Plex for media items using direct API calls.
     
     Args:
-        item: plexapi media object (Movie, Show, etc.)
+        token: Plex user token
+        query: Search query string
+        limit: Maximum number of results
+        
+    Returns:
+        List of matching PlexItemData items
+    """
+    results: List[PlexItemData] = []
+    
+    url = f"{PLEX_DISCOVER_API}/library/search"
+    headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
+    params = {
+        "query": query,
+        "limit": limit,
+        "searchTypes": "movies,tv",
+        "includeMetadata": 1,
+        "searchProviders": "discover",
+    }
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            logger.info(f"Searching Plex for: {query}")
+            response = await client.get(url, headers=headers, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                media_container = data.get("MediaContainer", {})
+                search_results = media_container.get("SearchResults", [])
+                
+                for result_group in search_results:
+                    search_result = result_group.get("SearchResult", [])
+                    for item in search_result:
+                        metadata = item.get("Metadata")
+                        if metadata:
+                            normalized = normalize_api_item(metadata)
+                            if normalized:
+                                results.append(normalized)
+                
+                logger.info(f"Found {len(results)} results for '{query}'")
+            else:
+                logger.error(f"Search failed: {response.status_code} - {response.text}")
+                
+        except Exception as e:
+            logger.error(f"Error searching Plex: {e}")
+    
+    return results
+
+
+def normalize_api_item(item: dict) -> Optional[PlexItemData]:
+    """
+    Normalize a Plex API JSON response item to our standard format.
+    
+    Args:
+        item: Dictionary from Plex API response
         
     Returns:
         PlexItemData schema with all available metadata, or None if invalid
     """
     try:
-        # Get the GUID
-        guid = getattr(item, 'guid', None)
+        # Get the GUID (required)
+        guid = item.get("guid")
         if not guid:
-            rating_key = getattr(item, 'ratingKey', None)
-            item_type = getattr(item, 'type', 'movie')
+            rating_key = item.get("ratingKey")
+            item_type = item.get("type", "movie")
             if rating_key:
                 guid = f"plex://{item_type}/{rating_key}"
             else:
-                logger.warning(f"Item missing GUID: {getattr(item, 'title', 'Unknown')}")
+                logger.warning(f"Item missing GUID: {item.get('title', 'Unknown')}")
                 return None
         
         # Get title (required)
-        title = getattr(item, 'title', None)
+        title = item.get("title")
         if not title:
             logger.warning(f"Item missing title: {guid}")
             return None
         
         # Get year
-        year = getattr(item, 'year', None)
+        year = item.get("year")
         if year:
             try:
                 year = int(year)
@@ -185,31 +277,21 @@ def normalize_plex_item(item) -> Optional[PlexItemData]:
                 year = None
         
         # Get ratingKey
-        rating_key = getattr(item, 'ratingKey', None)
+        rating_key = item.get("ratingKey")
         if rating_key:
             rating_key = str(rating_key)
         
         # Get media type
-        media_type = getattr(item, 'type', None)
-        if not media_type:
-            class_name = item.__class__.__name__.lower()
-            if 'movie' in class_name:
-                media_type = 'movie'
-            elif 'show' in class_name:
-                media_type = 'show'
-            elif 'season' in class_name:
-                media_type = 'season'
-            elif 'episode' in class_name:
-                media_type = 'episode'
+        media_type = item.get("type")
         if media_type:
             media_type = media_type.lower()
         
         # Get additional metadata
-        summary = getattr(item, 'summary', None)
-        thumb = getattr(item, 'thumb', None)
-        art = getattr(item, 'art', None)
-        content_rating = getattr(item, 'contentRating', None)
-        studio = getattr(item, 'studio', None)
+        summary = item.get("summary")
+        thumb = item.get("thumb")
+        art = item.get("art")
+        content_rating = item.get("contentRating")
+        studio = item.get("studio")
         
         return PlexItemData(
             guid=guid,
@@ -225,51 +307,8 @@ def normalize_plex_item(item) -> Optional[PlexItemData]:
         )
         
     except Exception as e:
-        logger.error(f"Error normalizing item: {e}")
+        logger.error(f"Error normalizing API item: {e}")
         return None
-
-
-async def get_account_info(token: str) -> Optional[PlexAccountInfo]:
-    """Get Plex account information."""
-    account = get_plex_account(token)
-    if not account:
-        return None
-    
-    try:
-        return PlexAccountInfo(
-            username=account.username,
-            email=account.email,
-            title=account.title,
-            uuid=account.uuid,
-        )
-    except Exception as e:
-        logger.error(f"Error getting account info: {e}")
-        return None
-
-
-async def search_plex(token: str, query: str, limit: int = 10) -> List[PlexItemData]:
-    """Search Plex for media items."""
-    account = get_plex_account(token)
-    if not account:
-        return []
-    
-    results: List[PlexItemData] = []
-    
-    try:
-        logger.info(f"Searching Plex for: {query}")
-        search_results = account.searchDiscover(query, limit=limit)
-        
-        for item in search_results:
-            normalized = normalize_plex_item(item)
-            if normalized:
-                results.append(normalized)
-        
-        logger.info(f"Found {len(results)} results for '{query}'")
-        
-    except Exception as e:
-        logger.error(f"Error searching Plex: {e}")
-    
-    return results
 
 
 # ============================================================================
@@ -451,4 +490,3 @@ async def sync_all_users(db: Session) -> Dict:
         "errors": errors,
         "sync_time": datetime.now(timezone.utc).isoformat(),
     }
-

@@ -208,7 +208,8 @@ async def get_wishlist(
     
     if media_type:
         try:
-            mt = MediaType(media_type.upper())
+            # MediaType enum uses lowercase values (movie, show, etc.)
+            mt = MediaType(media_type.lower())
             query = query.filter(WishlistItem.media_type == mt)
         except ValueError:
             pass
@@ -270,6 +271,12 @@ async def remove_wishlist_item(guid: str, db: Session = Depends(get_db)):
             detail=f"No item found with guid '{guid}'",
         )
     
+    if not item.rating_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Item has no rating_key - cannot remove from Plex",
+        )
+    
     success_count = 0
     errors = []
     
@@ -282,11 +289,12 @@ async def remove_wishlist_item(guid: str, db: Session = Depends(get_db)):
     for source in item.sources:
         if source.plex_user and source.plex_user.plex_token:
             try:
-                result = await remove_from_watchlist(source.plex_user.plex_token, guid)
+                # Use rating_key for Plex API, not GUID
+                result = await remove_from_watchlist(source.plex_user.plex_token, item.rating_key)
                 if result:
                     success_count += 1
             except Exception as e:
-                logger.error(f"Error removing item {guid} for user {source.plex_user.name}: {e}")
+                logger.error(f"Error removing item {item.rating_key} for user {source.plex_user.name}: {e}")
                 errors.append(f"User {source.plex_user.name}: {str(e)}")
     
     if success_count > 0:
@@ -295,6 +303,7 @@ async def remove_wishlist_item(guid: str, db: Session = Depends(get_db)):
         return {
             "message": f"Successfully removed item from {success_count} watchlist(s)",
             "guid": guid,
+            "rating_key": item.rating_key,
             "errors": errors if errors else None
         }
     else:
@@ -321,11 +330,12 @@ async def remove_wishlist_item_by_rating_key(rating_key: str, db: Session = Depe
     errors = []
     
     for item in items:
-        if item.guid and item.sources:
+        if item.rating_key and item.sources:
             for source in item.sources:
                 if source.plex_user and source.plex_user.plex_token:
                     try:
-                        result = await remove_from_watchlist(source.plex_user.plex_token, item.guid)
+                        # Use rating_key for Plex API
+                        result = await remove_from_watchlist(source.plex_user.plex_token, item.rating_key)
                         if result:
                             success_count += 1
                             break
@@ -340,6 +350,7 @@ async def remove_wishlist_item_by_rating_key(rating_key: str, db: Session = Depe
         db.commit()
         return {
             "message": f"Successfully removed item from {success_count} watchlist(s)",
+            "rating_key": rating_key,
             "errors": errors if errors else None
         }
     else:
