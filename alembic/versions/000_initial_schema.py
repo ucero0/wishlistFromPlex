@@ -17,6 +17,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Create mediatype enum
+    media_type_enum = sa.Enum('MOVIE', 'SHOW', 'SEASON', 'EPISODE', name='mediatype')
+    media_type_enum.create(op.get_bind(), checkfirst=True)
+    
     # Create plex_users table
     op.create_table(
         'plex_users',
@@ -31,25 +35,33 @@ def upgrade() -> None:
     op.create_index('ix_plex_users_id', 'plex_users', ['id'])
     op.create_index('ix_plex_users_name', 'plex_users', ['name'])
 
-    # Create wishlist_items table
+    # Create wishlist_items table with all fields
     op.create_table(
         'wishlist_items',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('uid', sa.String(), nullable=False),
+        # Plex Identifiers
+        sa.Column('guid', sa.String(), nullable=False),  # Plex GUID for account-level operations
+        sa.Column('rating_key', sa.String(), nullable=True),  # Local server ratingKey
+        # Media Info
         sa.Column('title', sa.String(), nullable=False),
         sa.Column('year', sa.Integer(), nullable=True),
-        sa.Column('user_name', sa.String(), nullable=True),
-        sa.Column('plex_token', sa.String(), nullable=True),
-        sa.Column('rating_key', sa.String(), nullable=True),
+        sa.Column('media_type', media_type_enum, nullable=True),
+        # Additional Metadata
+        sa.Column('summary', sa.Text(), nullable=True),
+        sa.Column('thumb', sa.String(), nullable=True),
+        sa.Column('art', sa.String(), nullable=True),
+        sa.Column('content_rating', sa.String(), nullable=True),
+        sa.Column('studio', sa.String(), nullable=True),
+        # Timestamps
         sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('last_seen_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint('id'),
     )
     op.create_index('ix_wishlist_items_id', 'wishlist_items', ['id'])
-    op.create_index('ix_wishlist_items_uid', 'wishlist_items', ['uid'], unique=True)
+    op.create_index('idx_wishlist_items_guid', 'wishlist_items', ['guid'], unique=True)
     op.create_index('ix_wishlist_items_title', 'wishlist_items', ['title'])
     op.create_index('ix_wishlist_items_year', 'wishlist_items', ['year'])
-    op.create_index('idx_wishlist_items_uid', 'wishlist_items', ['uid'])
+    op.create_index('ix_wishlist_items_rating_key', 'wishlist_items', ['rating_key'])
 
     # Create wishlist_item_sources table
     op.create_table(
@@ -73,4 +85,4 @@ def downgrade() -> None:
     op.drop_table('wishlist_item_sources')
     op.drop_table('wishlist_items')
     op.drop_table('plex_users')
-
+    op.execute("DROP TYPE IF EXISTS mediatype")

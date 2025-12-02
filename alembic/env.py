@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import settings
 from app.core.db import Base
-from app.models import PlexUser, WishlistItem, WishlistItemSource
+from app.modules.plex.models import PlexUser, WishlistItem, WishlistItemSource, MediaType
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

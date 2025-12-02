@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.services.sync_service import sync_all_users
+from app.modules.plex.service import sync_all_users
 
 logger = logging.getLogger(__name__)
 
