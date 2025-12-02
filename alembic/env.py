@@ -69,9 +69,11 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    from sqlalchemy import create_engine
+    
+    # Use the database URL from settings (not the placeholder in alembic.ini)
+    connectable = create_engine(
+        settings.database_url,
         poolclass=pool.NullPool,
     )
 

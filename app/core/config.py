@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra env vars like POSTGRES_USER, POSTGRES_PASSWORD, etc.
 
 
 settings = Settings()
