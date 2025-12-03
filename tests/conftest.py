@@ -11,14 +11,17 @@ from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 # Set test environment variables BEFORE importing app modules
+# These MUST be set for tests to work consistently
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["API_KEY"] = "test-api-key-12345"
 os.environ["PLEX_SYNC_INTERVAL_HOURS"] = "6"
 os.environ["LOG_LEVEL"] = "DEBUG"
+# Deluge env vars use setdefault to allow live tests to use real Docker env vars
 
 from app.core.db import Base, get_db
 from app.main import app
 from app.modules.plex.models import PlexUser, WishlistItem, WishlistItemSource, MediaType
+from app.modules.deluge.models import TorrentItem, TorrentStatus
 
 
 # Test database engine (in-memory SQLite)

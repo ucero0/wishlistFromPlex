@@ -8,6 +8,9 @@ python-dotenv==1.0.0
 pydantic-settings==2.1.0
 apscheduler==3.10.4
 
+# Deluge client
+deluge-client==1.10.2
+
 # Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1

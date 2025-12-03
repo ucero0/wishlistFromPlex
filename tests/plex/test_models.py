@@ -1,4 +1,4 @@
-"""Tests for SQLAlchemy models."""
+"""Tests for Plex SQLAlchemy models."""
 import pytest
 from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
@@ -252,3 +252,4 @@ class TestMediaTypeEnum:
         
         assert result is not None
         assert result.media_type == MediaType.MOVIE
+

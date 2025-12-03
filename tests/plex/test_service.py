@@ -185,7 +185,6 @@ class TestRemoveFromWatchlist:
         mock_client.__aexit__.return_value = None
         mock_client_class.return_value = mock_client
         
-        # Use rating_key format (just the ID, not full GUID)
         result = await remove_from_watchlist("token", "5d776d1847dd6e001f6f002f")
         assert result is True
 
@@ -236,7 +235,6 @@ class TestAddToWatchlist:
         mock_client.__aexit__.return_value = None
         mock_client_class.return_value = mock_client
         
-        # Use rating_key format (just the ID, not full GUID)
         result = await add_to_watchlist("token", "5d776d1847dd6e001f6f002f")
         assert result is True
 
@@ -540,3 +538,4 @@ class TestSyncAllUsers:
         
         assert result["users_processed"] == 0
         mock_get_watchlist.assert_not_called()
+

@@ -56,5 +56,14 @@ alembic/versions/*.pyc
 .DS_Store
 Thumbs.db
 
+# Deluge runtime data (contains passwords, certs, logs)
+deluge/config/
+deluge/downloads/
+# Keep the custom init script
+!deluge/custom-cont-init.d/
+
+# Gluetun VPN data
+gluetun/
+
 
 

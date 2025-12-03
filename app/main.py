@@ -18,6 +18,7 @@ from app.core.scheduler import start_scheduler, stop_scheduler
 
 # Import module routers
 from app.modules.plex import router as plex_router
+from app.modules.deluge import router as deluge_router
 
 # Configure logging
 logging.basicConfig(
@@ -52,10 +53,10 @@ app.add_middleware(
 
 # Include module routers
 app.include_router(plex_router)
+app.include_router(deluge_router)
 
 # Future modules will be added here:
 # app.include_router(torrent_search_router)
-# app.include_router(deluge_router)
 # app.include_router(scanner_router)
 # app.include_router(file_manager_router)
 
@@ -101,8 +102,8 @@ async def root():
         "health": "/health",
         "modules": {
             "plex": "active",
+            "deluge": "active",
             "torrent_search": "coming_soon",
-            "deluge": "coming_soon",
             "scanner": "coming_soon",
             "file_manager": "coming_soon",
         },

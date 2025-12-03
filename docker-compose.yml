@@ -28,12 +28,63 @@ services:
       API_KEY: ${API_KEY}
       PLEX_SYNC_INTERVAL_HOURS: ${PLEX_SYNC_INTERVAL_HOURS:-6}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Deluge configuration - connects via gluetun container
+      DELUGE_HOST: ${DELUGE_HOST:-gluetun}
+      DELUGE_PORT: ${DELUGE_PORT:-58846}
+      DELUGE_USERNAME: ${DELUGE_USERNAME:-localclient}
+      DELUGE_PASSWORD: ${DELUGE_PASSWORD:-}
     ports:
       - "8000:8000"
     volumes:
       - ./app:/app/app
     networks:
       - plex-wishlist-network
+    restart: unless-stopped
+    
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=openvpn
+      - NORDVPN_USER=${NORDVPN_USER}
+      - NORDVPN_PASSWORD=${NORDVPN_PASSWORD}
+      - OPENVPN_USER=${NORDVPN_USER}
+      - OPENVPN_PASSWORD=${NORDVPN_PASSWORD}
+      - HEALTH_SERVER_AUTH=no
+      - SERVER_REGIONS=${SERVER_REGIONS:-}
+      - FIREWALL=on
+      - FIREWALL_INPUT_PORTS=8112,58846
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12
+      - FIREWALL_IPV6=off
+    ports:
+      - "8112:8112"
+      - "58846:58846"
+    volumes:
+      - ./gluetun:/gluetun
+    networks:
+      - plex-wishlist-network
+    restart: unless-stopped
+
+  deluge:
+    image: linuxserver/deluge:latest
+    container_name: deluge
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+      - DELUGE_LOGLEVEL=info
+    volumes:
+      - ./deluge/config:/config
+      - ./deluge/downloads:/downloads
+      - ./deluge/custom-cont-init.d:/custom-cont-init.d:ro
+    depends_on:
+      - gluetun
     restart: unless-stopped
 
 networks:

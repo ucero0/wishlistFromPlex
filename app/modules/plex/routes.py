@@ -20,13 +20,15 @@ from app.modules.plex.schemas import (
 
 logger = logging.getLogger(__name__)
 
+from app.modules.plex.constants import MODULE_PREFIX, USERS_PREFIX, WISHLIST_PREFIX, SYNC_PREFIX
+
 # Main router that combines all sub-routers
-router = APIRouter(tags=["plex"])
+router = APIRouter(tags=[MODULE_PREFIX.strip("/")])
 
 # Sub-routers
-users_router = APIRouter(prefix="/api/users", tags=["users"])
-wishlist_router = APIRouter(prefix="/api/wishlist", tags=["wishlist"])
-sync_router = APIRouter(prefix="/api/sync", tags=["sync"])
+users_router = APIRouter(prefix=USERS_PREFIX, tags=["users"])
+wishlist_router = APIRouter(prefix=WISHLIST_PREFIX, tags=["wishlist"])
+sync_router = APIRouter(prefix=SYNC_PREFIX, tags=["sync"])
 
 
 # ============================================================================
