@@ -7,6 +7,7 @@ Create Date: 2025-12-03
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -16,16 +17,34 @@ branch_labels = None
 depends_on = None
 
 
+def enum_exists(enum_name):
+    """Check if an enum type exists."""
+    bind = op.get_bind()
+    result = bind.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = :name)"
+    ), {"name": enum_name})
+    return result.scalar()
+
+
+def table_exists(table_name):
+    """Check if a table exists."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return table_name in inspector.get_table_names()
+
+
 def upgrade() -> None:
-    # Create torrent status enum
-    torrent_status = sa.Enum(
-        'queued', 'downloading', 'seeding', 'paused', 'checking', 'error', 'completed', 'removed',
-        name='torrentstatus'
-    )
-    torrent_status.create(op.get_bind(), checkfirst=True)
+    # Create torrent status enum only if it doesn't exist
+    if not enum_exists('torrentstatus'):
+        torrent_status = sa.Enum(
+            'queued', 'downloading', 'seeding', 'paused', 'checking', 'error', 'completed', 'removed',
+            name='torrentstatus'
+        )
+        torrent_status.create(op.get_bind(), checkfirst=True)
     
-    # Create torrent_items table
-    op.create_table(
+    # Create torrent_items table only if it doesn't exist
+    if not table_exists('torrent_items'):
+        op.create_table(
         'torrent_items',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('rating_key', sa.String(), nullable=False),
@@ -47,14 +66,14 @@ def upgrade() -> None:
         sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('last_updated', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.PrimaryKeyConstraint('id')
-    )
-    
-    # Create indexes
-    op.create_index('idx_torrent_items_rating_key', 'torrent_items', ['rating_key'])
-    op.create_index('idx_torrent_items_hash', 'torrent_items', ['torrent_hash'], unique=True)
-    op.create_index('idx_torrent_items_status', 'torrent_items', ['status'])
-    op.create_index(op.f('ix_torrent_items_id'), 'torrent_items', ['id'])
+            sa.PrimaryKeyConstraint('id')
+        )
+        
+        # Create indexes
+        op.create_index('idx_torrent_items_rating_key', 'torrent_items', ['rating_key'])
+        op.create_index('idx_torrent_items_hash', 'torrent_items', ['torrent_hash'], unique=True)
+        op.create_index('idx_torrent_items_status', 'torrent_items', ['status'])
+        op.create_index(op.f('ix_torrent_items_id'), 'torrent_items', ['id'])
 
 
 def downgrade() -> None:

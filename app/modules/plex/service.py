@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
-from app.modules.plex.models import PlexUser, WishlistItem, WishlistItemSource, MediaType
+from app.modules.plex.models import PlexUser,MediaType
 from app.modules.plex.schemas import PlexItemData, PlexAccountInfo
 
 logger = logging.getLogger(__name__)
@@ -80,8 +80,6 @@ async def get_account_info(token: str) -> Optional[PlexAccountInfo]:
         except Exception as e:
             logger.error(f"Error getting account info: {e}")
             return None
-
-
 async def get_watchlist(token: str) -> List[PlexItemData]:
     """
     Fetch watchlist from Plex using direct API calls.
@@ -109,21 +107,41 @@ async def get_watchlist(token: str) -> List[PlexItemData]:
                 metadata_list = media_container.get("Metadata", [])
                 
                 for item in metadata_list:
-                    normalized = normalize_api_item(item)
-                    if normalized:
-                        all_items.append(normalized)
-                
-                logger.info(f"Fetched {len(all_items)} items from Plex watchlist")
+                    plexItem = PlexItemData(**item)
+                    all_items.append(plexItem)
+                return all_items
             else:
                 logger.error(f"Failed to fetch watchlist: {response.status_code} - {response.text}")
-                
+                return []
         except Exception as e:
             logger.error(f"Error fetching watchlist: {e}")
+            return []
+def is_item_in_watchlist(items: List[PlexItemData], guid: str) -> bool:
+    """
+    Check if an item is in the watchlist.
     
+    Args:
+        items: List of PlexItemData items
+        guid: The guid of the item to check (e.g., "plex://movie/5d776d1847dd6e001f6f002f")
+    """
+    return any(item.guid == guid for item in items)
+async def get_watchlistAllUsers(db: Session) -> List[PlexItemData]:
+    """
+    Get the watchlist from all active Plex users.
+    
+    Args:
+        db: Database session
+    """
+    active_users = db.query(PlexUser).filter(PlexUser.active == True).all()
+    all_items: List[PlexItemData] = []
+    for user in active_users:
+        items = await get_watchlist(user.plex_token)
+        for item in items:
+            if not is_item_in_watchlist(all_items, item.guid):
+                all_items.append(item)
     return all_items
 
-
-async def remove_from_watchlist(token: str, rating_key: str) -> bool:
+async def remove_from_watchlist(token: str, ratingKey: str) -> bool:
     """
     Remove an item from the Plex account watchlist using its ratingKey.
     
@@ -136,26 +154,26 @@ async def remove_from_watchlist(token: str, rating_key: str) -> bool:
     """
     url = f"{PLEX_DISCOVER_API}/actions/removeFromWatchlist"
     headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
-    params = {"ratingKey": rating_key}
+    params = {"ratingKey": ratingKey}
     
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            logger.info(f"Removing item {rating_key} from watchlist")
+            logger.info(f"Removing item {ratingKey} from watchlist")
             response = await client.put(url, headers=headers, params=params)
             
             if response.status_code == 200:
-                logger.info(f"Successfully removed item {rating_key} from watchlist")
+                logger.info(f"Successfully removed item {ratingKey} from watchlist")
                 return True
             else:
-                logger.error(f"Failed to remove item {rating_key}: {response.status_code} - {response.text}")
+                logger.error(f"Failed to remove item {ratingKey}: {response.status_code} - {response.text}")
                 return False
                 
         except Exception as e:
-            logger.error(f"Error removing item {rating_key} from watchlist: {e}")
+            logger.error(f"Error removing item {ratingKey} from watchlist: {e}")
             return False
 
 
-async def remove_from_all_user_watchlists(db: Session, rating_key: str) -> Dict:
+async def remove_from_all_user_watchlists(db: Session, ratingKey: str) -> Dict:
     """
     Remove an item from all active users' watchlists.
     
@@ -170,7 +188,7 @@ async def remove_from_all_user_watchlists(db: Session, rating_key: str) -> Dict:
         - failed_removals: Number of failed removals
         - errors: List of error messages
     """
-    logger.info(f"Removing item {rating_key} from all active users' watchlists")
+    logger.info(f"Removing item {ratingKey} from all active users' watchlists")
     
     active_users = db.query(PlexUser).filter(PlexUser.active == True).all()
     
@@ -192,21 +210,21 @@ async def remove_from_all_user_watchlists(db: Session, rating_key: str) -> Dict:
     # Remove from each user's watchlist
     for user in active_users:
         try:
-            logger.info(f"Removing item {rating_key} from watchlist for user: {user.name} (ID: {user.id})")
-            success = await remove_from_watchlist(user.plex_token, rating_key)
+            logger.info(f"Removing item {ratingKey} from watchlist for user: {user.name} (ID: {user.id})")
+            success = await remove_from_watchlist(user.plex_token, ratingKey)
             
             if success:
                 successful_removals += 1
-                logger.info(f"Successfully removed item {rating_key} from user {user.name}'s watchlist")
+                logger.info(f"Successfully removed item {ratingKey} from user {user.name}'s watchlist")
             else:
                 failed_removals += 1
-                error_msg = f"Failed to remove item {rating_key} from user {user.name}'s watchlist"
+                error_msg = f"Failed to remove item {ratingKey} from user {user.name}'s watchlist"
                 logger.warning(error_msg)
                 errors.append(error_msg)
                 
         except Exception as e:
             failed_removals += 1
-            error_msg = f"Error removing item {rating_key} from user {user.name} (ID: {user.id}): {str(e)}"
+            error_msg = f"Error removing item {ratingKey} from user {user.name} (ID: {user.id}): {str(e)}"
             logger.error(error_msg)
             errors.append(error_msg)
             continue
@@ -224,10 +242,10 @@ async def remove_from_all_user_watchlists(db: Session, rating_key: str) -> Dict:
     }
 
 
-async def check_rating_key_in_library(
-    server_url: str,
-    token: str,
-    rating_key: str
+async def is_item_in_plexLibrary(
+    guid: str,
+    token: Optional[str] = None,
+    server_url: Optional[str] = None
 ) -> bool:
     """
     Check if a rating key exists in the Plex Media Server library.
@@ -236,15 +254,20 @@ async def check_rating_key_in_library(
     The response is typically JSON, and if MediaContainer has size >= 1, the item exists.
     
     Args:
-        server_url: Plex Media Server URL (e.g., "http://homeserver.local:32400" or "http://plex:32400")
-        token: Plex user token
         rating_key: The ratingKey to check (e.g., "5d776824f54112001f5bbdd7" or "plex://movie/5d776824f54112001f5bbdd7")
+        token: Plex user token (optional, but required for API call)
+        server_url: Plex Media Server URL (optional, defaults to "http://plex:32400")
         
     Returns:
-        True if the rating key exists in the library, False otherwise
+        True if the guid exists in the library, False otherwise
     """
-    # Build guid from rating_key - if not already in plex:// format, assume it's a movie
-    guid = rating_key if rating_key.startswith("plex://") else f"plex://movie/{rating_key}"
+    if not token:
+        logger.warning("Token is required to check if item is in Plex library")
+        return False
+    
+    # Default server URL if not provided
+    if not server_url:
+        server_url = "http://localhost:32400"
     
     url = f"{server_url}/library/all"
     headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
@@ -252,15 +275,15 @@ async def check_rating_key_in_library(
     
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            logger.debug(f"Checking if rating key {rating_key} (guid: {guid}) exists in library at {server_url}")
+            logger.debug(f"Checking if guid {guid} exists in library at {server_url}")
             response = await client.get(url, headers=headers, params=params)
             
             if response.status_code == 404:
-                logger.debug(f"Rating key {rating_key} not found in library (404)")
+                logger.debug(f"Guid {guid} not found in library (404)")
                 return False
             
             if response.status_code != 200:
-                logger.warning(f"Unexpected status code {response.status_code} when checking rating key {rating_key}")
+                logger.warning(f"Unexpected status code {response.status_code} when checking guid {guid}")
                 return False
             
             # Try JSON first (most common response format)
@@ -268,7 +291,7 @@ async def check_rating_key_in_library(
                 data = response.json()
                 size = data.get("MediaContainer", {}).get("size", 0)
                 found = size >= 1
-                logger.info(f"Rating key {rating_key} {'found' if found else 'not found'} in library (JSON, size={size})")
+                logger.info(f"Guid {guid} {'found' if found else 'not found'} in library (JSON, size={size})")
                 return found
             except (ValueError, AttributeError, TypeError):
                 # Fallback to XML parsing
@@ -278,23 +301,23 @@ async def check_rating_key_in_library(
                     if media_container is not None:
                         size = int(media_container.get('size', '0'))
                         found = size >= 1
-                        logger.info(f"Rating key {rating_key} {'found' if found else 'not found'} in library (XML, size={size})")
+                        logger.info(f"Guid {guid} {'found' if found else 'not found'} in library (XML, size={size})")
                         return found
-                    logger.debug(f"Rating key {rating_key} not found in library (no MediaContainer in XML)")
+                    logger.debug(f"Guid {guid} not found in library (no MediaContainer in XML)")
                     return False
                 except (ET.ParseError, ValueError) as e:
-                    logger.error(f"Error parsing response for rating key {rating_key}: {e}")
+                    logger.error(f"Error parsing response for guid {guid}: {e}")
                     logger.debug(f"Response content (first 200 chars): {response.text[:200]}")
                     return False
                 
         except httpx.TimeoutException:
-            logger.error(f"Timeout checking rating key {rating_key} in library at {server_url}")
+            logger.error(f"Timeout checking guid {guid} in library at {server_url}")
             return False
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error checking rating key {rating_key}: {e.response.status_code} - {e.response.text[:200]}")
+            logger.error(f"HTTP error checking guid {guid}: {e.response.status_code} - {e.response.text[:200]}")
             return False
         except Exception as e:
-            logger.error(f"Error checking rating key {rating_key} in library: {e}")
+            logger.error(f"Error checking guid {guid} in library: {e}")
             return False
 
 
@@ -330,131 +353,6 @@ async def add_to_watchlist(token: str, rating_key: str) -> bool:
             return False
 
 
-async def search_plex(token: str, query: str, limit: int = 10) -> List[PlexItemData]:
-    """
-    Search Plex for media items using direct API calls.
-    
-    Args:
-        token: Plex user token
-        query: Search query string
-        limit: Maximum number of results
-        
-    Returns:
-        List of matching PlexItemData items
-    """
-    results: List[PlexItemData] = []
-    
-    url = f"{PLEX_DISCOVER_API}/library/search"
-    headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
-    params = {
-        "query": query,
-        "limit": limit,
-        "searchTypes": "movies,tv",
-        "includeMetadata": 1,
-        "searchProviders": "discover",
-    }
-    
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            logger.info(f"Searching Plex for: {query}")
-            response = await client.get(url, headers=headers, params=params)
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                media_container = data.get("MediaContainer", {})
-                search_results = media_container.get("SearchResults", [])
-                
-                for result_group in search_results:
-                    search_result = result_group.get("SearchResult", [])
-                    for item in search_result:
-                        metadata = item.get("Metadata")
-                        if metadata:
-                            normalized = normalize_api_item(metadata)
-                            if normalized:
-                                results.append(normalized)
-                
-                logger.info(f"Found {len(results)} results for '{query}'")
-            else:
-                logger.error(f"Search failed: {response.status_code} - {response.text}")
-                
-        except Exception as e:
-            logger.error(f"Error searching Plex: {e}")
-    
-    return results
-
-
-def normalize_api_item(item: dict) -> Optional[PlexItemData]:
-    """
-    Normalize a Plex API JSON response item to our standard format.
-    
-    Args:
-        item: Dictionary from Plex API response
-        
-    Returns:
-        PlexItemData schema with all available metadata, or None if invalid
-    """
-    try:
-        # Get the GUID (required)
-        guid = item.get("guid")
-        if not guid:
-            rating_key = item.get("ratingKey")
-            item_type = item.get("type", "movie")
-            if rating_key:
-                guid = f"plex://{item_type}/{rating_key}"
-            else:
-                logger.warning(f"Item missing GUID: {item.get('title', 'Unknown')}")
-                return None
-        
-        # Get title (required)
-        title = item.get("title")
-        if not title:
-            logger.warning(f"Item missing title: {guid}")
-            return None
-        
-        # Get year
-        year = item.get("year")
-        if year:
-            try:
-                year = int(year)
-            except (ValueError, TypeError):
-                year = None
-        
-        # Get ratingKey
-        rating_key = item.get("ratingKey")
-        if rating_key:
-            rating_key = str(rating_key)
-        
-        # Get media type
-        media_type = item.get("type")
-        if media_type:
-            media_type = media_type.lower()
-        
-        # Get additional metadata
-        summary = item.get("summary")
-        thumb = item.get("thumb")
-        art = item.get("art")
-        content_rating = item.get("contentRating")
-        studio = item.get("studio")
-        
-        return PlexItemData(
-            guid=guid,
-            rating_key=rating_key,
-            title=title,
-            year=year,
-            media_type=media_type,
-            summary=summary,
-            thumb=thumb,
-            art=art,
-            content_rating=content_rating,
-            studio=studio,
-        )
-        
-    except Exception as e:
-        logger.error(f"Error normalizing API item: {e}")
-        return None
-
-
 # ============================================================================
 # SYNC SERVICE
 # ============================================================================
@@ -473,168 +371,36 @@ def parse_media_type(media_type_str: Optional[str]) -> Optional[MediaType]:
     return media_type_map.get(media_type_str.lower())
 
 
-async def sync_all_users(db: Session) -> Dict:
+async def get_watchlist_items_not_in_plexLibrary(db: Session,remove_from_watchlist: bool = False) -> List[PlexItemData]:
     """
-    Sync watchlists from all active Plex users and merge into shared wishlist.
-    
-    This function only handles Plex API interactions and database operations.
-    For integration with torrent search, use the OrchestrationService.
+    Get all watchlist items that are not in the plexLibrary.
     
     Args:
         db: Database session
-        
-    Returns:
-        Dictionary with sync summary statistics
+        remove_from_watchlist: If True, remove the item from the watchlist if it is in the plexLibrary
     """
-    logger.info("Starting sync for all users")
+    logger.info("Getting all watchlist items that are not in the plexLibrary")
     
     active_users = db.query(PlexUser).filter(PlexUser.active == True).all()
     
     if not active_users:
-        logger.warning("No active users found for sync")
-        return {
-            "users_processed": 0,
-            "items_fetched": 0,
-            "new_items": 0,
-            "updated_items": 0,
-            "errors": [],
-        }
+        return []
     
     logger.info(f"Found {len(active_users)} active users")
-    
-    all_items_by_guid: Dict[str, PlexItemData] = {}
-    user_items: Dict[int, Set[str]] = {}
-    
-    errors: List[str] = []
-    total_fetched = 0
-    
-    # Fetch watchlist for each user
+    items_not_in_plexLibrary = []
     for user in active_users:
-        try:
-            logger.info(f"Fetching watchlist for user: {user.name} (ID: {user.id})")
-            items = await get_watchlist(user.plex_token)
+        items = await get_watchlist(user.plex_token)
+        for item in items:
+            addItem = True
+            #if item is already in plexLibrary, remove from watchlist
+            if await is_item_in_plexLibrary(item.guid, token=user.plex_token):
+                if remove_from_watchlist:
+                    await remove_from_watchlist(user.plex_token, item.ratingKey)
+                    addItem = False
+   
+            #else add to watchlist if not already in watchlist
+            if addItem:
+                if not is_item_in_watchlist(items_not_in_plexLibrary, item.guid):
+                    items_not_in_plexLibrary.append(item)
             
-            user_items[user.id] = set()
-            for item in items:
-                guid = item.guid
-                all_items_by_guid[guid] = item
-                user_items[user.id].add(guid)
-            
-            total_fetched += len(items)
-            logger.info(f"Fetched {len(items)} items from user {user.name}")
-            
-        except Exception as e:
-            error_msg = f"Error fetching watchlist for user {user.name} (ID: {user.id}): {str(e)}"
-            logger.error(error_msg)
-            errors.append(error_msg)
-            continue
-    
-    # Merge into database
-    new_items = 0
-    updated_items = 0
-    
-    for guid, item in all_items_by_guid.items():
-        existing_item = db.query(WishlistItem).filter(WishlistItem.guid == guid).first()
-        
-        if existing_item:
-            updated = False
-            
-            if existing_item.title != item.title:
-                existing_item.title = item.title
-                updated = True
-            if existing_item.year != item.year:
-                existing_item.year = item.year
-                updated = True
-            if existing_item.rating_key != item.rating_key:
-                existing_item.rating_key = item.rating_key
-                updated = True
-            
-            new_media_type = parse_media_type(item.media_type)
-            if existing_item.media_type != new_media_type:
-                existing_item.media_type = new_media_type
-                updated = True
-            
-            if item.summary and existing_item.summary != item.summary:
-                existing_item.summary = item.summary
-                updated = True
-            if item.thumb and existing_item.thumb != item.thumb:
-                existing_item.thumb = item.thumb
-                updated = True
-            if item.art and existing_item.art != item.art:
-                existing_item.art = item.art
-                updated = True
-            if item.content_rating and existing_item.content_rating != item.content_rating:
-                existing_item.content_rating = item.content_rating
-                updated = True
-            if item.studio and existing_item.studio != item.studio:
-                existing_item.studio = item.studio
-                updated = True
-                
-            existing_item.last_seen_at = datetime.now(timezone.utc)
-            
-            if updated:
-                updated_items += 1
-                logger.debug(f"Updated item: {guid} - {item.title}")
-        else:
-            new_item = WishlistItem(
-                guid=guid,
-                rating_key=item.rating_key,
-                title=item.title,
-                year=item.year,
-                media_type=parse_media_type(item.media_type),
-                summary=item.summary,
-                thumb=item.thumb,
-                art=item.art,
-                content_rating=item.content_rating,
-                studio=item.studio,
-                added_at=datetime.now(timezone.utc),
-                last_seen_at=datetime.now(timezone.utc),
-            )
-            db.add(new_item)
-            db.flush()
-            existing_item = new_item
-            new_items += 1
-            
-            logger.debug(f"Added new item: {guid} - {item.title}")
-        
-        # Update sources
-        for user_id, guids in user_items.items():
-            if guid in guids:
-                source = db.query(WishlistItemSource).filter(
-                    and_(
-                        WishlistItemSource.wishlist_item_id == existing_item.id,
-                        WishlistItemSource.plex_user_id == user_id,
-                    )
-                ).first()
-                
-                if source:
-                    source.last_seen_at = datetime.now(timezone.utc)
-                else:
-                    new_source = WishlistItemSource(
-                        wishlist_item_id=existing_item.id,
-                        plex_user_id=user_id,
-                        first_added_at=datetime.now(timezone.utc),
-                        last_seen_at=datetime.now(timezone.utc),
-                    )
-                    db.add(new_source)
-    
-    # Commit
-    try:
-        db.commit()
-        logger.info(f"Sync completed: {new_items} new items, {updated_items} updated items")
-    except Exception as e:
-        db.rollback()
-        error_msg = f"Error committing sync: {str(e)}"
-        logger.error(error_msg)
-        errors.append(error_msg)
-        raise
-    
-    return {
-        "users_processed": len(active_users),
-        "items_fetched": total_fetched,
-        "new_items": new_items,
-        "updated_items": updated_items,
-        "total_items": len(all_items_by_guid),
-        "errors": errors,
-        "sync_time": datetime.now(timezone.utc).isoformat(),
-    }
+    return items_not_in_plexLibrary

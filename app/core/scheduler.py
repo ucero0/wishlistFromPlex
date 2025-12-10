@@ -5,26 +5,25 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.modules.plex.service import sync_all_users
+from app.modules.orchestration.service import OrchestrationService
 
 logger = logging.getLogger(__name__)
 
 scheduler = None
 
 
-def run_sync_job():
-    """Job function to run the sync in the background."""
-    logger.info("Starting scheduled sync job")
+def run_orchestration_job():
+    """Job function to run the orchestration workflow in the background."""
+    logger.info("Starting scheduled orchestration job")
     db: Session = SessionLocal()
     try:
-        # Note: sync_all_users is async, but APScheduler runs sync functions
-        # We need to handle this properly - either make sync_all_users sync
-        # or use asyncio.run() here
         import asyncio
-        result = asyncio.run(sync_all_users(db))
-        logger.info(f"Scheduled sync completed: {result}")
+        service = OrchestrationService(db)
+        result = asyncio.run(service.run_full_workflow(auto_search=True, force_research=False))
+        logger.info(f"Scheduled orchestration completed: {result.get('items_searched', 0)} searched, "
+                   f"{result.get('items_added_to_deluge', 0)} added to Deluge")
     except Exception as e:
-        logger.error(f"Error in scheduled sync: {e}", exc_info=True)
+        logger.error(f"Error in scheduled orchestration: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -39,18 +38,18 @@ def start_scheduler():
     
     scheduler = BackgroundScheduler()
     
-    # Schedule sync job
+    # Schedule orchestration job (syncs watchlists, searches torrents, adds to Deluge)
     interval_hours = settings.plex_sync_interval_hours
     scheduler.add_job(
-        run_sync_job,
+        run_orchestration_job,
         trigger=IntervalTrigger(hours=interval_hours),
-        id="sync_watchlists",
-        name="Sync Plex Watchlists",
+        id="orchestration_workflow",
+        name="Orchestration Workflow (Sync + Search + Download)",
         replace_existing=True,
     )
     
     scheduler.start()
-    logger.info(f"Scheduler started - sync will run every {interval_hours} hours")
+    logger.info(f"Scheduler started - orchestration workflow will run every {interval_hours} hours")
 
 
 def stop_scheduler():

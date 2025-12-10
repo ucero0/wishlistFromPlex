@@ -22,6 +22,8 @@ from app.core.db import Base, get_db
 from app.main import app
 from app.modules.plex.models import PlexUser, WishlistItem, WishlistItemSource, MediaType
 from app.modules.deluge.models import TorrentItem, TorrentStatus
+from app.modules.scanner.models import ScanResult, ScanStatus
+from app.modules.torrent_search.models import TorrentSearchResult, SearchStatus
 
 
 # Test database engine (in-memory SQLite)

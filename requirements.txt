@@ -9,11 +9,9 @@ python-dotenv==1.0.0
 pydantic-settings==2.1.0
 apscheduler==3.10.4
 
-# Deluge client (Web API client for Deluge 2.x support)
-deluge-web-client>=1.0.0
+# Deluge client (RPC client for Deluge daemon)
+deluge-client==1.10.2
 
-# Bencode parser for torrent files
-bencode.py==4.0.0
 
 # Scanner dependencies
 pyclamd==0.4.0

@@ -1,5 +1,5 @@
 """Plex module Pydantic schemas."""
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -72,18 +72,19 @@ class WishlistStatsResponse(BaseSchema):
 class PlexItemData(BaseModel):
     """Schema for normalized Plex item data from API."""
     guid: str
-    rating_key: Optional[str] = None
+    ratingKey: Optional[str] = None
     title: str
     year: Optional[int] = None
-    media_type: Optional[str] = None
+    type: Optional[str] = Field(None, alias="mediaType")
     summary: Optional[str] = None
     thumb: Optional[str] = None
     art: Optional[str] = None
-    content_rating: Optional[str] = None
+    contentRating: Optional[str] = None
     studio: Optional[str] = None
 
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class PlexAccountInfo(BaseModel):

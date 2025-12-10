@@ -1,6 +1,6 @@
 """Remove legacy user_name and plex_token from wishlist_items
 
-Revision ID: 003_remove_legacy
+Revision ID: 003_remove_legacy_user_fields
 Revises: 002_media_metadata
 Create Date: 2025-12-02
 
@@ -13,7 +13,7 @@ from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
-revision = '003_remove_legacy'
+revision = '003_remove_legacy_user_fields'
 down_revision = '002_media_metadata'
 branch_labels = None
 depends_on = None

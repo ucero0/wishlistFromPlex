@@ -30,9 +30,6 @@ class QualityInfo(BaseModel):
     release_group: Optional[str] = None
 
 
-
-
-
 class SearchRequest(BaseModel):
     """Request to search for torrents using rating_key (backward compatibility)."""
     rating_key: str = Field(..., description="Plex rating_key for the wishlist item")
