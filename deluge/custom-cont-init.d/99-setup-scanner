@@ -1,0 +1,19 @@
+#!/bin/bash
+# Setup script for scanner integration
+
+echo "Setting up scanner integration..."
+
+# Make the execute script executable
+if [ -f /scripts/on-torrent-complete.sh ]; then
+    chmod +x /scripts/on-torrent-complete.sh
+    echo "Scanner script permissions set"
+fi
+
+# Install curl if not present (needed for API calls)
+if ! command -v curl &> /dev/null; then
+    echo "Installing curl..."
+    apk add --no-cache curl
+fi
+
+echo "Scanner integration setup complete"
+
