@@ -4,7 +4,7 @@ from typing import Optional
 from datetime import datetime
 
 from sqlalchemy.orm import Session
-from deluge_client import DelugeRPCClient
+from deluge_web_client import DelugeWebClient
 
 from app.core.config import settings
 from app.modules.deluge.models import TorrentItem, TorrentStatus
@@ -17,24 +17,184 @@ logger = logging.getLogger(__name__)
 # Deluge Client Connection
 # =============================================================================
 
-def get_deluge_client() -> DelugeRPCClient:
+class DelugeClientWrapper:
+    """Wrapper around DelugeWebClient to provide a call() method compatible with deluge-client API."""
+    
+    def __init__(self, client: DelugeWebClient):
+        self.client = client
+    
+    def _extract_result(self, response):
+        """Extract actual result from Response object or return as-is."""
+        if hasattr(response, 'result'):
+            return response.result
+        elif hasattr(response, 'data'):
+            return response.data
+        else:
+            return response
+    
+    def call(self, method: str, *args):
+        """
+        Call a Deluge RPC method by mapping to deluge-web-client specific methods.
+        
+        Args:
+            method: RPC method name (e.g., "core.add_torrent_magnet", "core.get_torrent_status")
+            *args: Arguments to pass to the method
+            
+        Returns:
+            Method result
+        """
+        # Map RPC methods to deluge-web-client specific methods
+        if method == "core.add_torrent_magnet":
+            # add_torrent_magnet(uri: str, torrent_options: TorrentOptions) -> Response
+            magnet_link = args[0] if args else ""
+            options = args[1] if len(args) > 1 else {}
+            from deluge_web_client.schema import TorrentOptions
+            
+            # Create TorrentOptions from options dict or use defaults
+            if options:
+                torrent_options = TorrentOptions(**options)
+            else:
+                torrent_options = TorrentOptions()
+            
+            result = self.client.add_torrent_magnet(magnet_link, torrent_options)
+            return self._extract_result(result)
+        
+        elif method == "core.add_torrent_url":
+            # add_torrent_url(url: str, torrent_options: TorrentOptions) -> Response
+            url = args[0] if args else ""
+            options = args[1] if len(args) > 1 else {}
+            from deluge_web_client.schema import TorrentOptions
+            
+            # Create TorrentOptions from options dict or use defaults
+            if options:
+                torrent_options = TorrentOptions(**options)
+            else:
+                torrent_options = TorrentOptions()
+            
+            result = self.client.add_torrent_url(url, torrent_options)
+            return self._extract_result(result)
+        
+        elif method == "core.add_torrent_file":
+            # upload_torrent(torrent_path: str, torrent_options: TorrentOptions) -> Response
+            filename = args[0] if args else "torrent.torrent"
+            torrent_data = args[1] if len(args) > 1 else ""
+            options = args[2] if len(args) > 2 else {}
+            # Convert base64 string back to bytes if needed
+            import base64
+            import tempfile
+            import os
+            from deluge_web_client.schema import TorrentOptions
+            
+            if isinstance(torrent_data, str):
+                torrent_bytes = base64.b64decode(torrent_data)
+            else:
+                torrent_bytes = torrent_data
+            
+            # Write torrent data to temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.torrent') as tmp_file:
+                tmp_file.write(torrent_bytes)
+                tmp_path = tmp_file.name
+            
+            try:
+                # Create TorrentOptions from options dict or use defaults
+                if options:
+                    torrent_options = TorrentOptions(**options)
+                else:
+                    torrent_options = TorrentOptions()
+                
+                result = self.client.upload_torrent(tmp_path, torrent_options)
+                return self._extract_result(result)
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+        
+        elif method == "core.get_torrent_status":
+            # get_torrent_status(torrent_hash: str, fields: list) -> dict
+            torrent_hash = args[0] if args else ""
+            fields = args[1] if len(args) > 1 else []
+            status = self.client.get_torrent_status(torrent_hash, fields)
+            return self._extract_result(status)
+        
+        elif method == "core.get_torrents_status":
+            # get_torrents_status(filters: dict, fields: list) -> dict
+            filters = args[0] if args else {}
+            fields = args[1] if len(args) > 1 else []
+            result = self.client.get_torrents_status(filters, fields)
+            return self._extract_result(result)
+        
+        elif method == "core.remove_torrent":
+            # remove_torrent(torrent_hash: str, remove_data: bool) -> None
+            torrent_hash = args[0] if args else ""
+            remove_data = args[1] if len(args) > 1 else False
+            self.client.remove_torrent(torrent_hash, remove_data)
+            return True
+        
+        elif method == "daemon.info":
+            # Try to get libtorrent version as a proxy for daemon info
+            version_response = self.client.get_libtorrent_version()
+            return self._extract_result(version_response)
+        
+        else:
+            # Fallback: try execute_call for unknown methods
+            payload = {
+                "method": method,
+                "params": list(args)
+            }
+            try:
+                response = self.client.execute_call(payload)
+                if hasattr(response, 'result'):
+                    return response.result
+                elif hasattr(response, 'data'):
+                    return response.data
+                else:
+                    return response
+            except Exception as e:
+                logger.error(f"Unknown method {method} and execute_call failed: {e}")
+                raise
+
+
+def get_deluge_client() -> DelugeClientWrapper:
     """
-    Create and return a Deluge RPC client connection.
+    Create and return a Deluge Web API client connection.
+    
+    Uses HTTP-based Web API which is compatible with Deluge 2.x.
+    Uses WebUI port (8112) for HTTP communication.
     
     Returns:
-        DelugeRPCClient: Connected Deluge client
+        DelugeClientWrapper: Wrapped client with call() method
         
     Raises:
         Exception: If connection fails
     """
-    client = DelugeRPCClient(
-        host=settings.deluge_host,
-        port=settings.deluge_port,
-        username=settings.deluge_username,
+    # Build WebUI URL
+    webui_url = f"http://{settings.deluge_host}:{settings.deluge_webui_port}"
+    
+    # DelugeWebClient API: __init__(url: str, password: str, daemon_port: int = 58846)
+    # Note: Even though it's called "web-client", it may still use daemon_port for RPC calls
+    # We'll try setting daemon_port to None or 0 to force HTTP-only if possible
+    client = DelugeWebClient(
+        url=webui_url,
         password=settings.deluge_password,
+        daemon_port=settings.deluge_port,  # Still needed for some operations
     )
-    client.connect()
-    return client
+    
+    # Login/connect if needed
+    try:
+        if hasattr(client, 'login'):
+            client.login()
+        elif hasattr(client, 'connect_to_host'):
+            # May need to connect to a host first
+            hosts = client.get_hosts()
+            if hosts:
+                host_id = hosts[0].get('id') if isinstance(hosts[0], dict) else hosts[0].id
+                client.connect_to_host(host_id)
+    except Exception as e:
+        logger.warning(f"Could not login/connect to Deluge (may be automatic): {e}")
+    
+    return DelugeClientWrapper(client)
 
 
 def test_connection() -> tuple[bool, Optional[str], Optional[str]]:
@@ -46,10 +206,14 @@ def test_connection() -> tuple[bool, Optional[str], Optional[str]]:
     """
     try:
         client = get_deluge_client()
-        # Get daemon info
-        version = client.call("daemon.info")
-        client.disconnect()
-        return True, version, None
+        # Try to get daemon info using execute_call
+        try:
+            version = client.call("daemon.info")
+            return True, str(version), None
+        except Exception:
+            # Fallback: try to get libtorrent version as a connection test
+            version = client.client.get_libtorrent_version()
+            return True, f"libtorrent-{version}", None
     except Exception as e:
         logger.error(f"Failed to connect to Deluge: {e}")
         return False, None, str(e)
@@ -81,7 +245,6 @@ def extract_torrent_data(torrent_hash: str) -> Optional[TorrentInfoResponse]:
         ]
         
         result = client.call("core.get_torrent_status", torrent_hash, fields)
-        client.disconnect()
         
         if not result:
             logger.warning(f"Torrent {torrent_hash} not found in Deluge")
@@ -130,7 +293,6 @@ def get_all_torrents_info() -> list[TorrentInfoResponse]:
         
         # Get all torrents
         result = client.call("core.get_torrents_status", {}, fields)
-        client.disconnect()
         
         torrents = []
         for hash_bytes, data in result.items():
@@ -186,7 +348,6 @@ def add_magnet(magnet_link: str, rating_key: str, db: Session) -> tuple[bool, Op
         torrent_hash = client.call("core.add_torrent_magnet", magnet_link, {})
         
         if not torrent_hash:
-            client.disconnect()
             return False, "Failed to add magnet - Deluge returned no hash", None
         
         # Decode hash if bytes
@@ -198,7 +359,6 @@ def add_magnet(magnet_link: str, rating_key: str, db: Session) -> tuple[bool, Op
         # Get initial torrent info
         fields = ["name", "save_path", "total_size"]
         info = client.call("core.get_torrent_status", torrent_hash, fields)
-        client.disconnect()
         
         # Create database record
         torrent_item = TorrentItem(
@@ -219,6 +379,120 @@ def add_magnet(magnet_link: str, rating_key: str, db: Session) -> tuple[bool, Op
         
     except Exception as e:
         logger.error(f"Error adding magnet: {e}")
+        db.rollback()
+        return False, str(e), None
+
+
+def add_torrent_url(download_url: str, rating_key: str, db: Session) -> tuple[bool, Optional[str], Optional[TorrentItem]]:
+    """
+    Add a torrent to Deluge via HTTP/HTTPS URL (downloads .torrent file) and track it in database.
+    
+    Args:
+        download_url: The HTTP/HTTPS URL to download the torrent file from
+        rating_key: Plex rating_key to associate with this torrent
+        db: Database session
+        
+    Returns:
+        Tuple of (success, torrent_hash or error_message, TorrentItem or None)
+    """
+    try:
+        client = get_deluge_client()
+        
+        # Add torrent from URL - Deluge will download the .torrent file
+        # Returns torrent_hash on success
+        torrent_hash = client.call("core.add_torrent_url", download_url, {})
+        
+        if not torrent_hash:
+            return False, "Failed to add torrent from URL - Deluge returned no hash", None
+        
+        # Decode hash if bytes
+        if isinstance(torrent_hash, bytes):
+            torrent_hash = torrent_hash.decode("utf-8")
+        
+        logger.info(f"Added torrent {torrent_hash} from URL for rating_key {rating_key}")
+        
+        # Get initial torrent info
+        fields = ["name", "save_path", "total_size"]
+        info = client.call("core.get_torrent_status", torrent_hash, fields)
+        
+        # Create database record
+        torrent_item = TorrentItem(
+            rating_key=rating_key,
+            torrent_hash=torrent_hash,
+            magnet_link=download_url,  # Store URL in magnet_link field for reference
+            name=info.get(b"name", b"").decode("utf-8") if isinstance(info.get(b"name"), bytes) else info.get("name"),
+            save_path=info.get(b"save_path", b"").decode("utf-8") if isinstance(info.get(b"save_path"), bytes) else info.get("save_path"),
+            total_size=int(info.get(b"total_size", 0) or info.get("total_size", 0)),
+            status=TorrentStatus.QUEUED,
+        )
+        
+        db.add(torrent_item)
+        db.commit()
+        db.refresh(torrent_item)
+        
+        return True, torrent_hash, torrent_item
+        
+    except Exception as e:
+        logger.error(f"Error adding torrent from URL: {e}")
+        db.rollback()
+        return False, str(e), None
+
+
+def add_torrent_file(torrent_file_data: bytes, rating_key: str, db: Session) -> tuple[bool, Optional[str], Optional[TorrentItem]]:
+    """
+    Add a torrent to Deluge from torrent file binary data and track it in database.
+    
+    Args:
+        torrent_file_data: Binary data of the .torrent file
+        rating_key: Plex rating_key to associate with this torrent
+        db: Database session
+        
+    Returns:
+        Tuple of (success, torrent_hash or error_message, TorrentItem or None)
+    """
+    try:
+        client = get_deluge_client()
+        
+        # Deluge Web API: core.add_torrent_file(filename, torrent_file_base64, options)
+        # For HTTP API, we need to base64 encode the torrent file data
+        import base64
+        torrent_base64 = base64.b64encode(torrent_file_data).decode('utf-8')
+        torrent_hash = client.call("core.add_torrent_file", f"{rating_key}.torrent", torrent_base64, {})
+        
+        if not torrent_hash:
+            return False, "Failed to add torrent from file - Deluge returned no hash", None
+        
+        # Decode hash if bytes
+        if isinstance(torrent_hash, bytes):
+            torrent_hash = torrent_hash.decode("utf-8")
+        
+        logger.info(f"Added torrent {torrent_hash} from file data for rating_key {rating_key}")
+        
+        # Get initial torrent info
+        fields = ["name", "save_path", "total_size"]
+        info = client.call("core.get_torrent_status", torrent_hash, fields)
+        
+        # Create database record
+        torrent_item = TorrentItem(
+            rating_key=rating_key,
+            torrent_hash=torrent_hash,
+            magnet_link=None,  # No magnet link when adding from file
+            name=info.get(b"name", b"").decode("utf-8") if isinstance(info.get(b"name"), bytes) else info.get("name"),
+            save_path=info.get(b"save_path", b"").decode("utf-8") if isinstance(info.get(b"save_path"), bytes) else info.get("save_path"),
+            total_size=int(info.get(b"total_size", 0) or info.get("total_size", 0)),
+            status=TorrentStatus.QUEUED,
+        )
+        
+        db.add(torrent_item)
+        db.commit()
+        db.refresh(torrent_item)
+        
+        return True, torrent_hash, torrent_item
+        
+    except Exception as e:
+        logger.error(f"Error adding torrent from file: {e}")
+        import traceback
+        logger.debug(traceback.format_exc())
         db.rollback()
         return False, str(e), None
 
@@ -245,7 +519,6 @@ def remove_torrent(torrent_hash: str, remove_data: bool, db: Session) -> tuple[b
         # Remove from Deluge
         # remove_torrent(torrent_id, remove_data)
         result = client.call("core.remove_torrent", torrent_hash, remove_data)
-        client.disconnect()
         
         if result:
             # Update database record

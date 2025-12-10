@@ -23,6 +23,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      clamav:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-plex_wishlist_user}:${POSTGRES_PASSWORD:-plex_wishlist_pass}@db:5432/${POSTGRES_DB:-plex_wishlist}
       API_KEY: ${API_KEY}
@@ -33,10 +35,24 @@ services:
       DELUGE_PORT: ${DELUGE_PORT:-58846}
       DELUGE_USERNAME: ${DELUGE_USERNAME:-localclient}
       DELUGE_PASSWORD: ${DELUGE_PASSWORD:-}
+      # Scanner configuration
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      YARA_RULES_PATH: /app/yara-rules
+      # Prowlarr configuration - connects via gluetun container
+      PROWLARR_HOST: ${PROWLARR_HOST:-gluetun}
+      PROWLARR_PORT: ${PROWLARR_PORT:-9696}
+      PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
     ports:
       - "8000:8000"
     volumes:
       - ./app:/app/app
+      - ./tests:/app/tests
+      - ./alembic:/app/alembic
+      - ./scripts:/app/scripts
+      - ./deluge/downloads:/downloads
+      - ./media:/media
+      - ./yara-rules:/app/yara-rules:ro
     networks:
       - plex-wishlist-network
     restart: unless-stopped
@@ -58,12 +74,14 @@ services:
       - HEALTH_SERVER_AUTH=no
       - SERVER_REGIONS=${SERVER_REGIONS:-}
       - FIREWALL=on
-      - FIREWALL_INPUT_PORTS=8112,58846
-      - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12
+      - FIREWALL_INPUT_PORTS=8112,58846,9696,8191
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12,172.18.0.0/16
       - FIREWALL_IPV6=off
     ports:
       - "8112:8112"
       - "58846:58846"
+      - "9696:9696"
+      - "8191:8191"
     volumes:
       - ./gluetun:/gluetun
     networks:
@@ -79,12 +97,83 @@ services:
       - PGID=1000
       - TZ=Europe/Madrid
       - DELUGE_LOGLEVEL=info
+      - API_KEY=${API_KEY}
+      - SCANNER_API_URL=http://plex-wishlist-api:8000
     volumes:
       - ./deluge/config:/config
       - ./deluge/downloads:/downloads
       - ./deluge/custom-cont-init.d:/custom-cont-init.d:ro
+      - ./deluge/scripts:/scripts:ro
     depends_on:
       - gluetun
+    restart: unless-stopped
+
+  prowlarr:
+    image: linuxserver/prowlarr:latest
+    container_name: prowlarr
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+      # Authentication (set via config file after first setup)
+      # To enable auth: Access UI, Settings → General → Security → Authentication
+      # Set username/password, then API key will be generated
+    volumes:
+      - ./prowlarr/config:/config
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+
+  flaresolverr:
+    image: flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    network_mode: "service:gluetun"
+    environment:
+      - LOG_LEVEL=${FLARESOLVERR_LOG_LEVEL:-info}
+      - TZ=Europe/Madrid
+      - CAPTCHA_SOLVER=${FLARESOLVERR_CAPTCHA_SOLVER:-none}
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+
+  plex:
+    image: linuxserver/plex:latest
+    container_name: plex
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+      - VERSION=docker
+      - PLEX_CLAIM=${PLEX_CLAIM:-}
+    volumes:
+      - ./plex/config:/config
+      - ./media/movies:/media/movies
+      - ./media/tvshows:/media/tvshows
+    ports:
+      - "32400:32400"
+    networks:
+      - plex-wishlist-network
+    restart: unless-stopped
+
+  clamav:
+    image: clamav/clamav:latest
+    container_name: clamav
+    environment:
+      - CLAMAV_NO_FRESHCLAMD=false
+      - CLAMAV_NO_CLAMD=false
+    volumes:
+      - ./clamav/data:/var/lib/clamav
+      - ./deluge/downloads:/scan/downloads:ro
+      - ./media:/scan/media:ro
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - plex-wishlist-network
     restart: unless-stopped
 
 networks:

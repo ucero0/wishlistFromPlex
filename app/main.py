@@ -19,6 +19,9 @@ from app.core.scheduler import start_scheduler, stop_scheduler
 # Import module routers
 from app.modules.plex import router as plex_router
 from app.modules.deluge import router as deluge_router
+from app.modules.scanner import router as scanner_router
+from app.modules.torrent_search import router as torrent_search_router
+from app.modules.orchestration import router as orchestration_router
 
 # Configure logging
 logging.basicConfig(
@@ -34,10 +37,26 @@ app = FastAPI(
     description="""
     Automated media management service that:
     - Syncs Plex watchlists from multiple users
-    - (Coming soon) Searches for torrent magnet links
-    - (Coming soon) Sends downloads to Deluge
-    - (Coming soon) Scans completed downloads for viruses
-    - (Coming soon) Moves clean files to Plex library
+    - Auto-searches for torrents via Prowlarr (prioritizes TrueHD, 2160p)
+    - Sends downloads to Deluge through VPN
+    - Scans completed downloads for viruses (ClamAV + YARA)
+    - Organizes clean files into Plex library structure
+    
+    ## Authentication
+    
+    Most endpoints require API key authentication via the `X-API-Key` header.
+    Set your API key in the `API_KEY` environment variable.
+    
+    Example:
+    ```bash
+    curl -H "X-API-Key: your-api-key-here" http://localhost:8000/api/endpoint
+    ```
+    
+    Public endpoints (no authentication required):
+    - `GET /health` - Health check
+    - `GET /` - API information
+    - `GET /deluge/status` - Deluge connection status
+    - `GET /deluge/torrents` - List torrents (read-only)
     """,
     version="2.0.0",
 )
@@ -54,10 +73,11 @@ app.add_middleware(
 # Include module routers
 app.include_router(plex_router)
 app.include_router(deluge_router)
+app.include_router(scanner_router)
+app.include_router(torrent_search_router)
+app.include_router(orchestration_router)
 
 # Future modules will be added here:
-# app.include_router(torrent_search_router)
-# app.include_router(scanner_router)
 # app.include_router(file_manager_router)
 
 
@@ -103,8 +123,9 @@ async def root():
         "modules": {
             "plex": "active",
             "deluge": "active",
-            "torrent_search": "coming_soon",
-            "scanner": "coming_soon",
+            "scanner": "active",
+            "torrent_search": "active",
+            "orchestration": "active",
             "file_manager": "coming_soon",
         },
     }

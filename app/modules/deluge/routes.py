@@ -100,7 +100,7 @@ async def add_torrent(
         )
 
 
-@router.get("/torrents", response_model=TorrentListResponse)
+@router.get("/torrents", response_model=TorrentListResponse, dependencies=[Depends(get_api_key)])
 async def list_torrents(
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by status"),
     limit: int = Query(100, ge=1, le=500),
@@ -110,7 +110,7 @@ async def list_torrents(
     """
     List all tracked torrents with optional filtering.
     
-    No authentication required.
+    Requires API key authentication.
     """
     torrent_status = None
     if status_filter:
@@ -130,7 +130,7 @@ async def list_torrents(
     )
 
 
-@router.get("/torrents/by-rating-key/{rating_key}", response_model=TorrentListResponse)
+@router.get("/torrents/by-rating-key/{rating_key}", response_model=TorrentListResponse, dependencies=[Depends(get_api_key)])
 async def get_torrents_by_rating_key(
     rating_key: str,
     db: Session = Depends(get_db)
@@ -138,7 +138,7 @@ async def get_torrents_by_rating_key(
     """
     Get all torrents associated with a Plex rating_key.
     
-    No authentication required.
+    Requires API key authentication.
     """
     torrents = service.get_torrents_by_rating_key(rating_key, db)
     
@@ -148,7 +148,7 @@ async def get_torrents_by_rating_key(
     )
 
 
-@router.get("/torrents/{torrent_hash}", response_model=TorrentItemResponse)
+@router.get("/torrents/{torrent_hash}", response_model=TorrentItemResponse, dependencies=[Depends(get_api_key)])
 async def get_torrent(
     torrent_hash: str,
     db: Session = Depends(get_db)
@@ -156,7 +156,7 @@ async def get_torrent(
     """
     Get a specific torrent by its hash.
     
-    No authentication required.
+    Requires API key authentication.
     """
     torrent = service.get_torrent_by_hash(torrent_hash, db)
     
@@ -169,12 +169,12 @@ async def get_torrent(
     return TorrentItemResponse.model_validate(torrent)
 
 
-@router.get("/torrents/{torrent_hash}/info", response_model=TorrentInfoResponse)
+@router.get("/torrents/{torrent_hash}/info", response_model=TorrentInfoResponse, dependencies=[Depends(get_api_key)])
 async def get_torrent_info(torrent_hash: str):
     """
     Get live torrent info directly from Deluge daemon.
     
-    No authentication required.
+    Requires API key authentication.
     """
     info = service.extract_torrent_data(torrent_hash)
     
@@ -281,13 +281,13 @@ async def sync_torrents(db: Session = Depends(get_db)):
 # Daemon Info Endpoints
 # =============================================================================
 
-@router.get("/daemon/torrents", response_model=list[TorrentInfoResponse])
+@router.get("/daemon/torrents", response_model=list[TorrentInfoResponse], dependencies=[Depends(get_api_key)])
 async def get_all_daemon_torrents():
     """
     Get all torrents directly from Deluge daemon.
     
     Returns live data, not from database.
-    No authentication required.
+    Requires API key authentication.
     """
     return service.get_all_torrents_info()
 

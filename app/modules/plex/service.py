@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
 import httpx
+import xml.etree.ElementTree as ET
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -151,6 +152,149 @@ async def remove_from_watchlist(token: str, rating_key: str) -> bool:
                 
         except Exception as e:
             logger.error(f"Error removing item {rating_key} from watchlist: {e}")
+            return False
+
+
+async def remove_from_all_user_watchlists(db: Session, rating_key: str) -> Dict:
+    """
+    Remove an item from all active users' watchlists.
+    
+    Args:
+        db: Database session
+        rating_key: The ratingKey of the item to remove (e.g., "5d776d1847dd6e001f6f002f")
+        
+    Returns:
+        Dictionary with removal summary statistics:
+        - users_processed: Number of users processed
+        - successful_removals: Number of successful removals
+        - failed_removals: Number of failed removals
+        - errors: List of error messages
+    """
+    logger.info(f"Removing item {rating_key} from all active users' watchlists")
+    
+    active_users = db.query(PlexUser).filter(PlexUser.active == True).all()
+    
+    if not active_users:
+        logger.warning("No active users found")
+        return {
+            "users_processed": 0,
+            "successful_removals": 0,
+            "failed_removals": 0,
+            "errors": ["No active users found"],
+        }
+    
+    logger.info(f"Found {len(active_users)} active users")
+    
+    successful_removals = 0
+    failed_removals = 0
+    errors: List[str] = []
+    
+    # Remove from each user's watchlist
+    for user in active_users:
+        try:
+            logger.info(f"Removing item {rating_key} from watchlist for user: {user.name} (ID: {user.id})")
+            success = await remove_from_watchlist(user.plex_token, rating_key)
+            
+            if success:
+                successful_removals += 1
+                logger.info(f"Successfully removed item {rating_key} from user {user.name}'s watchlist")
+            else:
+                failed_removals += 1
+                error_msg = f"Failed to remove item {rating_key} from user {user.name}'s watchlist"
+                logger.warning(error_msg)
+                errors.append(error_msg)
+                
+        except Exception as e:
+            failed_removals += 1
+            error_msg = f"Error removing item {rating_key} from user {user.name} (ID: {user.id}): {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+            continue
+    
+    logger.info(
+        f"Removal completed: {successful_removals} successful, {failed_removals} failed "
+        f"out of {len(active_users)} users"
+    )
+    
+    return {
+        "users_processed": len(active_users),
+        "successful_removals": successful_removals,
+        "failed_removals": failed_removals,
+        "errors": errors,
+    }
+
+
+async def check_rating_key_in_library(
+    server_url: str,
+    token: str,
+    rating_key: str
+) -> bool:
+    """
+    Check if a rating key exists in the Plex Media Server library.
+    
+    Uses the /library/all endpoint with guid parameter to search for the item.
+    The response is typically JSON, and if MediaContainer has size >= 1, the item exists.
+    
+    Args:
+        server_url: Plex Media Server URL (e.g., "http://homeserver.local:32400" or "http://plex:32400")
+        token: Plex user token
+        rating_key: The ratingKey to check (e.g., "5d776824f54112001f5bbdd7" or "plex://movie/5d776824f54112001f5bbdd7")
+        
+    Returns:
+        True if the rating key exists in the library, False otherwise
+    """
+    # Build guid from rating_key - if not already in plex:// format, assume it's a movie
+    guid = rating_key if rating_key.startswith("plex://") else f"plex://movie/{rating_key}"
+    
+    url = f"{server_url}/library/all"
+    headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
+    params = {"guid": guid, "X-Plex-Token": token}
+    
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            logger.debug(f"Checking if rating key {rating_key} (guid: {guid}) exists in library at {server_url}")
+            response = await client.get(url, headers=headers, params=params)
+            
+            if response.status_code == 404:
+                logger.debug(f"Rating key {rating_key} not found in library (404)")
+                return False
+            
+            if response.status_code != 200:
+                logger.warning(f"Unexpected status code {response.status_code} when checking rating key {rating_key}")
+                return False
+            
+            # Try JSON first (most common response format)
+            try:
+                data = response.json()
+                size = data.get("MediaContainer", {}).get("size", 0)
+                found = size >= 1
+                logger.info(f"Rating key {rating_key} {'found' if found else 'not found'} in library (JSON, size={size})")
+                return found
+            except (ValueError, AttributeError, TypeError):
+                # Fallback to XML parsing
+                try:
+                    root = ET.fromstring(response.text.strip())
+                    media_container = root.find('MediaContainer')
+                    if media_container is not None:
+                        size = int(media_container.get('size', '0'))
+                        found = size >= 1
+                        logger.info(f"Rating key {rating_key} {'found' if found else 'not found'} in library (XML, size={size})")
+                        return found
+                    logger.debug(f"Rating key {rating_key} not found in library (no MediaContainer in XML)")
+                    return False
+                except (ET.ParseError, ValueError) as e:
+                    logger.error(f"Error parsing response for rating key {rating_key}: {e}")
+                    logger.debug(f"Response content (first 200 chars): {response.text[:200]}")
+                    return False
+                
+        except httpx.TimeoutException:
+            logger.error(f"Timeout checking rating key {rating_key} in library at {server_url}")
+            return False
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error checking rating key {rating_key}: {e.response.status_code} - {e.response.text[:200]}")
+            return False
+        except Exception as e:
+            logger.error(f"Error checking rating key {rating_key} in library: {e}")
             return False
 
 
@@ -333,6 +477,9 @@ async def sync_all_users(db: Session) -> Dict:
     """
     Sync watchlists from all active Plex users and merge into shared wishlist.
     
+    This function only handles Plex API interactions and database operations.
+    For integration with torrent search, use the OrchestrationService.
+    
     Args:
         db: Database session
         
@@ -447,6 +594,7 @@ async def sync_all_users(db: Session) -> Dict:
             db.flush()
             existing_item = new_item
             new_items += 1
+            
             logger.debug(f"Added new item: {guid} - {item.title}")
         
         # Update sources

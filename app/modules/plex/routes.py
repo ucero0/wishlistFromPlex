@@ -362,6 +362,98 @@ async def remove_wishlist_item_by_rating_key(rating_key: str, db: Session = Depe
         )
 
 
+@wishlist_router.delete("/delete-all", status_code=status.HTTP_200_OK)
+async def delete_all_wishlist_items(
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key),
+    confirm: bool = Query(False, description="Must be True to confirm deletion"),
+):
+    """
+    Delete all wishlist items from the database.
+    
+    WARNING: This permanently deletes all wishlist items from the database.
+    It does NOT remove them from Plex watchlists - it only removes them from local storage.
+    
+    Requires confirmation via query parameter: ?confirm=true
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Deletion requires confirmation. Add ?confirm=true to the URL.",
+        )
+    
+    # Get count before deletion
+    total_count = db.query(func.count(WishlistItem.id)).scalar()
+    
+    if total_count == 0:
+        return {
+            "message": "No items to delete",
+            "deleted_count": 0,
+        }
+    
+    # Delete all items (cascade will handle related sources)
+    deleted_count = db.query(WishlistItem).delete()
+    db.commit()
+    
+    logger.warning(f"Deleted {deleted_count} wishlist items from database (requested by API)")
+    
+    return {
+        "message": f"Successfully deleted {deleted_count} wishlist item(s) from database",
+        "deleted_count": deleted_count,
+        "note": "Items were removed from local database only. They may still exist in Plex watchlists.",
+    }
+
+
+# ============================================================================
+# TEST ROUTES
+# ============================================================================
+
+@router.get("/test/check-in-library", dependencies=[Depends(get_api_key)])
+async def test_check_rating_key_in_library(
+    rating_key: str = Query(..., description="Rating key to check (e.g., '5d776824f54112001f5bbdd7')"),
+    server_url: str = Query(..., description="Plex Media Server URL (e.g., 'http://plex:32400' or 'http://homeserver.local:32400')"),
+    token: Optional[str] = Query(None, description="Plex user token (optional, will use first active user if not provided)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Test endpoint to check if a rating key exists in the Plex Media Server library.
+    
+    This is a testing/debugging endpoint to verify the check_rating_key_in_library function.
+    """
+    from app.modules.plex.service import check_rating_key_in_library
+    
+    # If token not provided, try to get from first active user
+    if not token:
+        user = db.query(PlexUser).filter(PlexUser.active == True).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No token provided and no active users found in database",
+            )
+        token = user.plex_token
+        logger.info(f"Using token from active user: {user.name}")
+    
+    try:
+        exists = await check_rating_key_in_library(
+            server_url=server_url,
+            token=token,
+            rating_key=rating_key
+        )
+        
+        return {
+            "rating_key": rating_key,
+            "server_url": server_url,
+            "exists_in_library": exists,
+            "message": f"Rating key {'found' if exists else 'not found'} in library"
+        }
+    except Exception as e:
+        logger.error(f"Error checking rating key in library: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error checking rating key: {str(e)}",
+        )
+
+
 # ============================================================================
 # SYNC ROUTES
 # ============================================================================
