@@ -14,7 +14,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY ./app .
 
 # Copy and set permissions for entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh

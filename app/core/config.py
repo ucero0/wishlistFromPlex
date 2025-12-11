@@ -15,9 +15,8 @@ class Settings(BaseSettings):
     # Deluge Configuration
     deluge_host: str = "gluetun"  # Container name when using docker-compose
     deluge_port: int = 58846  # Deluge daemon port (for RPC)
-    deluge_webui_port: int = 8112  # Deluge WebUI port (for HTTP API)
-    deluge_username: str = "localclient"
-    deluge_password: str = ""  # Read from auth file or set via env
+    deluge_username: str = "deluge"
+    deluge_password: str = "deluge"  # Read from auth file or set via env
 
     # Scanner Configuration
     clamav_host: str = "clamav"

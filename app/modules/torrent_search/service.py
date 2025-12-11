@@ -513,19 +513,20 @@ class TorrentSearchService:
 
         auto_add_to_deluge: bool = True,
 
-    ) -> TorrentSearchResult:
+    ) -> List[TorrentResult]:
         "search for torrents by query and return the best result"
         results = await self.search_prowlarr(query, media_type)
         if not results:
             return None
         results: List[TorrentResult] = self._process_search_results(results)
+        if not results:
+            return []
         best_result = results[0]
-        if not best_result:
-            return None
+
         if auto_add_to_deluge:
             send_result = await self.send2ClientDownloader(best_result.guid, best_result.indexerId)
             if not send_result:
                 logger.error(f"Error sending torrent to client downloader: {send_result}")
 
-        return results
+        return [best_result]
 

@@ -31,7 +31,7 @@ class RpcStatusResponse(BaseModel):
 
 class TorrentStatus(RpcStatusResponse):
     """Torrent status."""
-    torrent_id: str
+    uid: str
 
 
 class listTorrentsStatus(BaseModel):

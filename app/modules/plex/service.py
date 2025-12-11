@@ -248,76 +248,66 @@ async def is_item_in_plexLibrary(
     server_url: Optional[str] = None
 ) -> bool:
     """
-    Check if a rating key exists in the Plex Media Server library.
-    
-    Uses the /library/all endpoint with guid parameter to search for the item.
-    The response is typically JSON, and if MediaContainer has size >= 1, the item exists.
-    
+    Check if a specific GUID exists in the Plex Media Server library.
+
+    Uses the /library/all endpoint with the guid parameter.
+
     Args:
-        rating_key: The ratingKey to check (e.g., "5d776824f54112001f5bbdd7" or "plex://movie/5d776824f54112001f5bbdd7")
-        token: Plex user token (optional, but required for API call)
-        server_url: Plex Media Server URL (optional, defaults to "http://plex:32400")
-        
+        guid: The GUID to check (e.g., "plex://movie/5d776824f54112001f5bbdd7")
+        token: Plex user token (required)
+        server_url: Plex Media Server URL (defaults to "http://localhost:32400")
+
     Returns:
-        True if the guid exists in the library, False otherwise
+        True if the guid exists in the library, False otherwise.
     """
     if not token:
         logger.warning("Token is required to check if item is in Plex library")
         return False
+
+    # Default server URL if not provided and strip trailing slash
+    base_url = (server_url or "http://homeserver.local:32400").rstrip("/")
+    url = f"{base_url}/library/all"
     
-    # Default server URL if not provided
-    if not server_url:
-        server_url = "http://localhost:32400"
+    # Force JSON response using Accept header
+    headers = {
+        **PLEX_API_HEADERS,    
+    }
     
-    url = f"{server_url}/library/all"
-    headers = {**PLEX_API_HEADERS, "X-Plex-Token": token}
-    params = {"guid": guid, "X-Plex-Token": token}
-    
+    params = {"guid": guid,"X-Plex-Token": token}
+
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            logger.debug(f"Checking if guid {guid} exists in library at {server_url}")
+            # logger.debug(f"Checking if guid {guid} exists in library at {base_url}")
             response = await client.get(url, headers=headers, params=params)
-            
+
             if response.status_code == 404:
-                logger.debug(f"Guid {guid} not found in library (404)")
                 return False
-            
-            if response.status_code != 200:
-                logger.warning(f"Unexpected status code {response.status_code} when checking guid {guid}")
+            elif response.status_code == 401:
+                logger.error(f"Unauthorized to check if guid {guid} exists in library: {response.text}")
                 return False
+
+            response.raise_for_status() # Raises exception for 4xx/5xx errors
+
+            data = response.json()
             
-            # Try JSON first (most common response format)
-            try:
-                data = response.json()
-                size = data.get("MediaContainer", {}).get("size", 0)
-                found = size >= 1
-                logger.info(f"Guid {guid} {'found' if found else 'not found'} in library (JSON, size={size})")
-                return found
-            except (ValueError, AttributeError, TypeError):
-                # Fallback to XML parsing
-                try:
-                    root = ET.fromstring(response.text.strip())
-                    media_container = root.find('MediaContainer')
-                    if media_container is not None:
-                        size = int(media_container.get('size', '0'))
-                        found = size >= 1
-                        logger.info(f"Guid {guid} {'found' if found else 'not found'} in library (XML, size={size})")
-                        return found
-                    logger.debug(f"Guid {guid} not found in library (no MediaContainer in XML)")
-                    return False
-                except (ET.ParseError, ValueError) as e:
-                    logger.error(f"Error parsing response for guid {guid}: {e}")
-                    logger.debug(f"Response content (first 200 chars): {response.text[:200]}")
-                    return False
-                
-        except httpx.TimeoutException:
-            logger.error(f"Timeout checking guid {guid} in library at {server_url}")
-            return False
+            # Plex returns a 'MediaContainer'; we check if it has a size > 0
+            size = data.get("MediaContainer", {}).get("size", 0)
+            found = size >= 1
+            
+            if found:
+                logger.info(f"Guid {guid} found in library.")
+            
+            return found
+
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error checking guid {guid}: {e.response.status_code} - {e.response.text[:200]}")
+            logger.error(f"HTTP error checking guid {guid}: {e.response.status_code}")
+            return False
+        except (httpx.RequestError, ValueError) as e:
+            # ValueError covers JSON decoding errors
+            logger.error(f"Connection or parsing error for guid {guid}: {e}")
             return False
         except Exception as e:
-            logger.error(f"Error checking guid {guid} in library: {e}")
+            logger.exception(f"Unexpected error checking guid {guid}")
             return False
 
 

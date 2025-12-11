@@ -46,7 +46,7 @@ async def get_prowlarr_status(db: Session = Depends(get_db)):
     )
 
 
-@router.post("/search-by-query", response_model=SearchResponse, dependencies=[Depends(get_api_key)])
+@router.post("/search-by-query", dependencies=[Depends(get_api_key)])
 async def search_torrent_by_query(request: SearchByQueryRequest, db: Session = Depends(get_db)):
     """
     Search for torrents using a query string (independent of wishlist items).
@@ -72,33 +72,12 @@ async def search_torrent_by_query(request: SearchByQueryRequest, db: Session = D
         result = await service.search_by_query(
             query=request.query,
             media_type=request.media_type,
-            rating_key=request.rating_key,
             auto_add_to_deluge=request.auto_add_to_deluge,
-            force=request.force
+
         )
-        
-        # Check if result is None
         if not result:
-            return SearchResponse(
-                rating_key=request.rating_key or "query_search",
-                status=SearchStatusEnum.ERROR,
-                search_query=request.query,
-                results_count=0,
-                best_match=None,
-                all_results=[],
-                torrent_hash=None,
-                message="Search failed: No result returned"
-            )
-        
-        # Map status
-        status_map = {
-            SearchStatus.PENDING: SearchStatusEnum.PENDING,
-            SearchStatus.SEARCHING: SearchStatusEnum.SEARCHING,
-            SearchStatus.FOUND: SearchStatusEnum.FOUND,
-            SearchStatus.NOT_FOUND: SearchStatusEnum.NOT_FOUND,
-            SearchStatus.ADDED: SearchStatusEnum.ADDED,
-            SearchStatus.ERROR: SearchStatusEnum.ERROR,
-        }
+            return []
+        return result
         
         
     except Exception as e:
