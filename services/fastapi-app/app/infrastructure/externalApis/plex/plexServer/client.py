@@ -47,56 +47,18 @@ class PlexServerLibraryApiClient:
         params = self._build_params(guid, user_token, type)
         url = self.url_library_search
         
-        # Log request details (mask token for security)
-        from urllib.parse import urlencode
-        params_for_log = {k: v if k != "X-Plex-Token" else "***" for k, v in params.items()}
-        logger.info(f"Making Plex API request: GET {url}?{urlencode(params_for_log)}")
-        logger.debug(f"Request params (token masked): {params_for_log}")
-        logger.debug(f"Request headers: {self.plex_api_headers}")
-        
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    url,
-                    headers=self.plex_api_headers,
-                    params=params,
-                )
-                logger.debug(f"Plex API response status: {response.status_code}")
-                logger.debug(f"Plex API response headers: {dict(response.headers)}")
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                url,
+                headers=self.plex_api_headers,
+                params=params,
+            )
+            
+            response.raise_for_status()
+            # Log the actual URL that was sent (includes query params with token)
+            logger.debug(f"Actual request URL sent: {response.request.url}")
+            
+            response_json = response.json()
+            return response_json
                 
-                # Log response body for debugging (first 500 chars to avoid huge logs)
-                response_text = response.text
-                logger.debug(f"Plex API response body (first 500 chars): {response_text[:500]}")
-                
-                response.raise_for_status()
-                # Log the actual URL that was sent (includes query params with token)
-                logger.debug(f"Actual request URL sent: {response.request.url}")
-                
-                # Parse JSON response
-                try:
-                    response_json = response.json()
-                    size = response_json.get("MediaContainer", {}).get("size", 0)
-                    logger.info(f"Successfully parsed Plex API JSON response. MediaContainer size: {size}")
-                    return response_json
-                except json.JSONDecodeError as json_err:
-                    logger.error(f"Failed to parse Plex API JSON response: {str(json_err)}")
-                    logger.error(f"Response text: {response_text[:1000]}")
-                    raise
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Plex API HTTP error: {e.response.status_code} - {e.response.text[:500]}")
-            logger.error(f"Request URL: {e.request.url}")
-            logger.error(f"Request headers: { {k: v if k != 'X-Plex-Token' else '***' for k, v in e.request.headers.items()} }")
-            raise
-        except httpx.RequestError as e:
-            error_type = e.__class__.__name__
-            logger.error(f"Plex API request error: {error_type} - {str(e)}")
-            # Log the actual request URL if available
-            if hasattr(e, 'request') and hasattr(e.request, 'url'):
-                logger.error(f"Request URL that failed: {e.request.url}")
-            else:
-                logger.error(f"Base URL: {url}")
-            raise
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Plex API JSON response: {str(e)}")
-            logger.error(f"Response text: {response_text[:1000] if 'response_text' in locals() else 'N/A'}")
-            raise

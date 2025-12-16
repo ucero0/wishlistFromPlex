@@ -22,11 +22,22 @@ class PlexServerLibraryAdapter(PlexServerLibraryProvider):
         else:
             logger.warning(f"Unknown media type: {media.type}, will not filter by type")
 
-        logger.debug(f"Converted media type to integer: {mediaInt}")
-        response_json = await self.client.get_library_items_raw(user_token, media.guid, mediaInt)
+        response_json = await self.client.get_library_items_raw(user_token, media.guid,mediaInt)
         # Extract size from JSON response: MediaContainer.size
         media_container = response_json.get("MediaContainer", {})
         size = int(media_container.get("size", 0))
-        result = size > 0
+        logger.debug(f"size: {size}")
+        if size == 1:
+            metadata = media_container.get("Metadata", [])
+            logger.debug(f"metadata: {metadata}")
+            data = metadata[0].get("guid")
+            logger.debug(f"Data: {data}")
+            if data == media.guid:
+                result = True
+            else:
+                logger.warning(f"Metadata is not a list or is empty: {metadata}")
+                result = False
+        else:
+            result = False
         logger.info(f"Library check result: size={size}, has_media={result}")
         return result
