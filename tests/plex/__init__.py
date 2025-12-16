@@ -1,2 +1,0 @@
-"""Plex module tests."""
-

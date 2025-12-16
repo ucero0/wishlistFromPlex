@@ -1,2 +1,0 @@
-"""Deluge module tests."""
-

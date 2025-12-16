@@ -18,7 +18,7 @@ services:
       - plex-wishlist-network
 
   fastapi:
-    build: .
+    build: ./services/fastapi-app
     container_name: plex-wishlist-api
     depends_on:
       db:
@@ -26,8 +26,9 @@ services:
       clamav:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-plex_wishlist_user}:${POSTGRES_PASSWORD:-plex_wishlist_pass}@db:5432/${POSTGRES_DB:-plex_wishlist}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-plex_wishlist_user}:${POSTGRES_PASSWORD:-plex_wishlist_pass}@db:5432/${POSTGRES_DB:-plex_wishlist}
       API_KEY: ${API_KEY}
+      PLEX_SERVER_URL: ${PLEX_SERVER_URL:-http://plex:32400}
       PLEX_SYNC_INTERVAL_HOURS: ${PLEX_SYNC_INTERVAL_HOURS:-6}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Deluge configuration - connects via gluetun container
@@ -46,11 +47,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app/app
-      - ./tests:/app/tests
-      - ./alembic:/app/alembic
-      - ./scripts:/app/scripts
-      - ./deluge/downloads:/downloads
+      - ./services/fastapi-app/app:/app/app
+      - ./services/fastapi-app/main.py:/app/main.py
+      - ./services/fastapi-app/migrations:/app/migrations
+      - ./infra/deluge/downloads:/downloads
       - ./media:/media
       - ./yara-rules:/app/yara-rules:ro
     networks:
@@ -83,7 +83,7 @@ services:
       - "9696:9696"
       - "8191:8191"
     volumes:
-      - ./gluetun:/gluetun
+      - ./infra/gluetun:/gluetun
     networks:
       - plex-wishlist-network
     restart: unless-stopped
@@ -100,10 +100,10 @@ services:
       - API_KEY=${API_KEY}
       - SCANNER_API_URL=http://plex-wishlist-api:8000
     volumes:
-      - ./deluge/config:/config
-      - ./deluge/downloads:/downloads
-      - ./deluge/custom-cont-init.d:/custom-cont-init.d:ro
-      - ./deluge/scripts:/scripts:ro
+      - ./infra/deluge/config:/config
+      - ./infra/deluge/downloads:/downloads
+      - ./infra/deluge/custom-cont-init.d:/custom-cont-init.d:ro
+      - ./infra/deluge/scripts:/scripts:ro
     depends_on:
       - gluetun
     restart: unless-stopped
@@ -120,7 +120,7 @@ services:
       # To enable auth: Access UI, Settings → General → Security → Authentication
       # Set username/password, then API key will be generated
     volumes:
-      - ./prowlarr/config:/config
+      - ./infra/prowlarr/config:/config
     depends_on:
       - gluetun
     restart: unless-stopped
@@ -147,7 +147,7 @@ services:
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM:-}
     volumes:
-      - ./plex/config:/config
+      - ./infra/plex/config:/config
       - ./media/movies:/media/movies
       - ./media/tvshows:/media/tvshows
     ports:
@@ -163,8 +163,8 @@ services:
       - CLAMAV_NO_FRESHCLAMD=false
       - CLAMAV_NO_CLAMD=false
     volumes:
-      - ./clamav/data:/var/lib/clamav
-      - ./deluge/downloads:/scan/downloads:ro
+      - ./infra/clamav/data:/var/lib/clamav
+      - ./infra/deluge/downloads:/scan/downloads:ro
       - ./media:/scan/media:ro
     healthcheck:
       test: ["CMD", "clamdcheck.sh"]
