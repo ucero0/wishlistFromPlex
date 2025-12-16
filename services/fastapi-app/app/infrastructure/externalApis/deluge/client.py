@@ -1,8 +1,8 @@
 """Deluge RPC client - infrastructure layer."""
 import logging
 from typing import Optional, List, Dict, Any
+from app.infrastructure.externalApis.deluge.schemas import ExternalDelugeTorrentStatusResponse
 from deluge_client import DelugeRPCClient
-
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -76,15 +76,15 @@ class DelugeClient:
             logger.error(f"Error disconnecting from Deluge: {e}")
             return False
     
-    def get_torrents_status(self, fields: List[str]) -> Dict[str, Any]:
+    def get_torrents_status(self) -> List[ExternalDelugeTorrentStatusResponse]:
         """Get the status of all torrents from Deluge."""
         if not self.connect():
             return {}
         
-        try:
-            torrents = self.client.call("core.get_torrents_status", {}, fields)
-            return decode_rpc(torrents)
-        except Exception as e:
-            logger.error(f"Error getting torrents status: {e}")
-            return {}
+        rawResponse = self.client.call("core.get_torrents_status", {}, ExternalDelugeTorrentStatusResponse.fields())
+        decodedResponse = decode_rpc(rawResponse)
+        response: List[ExternalDelugeTorrentStatusResponse] = []
+        for hash, torrent in decodedResponse.items():
+            response.append(ExternalDelugeTorrentStatusResponse(**torrent))
+        return response
 

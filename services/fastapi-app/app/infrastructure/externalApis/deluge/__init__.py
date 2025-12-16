@@ -1,18 +1,8 @@
-"""Persistence package - SQLAlchemy ORM models."""
-from app.infrastructure.persistence.models import (
-    TorrentItem,
-    TorrentStatus,
-    PlexUser,
-    MediaType,
-    WishlistItem,
-    WishlistItemSource,
-)
+"""Deluge external API package."""
+from app.infrastructure.externalApis.deluge.client import DelugeClient
+from app.infrastructure.externalApis.deluge.schemas import ExternalDelugeTorrentStatusResponse
 
 __all__ = [
-    "TorrentItem",
-    "TorrentStatus",
-    "PlexUser",
-    "MediaType",
-    "WishlistItem",
-    "WishlistItemSource",
+    "DelugeClient",
+    "ExternalDelugeTorrentStatusResponse",
 ]

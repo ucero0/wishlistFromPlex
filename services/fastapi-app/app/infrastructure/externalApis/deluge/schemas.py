@@ -3,8 +3,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
-class RpcStatusResponse(BaseModel):
+class ExternalDelugeTorrentStatusResponse(BaseModel):
     """Raw torrent status structure from Deluge RPC - external schema."""
+    hash: str
     name: str
     state: str
     progress: float
@@ -22,16 +23,4 @@ class RpcStatusResponse(BaseModel):
         return list(cls.model_fields.keys())
 
 
-class TorrentStatusResponse(BaseModel):
-    """Torrent status response - external schema."""
-    uid: str
-    name: str
-    state: str
-    progress: float
-    eta: Optional[int]
-
-
-class ListTorrentsStatus(BaseModel):
-    """List of torrent statuses - external schema."""
-    torrents: List[TorrentStatusResponse]
 

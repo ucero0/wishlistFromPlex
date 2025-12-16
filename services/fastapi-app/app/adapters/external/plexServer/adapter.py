@@ -26,7 +26,6 @@ class PlexServerLibraryAdapter(PlexServerLibraryProvider):
         # Extract size from JSON response: MediaContainer.size
         media_container = response_json.get("MediaContainer", {})
         size = int(media_container.get("size", 0))
-        logger.debug(f"size: {size}")
         if size == 1:
             metadata = media_container.get("Metadata", [])
             logger.debug(f"metadata: {metadata}")
