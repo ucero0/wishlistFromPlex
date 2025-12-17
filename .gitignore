@@ -65,5 +65,55 @@ deluge/downloads/
 # Gluetun VPN data
 gluetun/
 
+# ClamAV data files (large virus definition files)
+infra/clamav/data/*.cld
+infra/clamav/data/*.cvd
+infra/clamav/data/*.ldb
+infra/clamav/data/*.hsb
+infra/clamav/data/*.hdb
+infra/clamav/data/*.hdu
+infra/clamav/data/*.hsu
+infra/clamav/data/*.mdb
+infra/clamav/data/*.mdu
+infra/clamav/data/*.msb
+infra/clamav/data/*.msu
+infra/clamav/data/*.ndb
+infra/clamav/data/*.ndu
+infra/clamav/data/*.pdb
+infra/clamav/data/*.wdb
+infra/clamav/data/*.idb
+infra/clamav/data/tmp.*/
+infra/clamav/data/*.dat
+
+# Deluge runtime files
+infra/deluge/config/*.pid
+infra/deluge/config/*.state
+infra/deluge/config/*.bak
+infra/deluge/config/state/*.fastresume
+infra/deluge/config/state/*.bak
+infra/deluge/config/archive/
+
+# Plex runtime files
+infra/plex/config/**/*.pid
+infra/plex/config/**/*.db-shm
+infra/plex/config/**/*.db-wal
+infra/plex/config/**/Cache/
+infra/plex/config/**/Crash Reports/
+infra/plex/config/**/Logs/
+infra/plex/config/**/Plug-in Support/Caches/
+infra/plex/config/**/Plug-in Support/Databases/*.db-shm
+infra/plex/config/**/Plug-in Support/Databases/*.db-wal
+infra/plex/config/**/Plug-in Support/Databases/*.db-*
+infra/plex/config/**/.LocalAdminToken
+
+# Prowlarr runtime files
+infra/prowlarr/config/*.pid
+infra/prowlarr/config/*.db-shm
+infra/prowlarr/config/*.db-wal
+infra/prowlarr/config/logs.db-shm
+infra/prowlarr/config/logs.db-wal
+infra/prowlarr/config/Backups/
+infra/prowlarr/config/logs/
+
 
 
