@@ -84,6 +84,11 @@ infra/clamav/data/*.wdb
 infra/clamav/data/*.idb
 infra/clamav/data/tmp.*/
 infra/clamav/data/*.dat
+clamav/data/*.cld
+clamav/data/*.cvd
+clamav/data/*.ldb
+clamav/data/*.hsb
+clamav/data/tmp.*/
 
 # Deluge runtime files
 infra/deluge/config/*.pid
