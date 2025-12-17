@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from app.factories.plex.plexUsersFactory import (
-    getGetPlexUsersQuery,
-    getGetPlexUserByIdQuery,
-    getGetPlexUserByNameQuery,
-    getGetPlexUserByPlexTokenQuery,
-    getCreatePlexUserUseCase,
-    getUpdatePlexUserUseCase,
-    getDeletePlexUserUseCase,
+    createGetPlexUserQuery,
+    createGetPlexUserByIdQuery,
+    createGetPlexUserByNameQuery,
+    createGetPlexUserByPlexTokenQuery,
+    createCreatePlexUserUseCase,
+    createUpdatePlexUserUseCase,
+    createDeletePlexUserUseCase,
 )
 from app.application.plex.queries.getPlexUsers import (
     GetPlexUserQuery,
@@ -29,7 +29,7 @@ plexUserRoutes = APIRouter(prefix="/users", tags=["plex-users"])
 
 
 @plexUserRoutes.get("/", response_model=List[PlexUser])
-async def get_plex_users(query: GetPlexUserQuery = Depends(getGetPlexUsersQuery)):
+async def get_plex_users(query: GetPlexUserQuery = Depends(createGetPlexUserQuery)):
     """Get all active Plex users."""
     users = await query.execute()
     return users
@@ -37,7 +37,7 @@ async def get_plex_users(query: GetPlexUserQuery = Depends(getGetPlexUsersQuery)
 
 @plexUserRoutes.get("/{user_id}", response_model=PlexUser)
 async def get_plex_user_by_id(
-    user_id: int, query: GetPlexUserByIdQuery = Depends(getGetPlexUserByIdQuery)
+    user_id: int, query: GetPlexUserByIdQuery = Depends(createGetPlexUserByIdQuery)
 ):
     """Get a Plex user by ID."""
     user = await query.execute(user_id)
@@ -48,7 +48,7 @@ async def get_plex_user_by_id(
 
 @plexUserRoutes.get("/name/{name}", response_model=PlexUser)
 async def get_plex_user_by_name(
-    name: str, query: GetPlexUserByNameQuery = Depends(getGetPlexUserByNameQuery)
+    name: str, query: GetPlexUserByNameQuery = Depends(createGetPlexUserByNameQuery)
 ):
     """Get a Plex user by name."""
     user = await query.execute(name)
@@ -60,7 +60,7 @@ async def get_plex_user_by_name(
 @plexUserRoutes.post("/", response_model=CreatePlexUserResponse)
 async def create_plex_user(
     request: CreatePlexUserRequest,
-    use_case: CreatePlexUserUseCase = Depends(getCreatePlexUserUseCase),
+    use_case: CreatePlexUserUseCase = Depends(createCreatePlexUserUseCase),
 ):
     """Create a new Plex user."""
     user = PlexUser(
@@ -83,8 +83,8 @@ async def create_plex_user(
 async def update_plex_user(
     user_id: int,
     request: UpdatePlexUserRequest,
-    use_case: UpdatePlexUserUseCase = Depends(getUpdatePlexUserUseCase),
-    query: GetPlexUserByIdQuery = Depends(getGetPlexUserByIdQuery),
+    use_case: UpdatePlexUserUseCase = Depends(createUpdatePlexUserUseCase),
+    query: GetPlexUserByIdQuery = Depends(createGetPlexUserByIdQuery),
 ):
     """Update a Plex user."""
     existing_user = await query.execute(user_id)
@@ -109,8 +109,8 @@ async def update_plex_user(
 @plexUserRoutes.delete("/{user_id}", response_model=PlexUser)
 async def delete_plex_user(
     user_id: int,
-    use_case: DeletePlexUserUseCase = Depends(getDeletePlexUserUseCase),
-    query: GetPlexUserByIdQuery = Depends(getGetPlexUserByIdQuery),
+    use_case: DeletePlexUserUseCase = Depends(createDeletePlexUserUseCase),
+    query: GetPlexUserByIdQuery = Depends(createGetPlexUserByIdQuery),
 ):
     """Delete a Plex user."""
     existing_user = await query.execute(user_id)

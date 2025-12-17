@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.factories.plex.plexServerFactory import getIsItemInLibraryQuery
+from app.factories.plex.plexServerFactory import createIsItemInLibraryQuery
 from app.adapters.http.schemas.plex.plexServerSchemas import IsItemInLibraryRequest, IsItemInLibraryResponse
 from app.domain.models.media import MediaItem
 from app.application.plex.queries.getPlexServerItem import IsItemInLibraryQuery
@@ -12,7 +12,7 @@ plexServerRoutes = APIRouter(prefix="/servers", tags=["plex-servers"])
 
 @plexServerRoutes.post("/isItemInLibrary", response_model=IsItemInLibraryResponse)
 async def isItemInLibrary(
-    request: IsItemInLibraryRequest, query: IsItemInLibraryQuery = Depends(getIsItemInLibraryQuery)
+    request: IsItemInLibraryRequest, query: IsItemInLibraryQuery = Depends(createIsItemInLibraryQuery)
 ):
     logger.info(f"Received isItemInLibrary request: guid={request.guid}, type={request.type}, userToken={request.userToken[:4]}***")
     try:

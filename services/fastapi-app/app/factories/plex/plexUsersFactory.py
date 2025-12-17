@@ -8,30 +8,37 @@ from app.application.plex.useCases.deletePlexUser import DeletePlexUserUseCase
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-def getGetPlexUsersQuery(session: AsyncSession = Depends(get_db)) -> GetPlexUserQuery:
+def createGetPlexUserQuery(session: AsyncSession = Depends(get_db)) -> GetPlexUserQuery:
+    """Factory function to create GetPlexUserQuery with its dependencies."""
     repo = PlexUserRepo(session)
     return GetPlexUserQuery(repo)
 
-def getGetPlexUserByIdQuery(session: AsyncSession = Depends(get_db)) -> GetPlexUserByIdQuery:
+def createGetPlexUserByIdQuery(session: AsyncSession = Depends(get_db)) -> GetPlexUserByIdQuery:
+    """Factory function to create GetPlexUserByIdQuery with its dependencies."""
     repo = PlexUserRepo(session)
     return GetPlexUserByIdQuery(repo)
 
-def getGetPlexUserByNameQuery(session: AsyncSession = Depends(get_db)) -> GetPlexUserByNameQuery:
+def createGetPlexUserByNameQuery(session: AsyncSession = Depends(get_db)) -> GetPlexUserByNameQuery:
+    """Factory function to create GetPlexUserByNameQuery with its dependencies."""
     repo = PlexUserRepo(session)
     return GetPlexUserByNameQuery(repo)
 
-def getGetPlexUserByPlexTokenQuery(session: AsyncSession = Depends(get_db)) -> GetPlexUserByPlexTokenQuery:
+def createGetPlexUserByPlexTokenQuery(session: AsyncSession = Depends(get_db)) -> GetPlexUserByPlexTokenQuery:
+    """Factory function to create GetPlexUserByPlexTokenQuery with its dependencies."""
     repo = PlexUserRepo(session)
     return GetPlexUserByPlexTokenQuery(repo)
 
-def getCreatePlexUserUseCase(session: AsyncSession = Depends(get_db)) -> CreatePlexUserUseCase:
+def createCreatePlexUserUseCase(session: AsyncSession = Depends(get_db)) -> CreatePlexUserUseCase:
+    """Factory function to create CreatePlexUserUseCase with its dependencies."""
     repo = PlexUserRepo(session)
     return CreatePlexUserUseCase(repo)
 
-def getUpdatePlexUserUseCase(session: AsyncSession = Depends(get_db)) -> UpdatePlexUserUseCase:
+def createUpdatePlexUserUseCase(session: AsyncSession = Depends(get_db)) -> UpdatePlexUserUseCase:
+    """Factory function to create UpdatePlexUserUseCase with its dependencies."""
     repo = PlexUserRepo(session)
     return UpdatePlexUserUseCase(repo)
 
-def getDeletePlexUserUseCase(session: AsyncSession = Depends(get_db)) -> DeletePlexUserUseCase:
+def createDeletePlexUserUseCase(session: AsyncSession = Depends(get_db)) -> DeletePlexUserUseCase:
+    """Factory function to create DeletePlexUserUseCase with its dependencies."""
     repo = PlexUserRepo(session)
     return DeletePlexUserUseCase(repo)

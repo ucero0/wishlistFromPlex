@@ -16,6 +16,6 @@ class PlexWatchlistAdapter(PlexWatchlistProvider):
         dtos = [PlexWatchlistItemDTO(**item) for item in items]
         return [to_domain(dto) for dto in dtos]
 
-    async def delete_item(self, media: MediaItem, user_token: str) -> None:
-        await self.client.delete_item_raw(media.ratingKey, user_token)
+    async def delete_item(self, ratingKey: str, user_token: str) -> None:
+        await self.client.delete_item_raw(ratingKey, user_token)
         

@@ -17,7 +17,7 @@ def to_domain(dto: PlexWatchlistItemDTO) -> MediaItem:
 
     return MediaItem(
         guid=dto.guid,
-        rating_key=dto.ratingKey,
+        ratingKey=dto.ratingKey,
         title=dto.title,
         type=dto.type,
         year=dto.year,

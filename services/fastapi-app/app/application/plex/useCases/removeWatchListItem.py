@@ -5,6 +5,6 @@ class RemoveWatchListItemUseCase:
     def __init__(self, adapter: PlexWatchlistAdapter):
         self.adapter = adapter
 
-    async def execute(self, media: MediaItem, user_token: str) -> None:
-        return await self.adapter.delete_item(media, user_token)
+    async def execute(self, ratingKey: str, user_token: str) -> None:
+        return await self.adapter.delete_item(ratingKey, user_token)
         
