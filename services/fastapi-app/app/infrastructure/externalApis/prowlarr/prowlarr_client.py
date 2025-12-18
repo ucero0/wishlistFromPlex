@@ -1,9 +1,13 @@
 """Prowlarr API client."""
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, List
 import httpx
 
 from app.core.config import settings
+from app.infrastructure.externalApis.prowlarr.schemas import (
+    ProwlarrRawResult,
+    ProwlarrIndexer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +39,8 @@ class ProwlarrClient:
         except Exception as e:
             return False, None, str(e)
 
-    async def get_indexer_count(self) -> int:
-        """Get the number of configured indexers."""
+    async def get_indexers(self) -> List[ProwlarrIndexer]:
+        """Get all indexers from Prowlarr (raw data, no filtering)."""
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
@@ -45,31 +49,14 @@ class ProwlarrClient:
                 )
                 
                 if response.status_code == 200:
-                    indexers = response.json()
-                    return len([i for i in indexers if i.get("enable", False)])
-                return 0
-        except Exception:
-            return 0
+                    indexers_data = response.json()
+                    return [ProwlarrIndexer(**indexer) for indexer in indexers_data]
+                return []
+        except Exception as e:
+            logger.error(f"Error getting indexers: {e}")
+            return []
 
-    async def get_indexer_by_id(self, indexer_id: int) -> Optional[Dict[str, Any]]:
-        """Get indexer details by ID."""
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/api/v1/indexer",
-                    headers=self.headers
-                )
-                
-                if response.status_code == 200:
-                    indexers = response.json()
-                    for indexer in indexers:
-                        if indexer.get("id") == indexer_id:
-                            return indexer
-                return None
-        except Exception:
-            return None
-
-    async def search(self, query: str, categories: str = "2000") -> List[Dict[str, Any]]:
+    async def search(self, query: str, categories: str = "2000") -> List[ProwlarrRawResult]:
         """
         Search Prowlarr for torrents.
         
@@ -78,7 +65,7 @@ class ProwlarrClient:
             categories: Category string (2000 for movies, 5000 for TV)
             
         Returns:
-            List of raw search results from Prowlarr
+            List of validated ProwlarrRawResult objects
         """
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -96,7 +83,14 @@ class ProwlarrClient:
                 api_response_data = response.json()
                 
                 if isinstance(api_response_data, list):
-                    return api_response_data
+                    results = []
+                    for item in api_response_data:
+                        try:
+                            results.append(ProwlarrRawResult(**item))
+                        except Exception as e:
+                            logger.warning(f"Failed to parse Prowlarr result: {e}, skipping item")
+                            continue
+                    return results
                 else:
                     logger.warning(f"Unexpected Prowlarr response format: {type(api_response_data)}")
                     return []

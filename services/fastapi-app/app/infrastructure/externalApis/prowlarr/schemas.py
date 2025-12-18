@@ -1,4 +1,4 @@
-"""Prowlarr external API schemas."""
+"""Prowlarr external API schemas - raw responses from Prowlarr API."""
 from __future__ import annotations
 import logging
 from pydantic import BaseModel, Field, model_validator
@@ -14,6 +14,16 @@ class ProwlarrStatusResponse(BaseModel):
     version: Optional[str] = None
     indexer_count: int = 0
     error: Optional[str] = None
+
+
+class ProwlarrIndexer(BaseModel):
+    """Prowlarr indexer information (external API response)."""
+    id: int
+    name: str
+    enable: bool
+    
+    class Config:
+        extra = "ignore"  # Ignore extra fields from Prowlarr
 
 
 class ProwlarrRawResult(BaseModel):

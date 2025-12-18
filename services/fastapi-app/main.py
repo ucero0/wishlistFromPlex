@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 from app.core.config import settings
-from app.adapters.http.routes import plexRoutes, delugeRoutes
+from app.adapters.http.routes import plexRoutes, delugeRoutes, prowlarrRoutes
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper()),
@@ -91,6 +91,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Include API routers (microservice structure)
 app.include_router(plexRoutes)
 app.include_router(delugeRoutes)
+app.include_router(prowlarrRoutes)
 
 @app.on_event("startup")
 async def startup_event():

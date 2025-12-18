@@ -17,12 +17,7 @@ from app.domain.models.plexUser import PlexUser
 from app.domain.models.torrent_search import (
     SearchStatusEnum,
     QualityInfo,
-    SearchRequest,
-    SearchByQueryRequest,
-    SearchResponse,
-    SearchResultResponse,
-    SearchStatsResponse,
-    TorrentResult,
+    TorrentSearchResult,
 )
 
 __all__ = [
@@ -41,10 +36,5 @@ __all__ = [
     # "OrchestrationStatsResponse",
     "SearchStatusEnum",
     "QualityInfo",
-    "SearchRequest",
-    "SearchByQueryRequest",
-    "SearchResponse",
-    "SearchResultResponse",
-    "SearchStatsResponse",
-    "TorrentResult",
+    "TorrentSearchResult",
 ]

@@ -1,14 +1,7 @@
-"""Torrent search service using Prowlarr."""
+"""Domain service for parsing and scoring torrent quality information."""
 import re
-import logging
-from typing import Optional, Dict, Any, List
-from sqlalchemy.orm import Session
-
-from app.infrastructure.prowlarr.prowlarr_client import ProwlarrClient
-from app.infrastructure.prowlarr.schemas import ProwlarrRawResult
-from app.domain.models.torrent_search import TorrentResult, QualityInfo
-
-logger = logging.getLogger(__name__)
+from typing import Optional
+from app.domain.models.torrent_search import QualityInfo
 
 # Quality scoring constants - Higher is better
 RESOLUTION_SCORES = {
@@ -45,22 +38,11 @@ SOURCE_SCORES = {
 MIN_SEEDERS = 1
 
 
-class TorrentSearchService:
-    """Service for searching torrents via Prowlarr."""
-
-    def __init__(self, db: Session):
-        self.db = db
-        self.client = ProwlarrClient()
-
-    async def test_connection(self) -> tuple[bool, Optional[str], Optional[str]]:
-        """Test connection to Prowlarr."""
-        return await self.client.test_connection()
-
-    async def get_indexer_count(self) -> int:
-        """Get the number of configured indexers."""
-        return await self.client.get_indexer_count()
-
-    def _parse_quality_from_title(self, title: str) -> QualityInfo:
+class TorrentQualityService:
+    """Domain service for parsing and scoring torrent quality information."""
+    
+    @staticmethod
+    def parse_quality_from_title(title: str) -> QualityInfo:
         """Parse quality information from torrent title."""
         title_lower = title.lower()
         
@@ -129,8 +111,9 @@ class TorrentSearchService:
             resolution=resolution, audio=audio, video_codec=video_codec,
             hdr=hdr, source=source, release_group=release_group,
         )
-
-    def _calculate_quality_score(self, title: str, quality_info: QualityInfo, seeders: int) -> int:
+    
+    @staticmethod
+    def calculate_quality_score(title: str, quality_info: QualityInfo, seeders: int) -> int:
         """Calculate quality score based on parsed info."""
         score = 0
         title_lower = title.lower()
@@ -188,86 +171,4 @@ class TorrentSearchService:
             score += 5
         
         return score
-
-    async def search_prowlarr(self, query: str, media_type: str = "movie") -> List[TorrentResult]:
-        """Search Prowlarr for torrents and return validated TorrentResult objects."""
-        categories = "2000" if media_type == "movie" else "5000"
-        logger.info(f"Searching Prowlarr: '{query}', media_type: {media_type}")
-        
-        raw_results = await self.client.search(query, categories)
-        
-        results = []
-        for result_data in raw_results:
-            try:
-                raw_result = ProwlarrRawResult(**result_data)
-                results.append(TorrentResult(
-                    **raw_result.model_dump(),
-                    quality_score=0,
-                    quality_info=QualityInfo()
-                ))
-            except Exception as e:
-                logger.warning(f"Failed to parse Prowlarr result: {e}, skipping")
-                continue
-        
-        logger.info(f"Prowlarr returned {len(results)} validated results")
-        return results
-
-    def _process_search_results(self, results: List[TorrentResult]) -> List[TorrentResult]:
-        """Process and score TorrentResult objects with quality information."""
-        processed_results = []
-        skipped_no_seeders = 0
-        
-        logger.info(f"Processing {len(results)} validated search results")
-        
-        for result in results:
-            try:
-                title = result.title
-                seeders = result.seeders or 0
-                
-                if seeders < MIN_SEEDERS:
-                    skipped_no_seeders += 1
-                    logger.debug(f"Skipping '{title[:50]}...' - seeders: {seeders}")
-                    continue
-                
-                quality_info = self._parse_quality_from_title(title)
-                quality_score = self._calculate_quality_score(title, quality_info, seeders)
-                
-                result.quality_info = quality_info
-                result.quality_score = quality_score
-                processed_results.append(result)
-            except Exception as e:
-                logger.warning(f"Error processing search result: {e}")
-                continue
-        
-        processed_results.sort(key=lambda x: x.quality_score, reverse=True)
-        
-        if skipped_no_seeders > 0:
-            logger.info(f"Skipped {skipped_no_seeders} results with seeders < {MIN_SEEDERS}")
-        logger.info(f"Processed {len(processed_results)} valid results after filtering")
-        
-        return processed_results
-
-    async def search_by_query(
-        self,
-        query: str,
-        media_type: str = "movie",
-        auto_add_to_deluge: bool = True,
-    ) -> Optional[List[TorrentResult]]:
-        """Search for torrents by query and return the best result."""
-        results = await self.search_prowlarr(query, media_type)
-        if not results:
-            return None
-        
-        results = self._process_search_results(results)
-        if not results:
-            return []
-        
-        best_result = results[0]
-
-        if auto_add_to_deluge:
-            send_result = await self.client.send_to_download_client(best_result.guid, best_result.indexerId)
-            if not send_result:
-                logger.error(f"Error sending torrent to client downloader")
-
-        return [best_result]
 
