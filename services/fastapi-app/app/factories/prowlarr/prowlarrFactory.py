@@ -2,19 +2,27 @@
 from app.infrastructure.externalApis.prowlarr.prowlarr_client import ProwlarrClient
 from app.adapters.external.prowlarr.adapter import ProwlarrAdapter
 from app.domain.services.torrent_quality_service import TorrentQualityService
-from app.application.prowlarr.useCases.searchTorrentsByQuery import SearchTorrentsByQueryUseCase
+from app.application.prowlarr.useCases.downloadTorrent import DownloadTorrentUseCase
+from app.application.prowlarr.queries.findBestTorrent import FindBestTorrentQuery
 from app.application.prowlarr.queries.testProwlarrConnection import (
     TestProwlarrConnectionQuery,
     GetProwlarrIndexerCountQuery
 )
 
 
-def create_search_torrents_by_query_use_case() -> SearchTorrentsByQueryUseCase:
-    """Factory function to create SearchTorrentsByQueryUseCase with its dependencies."""
+def create_find_best_torrent_query() -> FindBestTorrentQuery:
+    """Factory function to create FindBestTorrentQuery with its dependencies."""
     client = ProwlarrClient()
     adapter = ProwlarrAdapter(client)
     quality_service = TorrentQualityService()
-    return SearchTorrentsByQueryUseCase(adapter, quality_service)
+    return FindBestTorrentQuery(adapter, quality_service)
+
+
+def create_download_torrent_use_case() -> DownloadTorrentUseCase:
+    """Factory function to create DownloadTorrentUseCase with its dependencies."""
+    client = ProwlarrClient()
+    adapter = ProwlarrAdapter(client)
+    return DownloadTorrentUseCase(adapter)
 
 
 def create_test_prowlarr_connection_query() -> TestProwlarrConnectionQuery:

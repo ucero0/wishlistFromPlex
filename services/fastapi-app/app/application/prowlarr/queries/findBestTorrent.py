@@ -1,6 +1,6 @@
-"""Use case for searching torrents by query."""
+"""Query for finding the best torrent from search results."""
 import logging
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from app.domain.ports.external.prowlarr.torrent_search_provider import TorrentSearchProvider
 from app.domain.services.torrent_quality_service import TorrentQualityService, MIN_SEEDERS
 from app.domain.models.torrent_search import TorrentSearchResult
@@ -8,8 +8,8 @@ from app.domain.models.torrent_search import TorrentSearchResult
 logger = logging.getLogger(__name__)
 
 
-class SearchTorrentsByQueryUseCase:
-    """Use case for searching torrents by query string."""
+class FindBestTorrentQuery:
+    """Query for finding the best torrent from search results."""
     
     def __init__(
         self, 
@@ -23,46 +23,30 @@ class SearchTorrentsByQueryUseCase:
         self,
         query: str,
         media_type: str = "movie",
-        auto_add_to_deluge: bool = True,
-    ) -> Tuple[Optional[TorrentSearchResult], bool]:
+    ) -> Optional[TorrentSearchResult]:
         """
-        Search for torrents, process, score, and optionally send to download client.
+        Search for torrents, process, score, and return the best match.
         
         Args:
             query: Search query string
             media_type: Type of media ('movie' or 'tv')
-            auto_add_to_deluge: Whether to automatically add best match to Deluge
             
         Returns:
-            Tuple of (best_result, download_success):
-            - best_result: The best TorrentSearchResult, or None if no results found
-            - download_success: True if download was successful or not attempted, False if failed
+            The best TorrentSearchResult, or None if no results found
         """
         # 1. Search via adapter
         results = await self.search_provider.search_torrents(query, media_type)
         if not results:
-            return None, True  # No results, but not a download failure
+            return None
         
         # 2. Process and score (orchestration)
         processed_results = self._process_search_results(results)
         if not processed_results:
-            return None, True  # No valid results, but not a download failure
+            return None
         
         # 3. Get best result
         best_result = processed_results[0]
-        
-        # 4. Optionally send to download client
-        download_success = True
-        if auto_add_to_deluge:
-            send_result = await self.search_provider.send_to_download_client(
-                best_result.guid, 
-                best_result.indexerId
-            )
-            if not send_result:
-                download_success = False
-                logger.error("Error sending torrent to client downloader")
-        
-        return best_result, download_success
+        return best_result
     
     def _process_search_results(self, results: List[TorrentSearchResult]) -> List[TorrentSearchResult]:
         """Process and score TorrentSearchResult objects with quality information."""

@@ -1,13 +1,15 @@
 """HTTP routes for Prowlarr torrent search."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
-from app.application.prowlarr.useCases.searchTorrentsByQuery import SearchTorrentsByQueryUseCase
+from app.application.prowlarr.useCases.downloadTorrent import DownloadTorrentUseCase
+from app.application.prowlarr.queries.findBestTorrent import FindBestTorrentQuery
 from app.application.prowlarr.queries.testProwlarrConnection import (
     TestProwlarrConnectionQuery,
     GetProwlarrIndexerCountQuery,
 )
 from app.factories.prowlarr.prowlarrFactory import (
-    create_search_torrents_by_query_use_case,
+    create_find_best_torrent_query,
+    create_download_torrent_use_case,
     create_test_prowlarr_connection_query,
     create_get_prowlarr_indexer_count_query,
 )
@@ -28,14 +30,16 @@ prowlarrRoutes = APIRouter(prefix="/prowlarr", tags=["prowlarr"])
 @prowlarrRoutes.post("/search/by-query", response_model=SearchResponse)
 async def search_torrents_by_query(
     request: SearchByQueryRequest,
-    use_case: SearchTorrentsByQueryUseCase = Depends(create_search_torrents_by_query_use_case),
+    find_query: FindBestTorrentQuery = Depends(create_find_best_torrent_query),
+    download_use_case: DownloadTorrentUseCase = Depends(create_download_torrent_use_case),
 ):
     """
     Search for torrents using a query string.
     
     Args:
         request: Search request with query, media_type, and options
-        use_case: Search use case dependency
+        find_query: Find best torrent query dependency
+        download_use_case: Download torrent use case dependency
         
     Returns:
         SearchResponse with best match and status (200 OK)
@@ -46,11 +50,10 @@ async def search_torrents_by_query(
     try:
         logger.info(f"Search request: query='{request.query}', media_type={request.media_type}")
         
-        # Execute use case (returns tuple of (result, download_success))
-        best_result, download_success = await use_case.execute(
+        # 1. Find best torrent
+        best_result = await find_query.execute(
             query=request.query,
             media_type=request.media_type,
-            auto_add_to_deluge=request.auto_add_to_deluge,
         )
         
         # Return 404 if no results found
@@ -60,10 +63,11 @@ async def search_torrents_by_query(
                 detail=f"No torrents found matching query: '{request.query}'"
             )
         
-        # Build response message with download status
-        message = f"Found best match: {best_result.title}"
-        if request.auto_add_to_deluge and not download_success:
-            message += " (Warning: Failed to add torrent to Deluge)"
+        # 2. Optionally download torrent
+        download_success = True
+        if request.auto_add_to_deluge:
+            download_success = await download_use_case.execute(best_result)
+        
         
         # Return 200 OK with results
         return SearchResponse(
@@ -72,7 +76,7 @@ async def search_torrents_by_query(
             sizeGb=best_result.size,
             seeders=best_result.seeders,
             leechers=best_result.leechers,
-            message=message,
+ 
         )
             
     except HTTPException:
