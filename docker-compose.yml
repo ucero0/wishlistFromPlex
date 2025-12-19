@@ -79,7 +79,6 @@ services:
       - FIREWALL_IPV6=off
     ports:
       - "8112:8112"
-      - "58846:58846"
       - "9696:9696"
       - "8191:8191"
     volumes:
