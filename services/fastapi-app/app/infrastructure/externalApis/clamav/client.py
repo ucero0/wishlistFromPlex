@@ -66,11 +66,14 @@ class ClamAVClient:
             # Call HTTP scanning service in antivirus container
             scan_service_url = f"http://{self.host}:3311/scan"
             
+            logger.info(f"Calling scan service at {scan_service_url} for path: {clamav_path}")
+            
             with httpx.Client(timeout=600.0) as client:
                 response = client.post(
                     scan_service_url,
                     json={"path": clamav_path},
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
+                    timeout=600.0
                 )
                 
                 if response.status_code == 200:
@@ -132,13 +135,30 @@ class ClamAVClient:
         # This service handles both ClamAV and YARA scanning
         result = self._call_scan_service(path)
         
+        # Map paths back from ClamAV container format to FastAPI container format
+        # ClamAV paths: /scan/downloads, /scan/media
+        # FastAPI paths: /downloads, /media
+        def map_path_back(clamav_path: str) -> str:
+            """Map ClamAV container path back to FastAPI container path."""
+            if clamav_path.startswith("/scan/downloads"):
+                return clamav_path.replace("/scan/downloads", "/downloads", 1)
+            elif clamav_path.startswith("/scan/media"):
+                return clamav_path.replace("/scan/media", "/media", 1)
+            elif clamav_path.startswith("/scan/quarantine"):
+                return clamav_path.replace("/scan/quarantine", "/media/quarantine", 1)
+            return clamav_path
+        
+        # Map all file paths in the response
+        scanned_files = [map_path_back(p) for p in result.get("scanned_files", [])]
+        infected_files = [map_path_back(p) for p in result.get("infected_files", [])]
+        
         # Convert to ScanResult model
         return ScanResult(
             is_infected=result.get("is_infected", False),
             virus_name=result.get("virus_name"),
             yara_matches=result.get("yara_matches", []),
-            scanned_files=result.get("scanned_files", []),
-            infected_files=result.get("infected_files", [])
+            scanned_files=scanned_files,
+            infected_files=infected_files
         )
     
     def test_connection(self) -> bool:

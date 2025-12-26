@@ -27,7 +27,9 @@ fi
 mkdir -p /var/log
 
 # Start HTTP scanning service (runs in background)
-python3 /scan-service/http_scan_server.py > /var/log/scan-service.log 2>&1 &
+# Output goes to stderr (which docker-compose captures) and also append to log file
+# Use unbuffered Python for real-time output
+(python3 -u /scan-service/http_scan_server.py 2>&1 | tee -a /var/log/scan-service.log) &
 
 # Wait a moment for services to start
 sleep 2
