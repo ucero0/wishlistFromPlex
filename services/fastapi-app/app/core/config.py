@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     deluge_password: str = "deluge"  # Read from auth file or set via env
 
     # Scanner Configuration
-    clamav_host: str = "clamav"
+    clamav_host: str = "antivirus"
     clamav_port: int = 3310
     yara_rules_path: str = "/app/yara-rules"
     

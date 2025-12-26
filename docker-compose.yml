@@ -23,7 +23,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      clamav:
+      antivirus:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-plex_wishlist_user}:${POSTGRES_PASSWORD:-plex_wishlist_pass}@db:5432/${POSTGRES_DB:-plex_wishlist}
@@ -37,7 +37,7 @@ services:
       DELUGE_USERNAME: ${DELUGE_USERNAME:-localclient}
       DELUGE_PASSWORD: ${DELUGE_PASSWORD:-}
       # Scanner configuration
-      CLAMAV_HOST: clamav
+      CLAMAV_HOST: antivirus
       CLAMAV_PORT: 3310
       YARA_RULES_PATH: /app/yara-rules
       # Prowlarr configuration - connects via gluetun container
@@ -52,6 +52,7 @@ services:
       - ./services/fastapi-app/migrations:/app/migrations
       - ./infra/deluge/downloads:/downloads
       - ./media:/media
+      - ./media/quarantine:/media/quarantine  # Shared quarantine folder
       - ./yara-rules:/app/yara-rules:ro
     networks:
       - plex-wishlist-network
@@ -155,9 +156,9 @@ services:
       - plex-wishlist-network
     restart: unless-stopped
 
-  clamav:
-    image: clamav/clamav:latest
-    container_name: clamav
+  antivirus:
+    image: clamav/clamav:latest  # Always use latest image for latest ClamAV version
+    container_name: antivirus
     environment:
       - CLAMAV_NO_FRESHCLAMD=false
       - CLAMAV_NO_CLAMD=false
@@ -165,6 +166,10 @@ services:
       - ./infra/clamav/data:/var/lib/clamav
       - ./infra/deluge/downloads:/scan/downloads:ro
       - ./media:/scan/media:ro
+      - ./media/quarantine:/scan/quarantine:rw  # Shared quarantine folder (read-write)
+      - ./infra/clamav/update-scripts:/update-scripts:ro
+      - ./infra/clamav/scan-service:/scan-service:ro
+      - ./yara-rules:/yara-rules:rw  # Read-write for YARA rule updates
     healthcheck:
       test: ["CMD", "clamdcheck.sh"]
       interval: 60s
@@ -174,6 +179,9 @@ services:
     networks:
       - plex-wishlist-network
     restart: unless-stopped
+    # Use custom startup script that installs dependencies and starts services
+    # The startup script will then call the default /init entrypoint
+    entrypoint: ["/bin/sh", "/scan-service/startup.sh"]
 
 networks:
   plex-wishlist-network:
