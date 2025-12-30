@@ -1,6 +1,6 @@
 """Adapter for ClamAV infrastructure - bridges domain and infrastructure."""
 from app.infrastructure.externalApis.clamav.client import ClamAVClient
-from app.domain.ports.external.clamav.clamavProvider import ClamAVProvider
+from app.domain.ports.external.antivirus.clamavProvider import ClamAVProvider
 from app.domain.models.scanResult import ScanResult
 
 

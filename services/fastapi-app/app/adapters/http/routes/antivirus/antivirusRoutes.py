@@ -1,7 +1,7 @@
 """Antivirus routes for direct file/directory scanning."""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from app.domain.ports.external.clamav.clamavProvider import ClamAVProvider
+from app.domain.ports.external.antivirus.clamavProvider import ClamAVProvider
 from app.factories.antivirus.antivirusFactory import create_clamav_provider
 
 antivirusRoutes = APIRouter(prefix="/antivirus", tags=["antivirus"])

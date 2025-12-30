@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Optional
-from app.domain.ports.external.clamav.clamavProvider import ClamAVProvider
+from app.domain.ports.external.antivirus.clamavProvider import ClamAVProvider
 from app.domain.services.filesystem_service import FilesystemService
 from app.domain.ports.repositories.antivirus.antivirusRepo import AntivirusRepoPort
 from app.domain.models.antivirusScan import AntivirusScan
