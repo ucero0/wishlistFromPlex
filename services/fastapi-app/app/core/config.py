@@ -19,21 +19,21 @@ class Settings(BaseSettings):
     deluge_password: str = "deluge"  # Read from auth file or set via env
 
     # Scanner Configuration
-    clamav_host: str = "antivirus"
-    clamav_port: int = 3310
-    yara_rules_path: str = "/app/yara-rules"
+    antivirus_host: str = "antivirus"
+    antivirus_port: int = 3311  # HTTP scan service port (antivirus daemon is on 3310)
     
     # Prowlarr Configuration
     prowlarr_host: str = "gluetun"  # Prowlarr runs through gluetun VPN
     prowlarr_port: int = 9696
     prowlarr_api_key: Optional[str] = None
     
+    # TMDB Configuration
+    tmdb_api_key: Optional[str] = None  # Set via TMDB_API_KEY environment variable
+    
     # Media paths
-    downloads_path: str = "/downloads"
-    media_movies_path: str = "/media/movies"
-    media_tvshows_path: str = "/media/tvshows"
-    media_quarantine_path: str = "/media/quarantine"
-
+    container_plex_media_path: str = "/plex/media"
+    container_deluge_quarantine_path: str = "/downloads/quarantine"  # Shared quarantine path between FastAPI and Antivirus containers
+    
     # Logging
     log_level: str = "INFO"
 

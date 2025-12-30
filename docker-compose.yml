@@ -30,30 +30,37 @@ services:
       API_KEY: ${API_KEY}
       PLEX_SERVER_URL: ${PLEX_SERVER_URL:-http://plex:32400}
       PLEX_SYNC_INTERVAL_HOURS: ${PLEX_SYNC_INTERVAL_HOURS:-6}
+      CONTAINER_PLEX_MEDIA_PATH: ${CONTAINER_PLEX_MEDIA_PATH}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Deluge configuration - connects via gluetun container
-      DELUGE_HOST: ${DELUGE_HOST:-gluetun}
-      DELUGE_PORT: ${DELUGE_PORT:-58846}
-      DELUGE_USERNAME: ${DELUGE_USERNAME:-localclient}
-      DELUGE_PASSWORD: ${DELUGE_PASSWORD:-}
+      DELUGE_HOST: ${DELUGE_HOST}
+      DELUGE_PORT: ${DELUGE_PORT}
+      DELUGE_USERNAME: ${DELUGE_USERNAME}
+      DELUGE_PASSWORD: ${DELUGE_PASSWORD}
+      CONTAINER_DELUGE_QUARANTINE_PATH: ${CONTAINER_DELUGE_QUARANTINE_PATH}
       # Scanner configuration
-      CLAMAV_HOST: antivirus
-      CLAMAV_PORT: 3310
-      YARA_RULES_PATH: /app/yara-rules
+      # ANTIVIRUS_DAEMON_HOST and ANTIVIRUS_DAEMON_PORT are for the antivirus daemon (port 3310)
+      # ANTIVIRUS_HOST and ANTIVIRUS_PORT are for the HTTP scan service (port 3311)
+      ANTIVIRUS_DAEMON_HOST: antivirus
+      ANTIVIRUS_DAEMON_PORT: 3310
+      ANTIVIRUS_HOST: antivirus
+      ANTIVIRUS_PORT: 3311
       # Prowlarr configuration - connects via gluetun container
-      PROWLARR_HOST: ${PROWLARR_HOST:-gluetun}
-      PROWLARR_PORT: ${PROWLARR_PORT:-9696}
-      PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
+      PROWLARR_HOST: ${PROWLARR_HOST}
+      PROWLARR_PORT: ${PROWLARR_PORT}
+      PROWLARR_API_KEY: ${PROWLARR_API_KEY}
+      # TMDB configuration
+      TMDB_API_KEY: ${TMDB_API_KEY}
+
+
     ports:
       - "8000:8000"
     volumes:
       - ./services/fastapi-app/app:/app/app
       - ./services/fastapi-app/main.py:/app/main.py
       - ./services/fastapi-app/migrations:/app/migrations
-      - ./infra/deluge/downloads:/downloads
-      - ./media:/media
-      - ./media/quarantine:/media/quarantine  # Shared quarantine folder
-      - ./yara-rules:/app/yara-rules:ro
+      - delugeDownloadsQuarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
+      - plexMedia:${CONTAINER_PLEX_MEDIA_PATH}
     networks:
       - plex-wishlist-network
     restart: unless-stopped
@@ -73,45 +80,66 @@ services:
       - OPENVPN_USER=${NORDVPN_USER}
       - OPENVPN_PASSWORD=${NORDVPN_PASSWORD}
       - HEALTH_SERVER_AUTH=no
+      - HEALTH_SERVER_PORT=9999
       - SERVER_REGIONS=${SERVER_REGIONS:-}
       - FIREWALL=on
-      - FIREWALL_INPUT_PORTS=8112,58846,9696,8191
+      - FIREWALL_INPUT_PORTS=8112,58846,${PROWLARR_PORT},8191
       - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12,172.18.0.0/16
       - FIREWALL_IPV6=off
     ports:
       - "8112:8112"
-      - "9696:9696"
+      - "${PROWLARR_PORT}:${PROWLARR_PORT}"
       - "8191:8191"
     volumes:
       - ./infra/gluetun:/gluetun
     networks:
       - plex-wishlist-network
+    healthcheck:
+      # Check VPN connection status by verifying:
+      # 1. OpenVPN process is running (check for openvpn in process list)
+      # 2. tun0 interface exists (VPN tunnel is established)
+      # When AUTH_FAILED occurs, OpenVPN will exit and tun0 won't exist, triggering restart
+      test: ["CMD-SHELL", "pgrep openvpn > /dev/null && test -d /proc/sys/net/ipv4/conf/tun0 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
   deluge:
     image: linuxserver/deluge:latest
     container_name: deluge
     network_mode: "service:gluetun"
+    # Note: When using network_mode: service, containers share the network stack
+    # When gluetun restarts, deluge will automatically restart too
+    # We can't use condition: service_healthy with network_mode: service
     environment:
+      - CONTAINER_DELUGE_DOWNLOADING_PATH=${CONTAINER_DELUGE_DOWNLOADING_PATH}
+      - CONTAINER_DELUGE_QUARANTINE_PATH=${CONTAINER_DELUGE_QUARANTINE_PATH}
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
       - DELUGE_LOGLEVEL=info
       - API_KEY=${API_KEY}
-      - SCANNER_API_URL=http://plex-wishlist-api:8000
+      - SCANFORVIRUS_API_URL=${SCANFORVIRUS_API_URL}
     volumes:
       - ./infra/deluge/config:/config
-      - ./infra/deluge/downloads:/downloads
+      - delugeDownloading:${CONTAINER_DELUGE_DOWNLOADING_PATH}
+      - delugeDownloadsQuarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
       - ./infra/deluge/custom-cont-init.d:/custom-cont-init.d:ro
       - ./infra/deluge/scripts:/scripts:ro
     depends_on:
-      - gluetun
+      gluetun:
+        condition: service_started
     restart: unless-stopped
 
   prowlarr:
     image: linuxserver/prowlarr:latest
     container_name: prowlarr
     network_mode: "service:gluetun"
+    # Note: When using network_mode: service, containers share the network stack
+    # When gluetun restarts, prowlarr will automatically restart too
+    # We can't use condition: service_healthy with network_mode: service
     environment:
       - PUID=1000
       - PGID=1000
@@ -122,19 +150,23 @@ services:
     volumes:
       - ./infra/prowlarr/config:/config
     depends_on:
-      - gluetun
+      gluetun:
+        condition: service_started
     restart: unless-stopped
 
   flaresolverr:
     image: flaresolverr/flaresolverr:latest
     container_name: flaresolverr
     network_mode: "service:gluetun"
+    # Note: When using network_mode: service, containers share the network stack
+    # When gluetun restarts, flaresolverr will automatically restart too
     environment:
       - LOG_LEVEL=${FLARESOLVERR_LOG_LEVEL:-info}
       - TZ=Europe/Madrid
       - CAPTCHA_SOLVER=${FLARESOLVERR_CAPTCHA_SOLVER:-none}
     depends_on:
-      - gluetun
+      gluetun:
+        condition: service_started
     restart: unless-stopped
 
   plex:
@@ -146,10 +178,10 @@ services:
       - TZ=Europe/Madrid
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM:-}
+      - CONTAINER_PLEX_MEDIA_PATH=${CONTAINER_PLEX_MEDIA_PATH}
     volumes:
       - ./infra/plex/config:/config
-      - ./media/movies:/media/movies
-      - ./media/tvshows:/media/tvshows
+      - plexMedia:${CONTAINER_PLEX_MEDIA_PATH}
     ports:
       - "32400:32400"
     networks:
@@ -163,13 +195,11 @@ services:
       - CLAMAV_NO_FRESHCLAMD=false
       - CLAMAV_NO_CLAMD=false
     volumes:
-      - ./infra/clamav/data:/var/lib/clamav
-      - ./infra/deluge/downloads:/scan/downloads:ro
-      - ./media:/scan/media:ro
-      - ./media/quarantine:/scan/quarantine:rw  # Shared quarantine folder (read-write)
-      - ./infra/clamav/update-scripts:/update-scripts:ro
-      - ./infra/clamav/scan-service:/scan-service:ro
-      - ./yara-rules:/yara-rules:rw  # Read-write for YARA rule updates
+      - delugeDownloadsQuarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}:rw  # Shared quarantine folder (read-write)
+      - ./infra/antivirus/data:/var/lib/clamav
+      - ./infra/antivirus/update-scripts:/update-scripts:ro
+      - ./infra/antivirus/scan-service:/scan-service:ro
+      - ./infra/antivirus/yara-rules:/yara-rules:rw  # Read-write for YARA rule updates
     healthcheck:
       test: ["CMD", "clamdcheck.sh"]
       interval: 60s
@@ -188,4 +218,23 @@ networks:
     driver: bridge
 
 
+volumes:
+  plexMedia:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./infra/plex/media
+  delugeDownloading:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./infra/deluge/downloads/downloading
+  delugeDownloadsQuarantine:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./infra/deluge/downloads/quarantine
 

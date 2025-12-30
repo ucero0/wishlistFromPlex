@@ -10,7 +10,7 @@ from app.application.prowlarr.queries.testProwlarrConnection import (
 )
 
 
-def create_find_best_torrent_query() -> FindBestTorrentQuery:
+def createFindBestTorrentQuery() -> FindBestTorrentQuery:
     """Factory function to create FindBestTorrentQuery with its dependencies."""
     client = ProwlarrClient()
     adapter = ProwlarrAdapter(client)
@@ -18,21 +18,21 @@ def create_find_best_torrent_query() -> FindBestTorrentQuery:
     return FindBestTorrentQuery(adapter, quality_service)
 
 
-def create_download_torrent_use_case() -> DownloadTorrentUseCase:
+def createDownloadTorrentUseCase() -> DownloadTorrentUseCase:
     """Factory function to create DownloadTorrentUseCase with its dependencies."""
     client = ProwlarrClient()
     adapter = ProwlarrAdapter(client)
     return DownloadTorrentUseCase(adapter)
 
 
-def create_test_prowlarr_connection_query() -> TestProwlarrConnectionQuery:
+def createTestProwlarrConnectionQuery() -> TestProwlarrConnectionQuery:
     """Factory function to create TestProwlarrConnectionQuery with its dependencies."""
     client = ProwlarrClient()
     adapter = ProwlarrAdapter(client)
     return TestProwlarrConnectionQuery(adapter)
 
 
-def create_get_prowlarr_indexer_count_query() -> GetProwlarrIndexerCountQuery:
+def createGetProwlarrIndexerCountQuery() -> GetProwlarrIndexerCountQuery:
     """Factory function to create GetProwlarrIndexerCountQuery with its dependencies."""
     client = ProwlarrClient()
     adapter = ProwlarrAdapter(client)

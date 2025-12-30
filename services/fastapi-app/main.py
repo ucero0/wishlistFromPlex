@@ -15,7 +15,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 from app.core.config import settings
-from app.adapters.http.routes import plexRoutes, delugeRoutes, prowlarrRoutes
+from app.adapters.http.routes import plexRoutes, delugeRoutes, prowlarrRoutes, orchestratorRoutes, antivirusRoutes
+from app.factories.scheduler.schedulerFactory import create_scheduler_service
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper()),
@@ -23,6 +24,9 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Initialize scheduler service using factory
+scheduler_service = create_scheduler_service()
 
 # Create FastAPI app
 app = FastAPI(
@@ -32,7 +36,7 @@ app = FastAPI(
     - Syncs Plex watchlists from multiple users
     - Auto-searches for torrents via Prowlarr (prioritizes TrueHD, 2160p)
     - Sends downloads to Deluge through VPN
-    - Scans completed downloads for viruses (ClamAV + YARA)
+    - Scans completed downloads for viruses (antivirus + YARA)
     - Organizes clean files into Plex library structure
     
     ## Authentication
@@ -89,9 +93,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 # Include API routers (microservice structure)
+app.include_router(orchestratorRoutes)
 app.include_router(plexRoutes)
 app.include_router(delugeRoutes)
 app.include_router(prowlarrRoutes)
+app.include_router(antivirusRoutes)
 
 @app.on_event("startup")
 async def startup_event():
@@ -101,6 +107,9 @@ async def startup_event():
     # Note: Database tables are created via Alembic migrations
     # which run automatically in the Docker entrypoint script.
     # No need to create tables here as we're using async engine.
+    
+    # Start the scheduler service
+    scheduler_service.start()
     logger.info("Startup complete")
 
 
@@ -108,6 +117,7 @@ async def startup_event():
 async def shutdown_event():
     """Stop scheduler on shutdown."""
     logger.info("Shutting down Media Automation Service")
+    scheduler_service.shutdown()
     logger.info("Shutdown complete")
 
 
@@ -128,7 +138,7 @@ async def root():
         "modules": {
             "plex": "active",
             "deluge": "active",
-            "scanner": "active",
+            "antivirus": "active",
             "torrent_search": "active",
             "orchestration": "active",
             "file_manager": "coming_soon",

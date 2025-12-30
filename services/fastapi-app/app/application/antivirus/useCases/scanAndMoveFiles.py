@@ -1,30 +1,28 @@
-"""Use case for scanning files with ClamAV/YARA and moving clean files."""
+"""Use case for scanning files with antivirus/YARA and moving clean files."""
 import logging
-import os
 from datetime import datetime
 from typing import Optional
-from app.domain.ports.external.antivirus.clamavProvider import ClamAVProvider
+from app.domain.ports.external.antivirus.antivirusProvider import AntivirusProvider
 from app.domain.services.filesystem_service import FilesystemService
 from app.domain.ports.repositories.antivirus.antivirusRepo import AntivirusRepoPort
 from app.domain.models.antivirusScan import AntivirusScan
-from app.application.torrentDownload.queries.getTorrentDownload import GetTorrentDownloadByGuidProwlarrQuery
+from app.application.torrentDownload.queries.getTorrentDownload import GetTorrentDownloadByUidQuery
 from app.domain.ports.external.deluge.delugeProvider import DelugeProvider
-
 logger = logging.getLogger(__name__)
 
 
 class ScanAndMoveFilesUseCase:
-    """Use case for scanning files with ClamAV/YARA and moving clean files."""
+    """Use case for scanning files with antivirus and moving clean files."""
     
     def __init__(
         self,
-        clamav_provider: ClamAVProvider,
+        antivirus_provider: AntivirusProvider,
         filesystem_service: FilesystemService,
         antivirus_repo: AntivirusRepoPort,
-        get_torrent_download_query: GetTorrentDownloadByGuidProwlarrQuery,
+        get_torrent_download_query: GetTorrentDownloadByUidQuery,
         deluge_provider: DelugeProvider
     ):
-        self.clamav_provider = clamav_provider
+        self.antivirus_provider = antivirus_provider
         self.filesystem_service = filesystem_service
         self.antivirus_repo = antivirus_repo
         self.get_torrent_download_query = get_torrent_download_query
@@ -35,58 +33,57 @@ class ScanAndMoveFilesUseCase:
         Scan files for a torrent and move clean files to media directories.
         
         Args:
-            torrent_hash: The hash of the torrent to scan
+            torrent_hash: The hash (uid) of the torrent to scan
             
         Returns:
             dict with scan results (status, infected, clean, moved)
         """
-        # Get torrent download info to find guidProwlarr
-        # We need to find the torrent download by hash (uid)
-        # For now, we'll get the save path from Deluge directly
-        
-        # Get save path from Deluge
-        save_path = await self.deluge_provider.get_torrent_save_path(torrent_hash)
-        if not save_path:
-            logger.error(f"Could not get save path for torrent {torrent_hash}")
+        # Get torrent download by hash (uid)
+        torrent_download = await self.get_torrent_download_query.execute(torrent_hash)
+        if not torrent_download:
+            logger.error(f"Could not find torrent download with hash {torrent_hash}")
             return {
                 "status": "error",
-                "message": "Could not get torrent save path",
+                "message": f"Could not find torrent download with hash {torrent_hash}",
                 "infected": False,
                 "moved": False
             }
+        
+
+        fileName = torrent_download.fileName
+        media_type = torrent_download.type
+        
+        # Build scan path: containerQuarantinepath/name
+        scan_path = self.filesystem_service.get_quarantine_file_path(fileName)
         
         # Check if path exists
-        if not os.path.exists(save_path):
-            logger.error(f"Torrent save path does not exist: {save_path}")
+        if not self.filesystem_service.path_exists(scan_path):
+            logger.error(f"Scan path does not exist: {scan_path}")
             return {
                 "status": "error",
-                "message": f"Torrent save path does not exist: {save_path}",
+                "message": f"Scan path does not exist: {scan_path}",
                 "infected": False,
                 "moved": False
             }
         
-        # Scan the file or directory using the simplified antivirus service
-        scan_result = self.clamav_provider.scan(save_path)
+        # Remove all files that aren't video files or subtitles before scanning
+        removed_count = self.filesystem_service.remove_non_media_files(scan_path)
+        if removed_count > 0:
+            logger.info(f"Removed {removed_count} non-media file(s) before scanning")
+
+        # Scan the file or directory using the antivirus service
+        scan_result = self.antivirus_provider.scan(scan_path)
         
         # Check if any files are infected
         is_infected = scan_result.is_infected
-        is_file = os.path.isfile(save_path)
-        is_dir = os.path.isdir(save_path)
-        
-        # Try to find the torrent download to get guidProwlarr and media type
-        # We'll need to search by hash (uid) - for now, we'll use None
-        guid_prowlarr = None
-        media_type = "movie"  # Default
-        
-        # Try to find torrent download by hash (uid)
-        # Note: We'd need a GetTorrentDownloadByUidQuery for this
-        # For now, we'll use the hash as a fallback for guidProwlarr
+        is_file = self.filesystem_service.is_file(scan_path)
+        is_dir = self.filesystem_service.is_directory(scan_path)
         
         # Create antivirus scan record
         scan_record = AntivirusScan(
-            guidProwlarr=guid_prowlarr or torrent_hash,  # Use hash as fallback
-            filePath=save_path if is_file else None,
-            folderPathSrc=save_path if is_dir else None,
+            guidProwlarr=torrent_download.guidProwlarr,
+            filePath=scan_path if is_file else None,
+            folderPathSrc=scan_path if is_dir else None,
             Infected=is_infected,
             scanDateTime=datetime.now()
         )
@@ -94,29 +91,11 @@ class ScanAndMoveFilesUseCase:
         # Save scan record
         created_scan = await self.antivirus_repo.create(scan_record)
         
-        # If infected, move to quarantine
+        # If infected, remove the torrent and its files using Deluge
         if is_infected:
-            logger.warning(f"Infected files found in {save_path}: {scan_result.infected_files}")
-            # Get quarantine path from settings
-            from app.core.config import settings
-            quarantine_path = os.path.join(
-                settings.media_quarantine_path,
-                os.path.basename(save_path)
-            )
+            logger.warning(f"Infected files found in {scan_path}: {scan_result.infected_files}")
             
-            moved = False
-            if is_file:
-                moved = self.filesystem_service.move_file(save_path, quarantine_path)
-            else:
-                moved = self.filesystem_service.move_directory(save_path, quarantine_path)
-            
-            # Update scan record with quarantine path
-            if moved:
-                if is_file:
-                    created_scan.filePath = quarantine_path
-                else:
-                    created_scan.folderPathDst = quarantine_path
-                await self.antivirus_repo.update(created_scan)
+            deleted = await self.deluge_provider.remove_torrent(torrent_hash, remove_data=True)
             
             return {
                 "status": "infected",
@@ -126,21 +105,15 @@ class ScanAndMoveFilesUseCase:
                 "infected_files": scan_result.infected_files,
                 "yara_matches": scan_result.yara_matches,
                 "scanned_files": scan_result.scanned_files,
-                "moved": moved,
-                "quarantine_path": quarantine_path if moved else None
+                "deleted": deleted
             }
         
-        # If clean, move to appropriate media directory
-        # Use the media type we determined earlier (defaults to "movie")
+        # If clean, move to appropriate media directory based on type
+        # If type is movie: move to containerPlexPath/movies
+        # If type is tvshow: move to containerPlexPath/tvshow
+        destination_path = self.filesystem_service.get_media_destination_path(media_type, fileName)
         
-        media_path = self.filesystem_service.get_media_path(media_type)
-        destination_path = os.path.join(media_path, os.path.basename(save_path))
-        
-        moved = False
-        if is_file:
-            moved = self.filesystem_service.move_file(save_path, destination_path)
-        else:
-            moved = self.filesystem_service.move_directory(save_path, destination_path)
+        moved = self.filesystem_service.move(scan_path, destination_path)
         
         # Update scan record with destination path
         if moved:

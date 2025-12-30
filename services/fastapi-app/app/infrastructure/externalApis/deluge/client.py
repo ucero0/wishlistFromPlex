@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any
 from app.infrastructure.externalApis.deluge.schemas import ExternalDelugeTorrentStatusResponse
 from deluge_client import DelugeRPCClient
 from app.core.config import settings
-
+from fastapi import HTTPException
 logger = logging.getLogger(__name__)
 
 
@@ -76,15 +76,45 @@ class DelugeClient:
             logger.error(f"Error disconnecting from Deluge: {e}")
             return False
     
+
     def get_torrents_status(self) -> List[ExternalDelugeTorrentStatusResponse]:
         """Get the status of all torrents from Deluge."""
         if not self.connect():
-            return {}
+            return []
         
-        rawResponse = self.client.call("core.get_torrents_status", {}, ExternalDelugeTorrentStatusResponse.fields())
+        rawResponse = self.client.core.get_torrents_status({}, ExternalDelugeTorrentStatusResponse.fields())
         decodedResponse = decode_rpc(rawResponse)
         response: List[ExternalDelugeTorrentStatusResponse] = []
         for hash, torrent in decodedResponse.items():
             response.append(ExternalDelugeTorrentStatusResponse(**torrent))
         return response
 
+    def get_torrent_status(self, hash: str) -> ExternalDelugeTorrentStatusResponse:
+        """Get the status of a torrent from Deluge."""
+        rawResponse = self.client.core.get_torrent_status(hash, ExternalDelugeTorrentStatusResponse.fields())
+        #if rawResponse is empty raise status code 404
+        if not rawResponse:
+            raise HTTPException(status_code=404, detail="Torrent not found in deluge")
+
+        decodedResponse = decode_rpc(rawResponse)
+        return ExternalDelugeTorrentStatusResponse(**decodedResponse)
+
+    def remove_torrent(self, hash: str, remove_data: bool = False) -> bool:
+        """Remove a torrent from Deluge."""
+        rawResponse = self.client.core.remove_torrent(hash, remove_data)
+        decodedResponse = decode_rpc(rawResponse)
+        return decodedResponse
+    
+    def get_torrent_save_path(self, hash: str) -> Optional[str]:
+        """Get the save path of a torrent from Deluge."""
+        if not self.connect():
+            return None
+        try:
+            rawResponse = self.client.core.get_torrent_status(hash, ["save_path"])
+            decodedResponse = decode_rpc(rawResponse)
+            if decodedResponse and "save_path" in decodedResponse:
+                return decodedResponse["save_path"]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting torrent save path: {e}")
+            return None

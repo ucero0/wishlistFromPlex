@@ -28,7 +28,6 @@ class SearchResponse(BaseModel):
     sizeGb: float
     seeders: int
     leechers: int
-    message: str
 
 
 class SearchResultResponse(BaseModel):

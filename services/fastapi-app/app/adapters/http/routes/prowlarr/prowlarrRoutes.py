@@ -8,10 +8,10 @@ from app.application.prowlarr.queries.testProwlarrConnection import (
     GetProwlarrIndexerCountQuery,
 )
 from app.factories.prowlarr.prowlarrFactory import (
-    create_find_best_torrent_query,
-    create_download_torrent_use_case,
-    create_test_prowlarr_connection_query,
-    create_get_prowlarr_indexer_count_query,
+    createFindBestTorrentQuery,
+    createDownloadTorrentUseCase,
+    createTestProwlarrConnectionQuery,
+    createGetProwlarrIndexerCountQuery,
 )
 from app.adapters.http.schemas.prowlarr import (
     SearchByQueryRequest,
@@ -30,8 +30,8 @@ prowlarrRoutes = APIRouter(prefix="/prowlarr", tags=["prowlarr"])
 @prowlarrRoutes.post("/search/by-query", response_model=SearchResponse)
 async def search_torrents_by_query(
     request: SearchByQueryRequest,
-    find_query: FindBestTorrentQuery = Depends(create_find_best_torrent_query),
-    download_use_case: DownloadTorrentUseCase = Depends(create_download_torrent_use_case),
+    find_query: FindBestTorrentQuery = Depends(createFindBestTorrentQuery),
+    download_use_case: DownloadTorrentUseCase = Depends(createDownloadTorrentUseCase),
 ):
     """
     Search for torrents using a query string.
@@ -92,7 +92,7 @@ async def search_torrents_by_query(
 
 @prowlarrRoutes.get("/test-connection", response_model=ProwlarrConnectionResponse)
 async def test_prowlarr_connection(
-    query: TestProwlarrConnectionQuery = Depends(create_test_prowlarr_connection_query),
+    query: TestProwlarrConnectionQuery = Depends(createTestProwlarrConnectionQuery),
 ):
     """
     Test connection to Prowlarr.
@@ -118,7 +118,7 @@ async def test_prowlarr_connection(
 
 @prowlarrRoutes.get("/indexers/count", response_model=ProwlarrIndexerCountResponse)
 async def get_prowlarr_indexer_count(
-    query: GetProwlarrIndexerCountQuery = Depends(create_get_prowlarr_indexer_count_query),
+    query: GetProwlarrIndexerCountQuery = Depends(createGetProwlarrIndexerCountQuery),
 ):
     """
     Get the number of configured indexers in Prowlarr.

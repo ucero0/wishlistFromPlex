@@ -6,7 +6,7 @@ from typing import List, Optional
 class ExternalDelugeTorrentStatusResponse(BaseModel):
     """Raw torrent status structure from Deluge RPC - external schema."""
     hash: str
-    name: str
+    name: str  # Deluge RPC field name - kept as-is to match external API
     state: str
     progress: float
     download_payload_rate: int
@@ -16,6 +16,7 @@ class ExternalDelugeTorrentStatusResponse(BaseModel):
     total_uploaded: int
     num_peers: int
     num_seeds: int
+    save_path: Optional[str] = None
 
     @classmethod
     def fields(cls) -> list[str]:

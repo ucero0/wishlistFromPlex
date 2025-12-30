@@ -17,7 +17,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from app.core.config import settings
 # Base is imported from persistence.models.shared
 from app.infrastructure.persistence.base import Base
+# Import all ORM models so Alembic can detect them for autogenerate
 from app.infrastructure.persistence.plex.models.plexUserOrm import PlexUserOrm
+from app.infrastructure.persistence.torrentDownloads.model.torrent_orm import TorrentItem
+from app.infrastructure.persistence.antivirus.model.antivirus_orm import AntivirusItem
 
 
 # this is the Alembic Config object, which provides

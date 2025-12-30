@@ -125,7 +125,7 @@ class ProwlarrClient:
                 if response.status_code == 200:
                     return True
                 else:
-                    logger.error(f"Error sending torrent to client downloader: {response.text}")
+                    logger.error(f"Error sending torrent to client downloader: {response.json()}, status code: {response.status_code}")
                     return False
         except Exception as e:
             logger.error(f"Error sending torrent to client downloader: {e}")

@@ -1,8 +1,10 @@
-"""Antivirus routes for direct file/directory scanning."""
-from fastapi import APIRouter, Depends, HTTPException
+"""Antivirus routes for direct file/directory scanning and torrent scanning."""
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from app.domain.ports.external.antivirus.clamavProvider import ClamAVProvider
-from app.factories.antivirus.antivirusFactory import create_clamav_provider
+import httpx
+from app.domain.ports.external.antivirus.antivirusProvider import AntivirusProvider
+from app.factories.antivirus.antivirusFactory import create_antivirus_provider, create_scan_and_move_files_use_case
+from app.application.antivirus.useCases.scanAndMoveFiles import ScanAndMoveFilesUseCase
 
 antivirusRoutes = APIRouter(prefix="/antivirus", tags=["antivirus"])
 
@@ -15,10 +17,10 @@ class ScanPathRequest(BaseModel):
 @antivirusRoutes.post("/scan")
 async def scan_path(
     request: ScanPathRequest,
-    clamav_provider: ClamAVProvider = Depends(create_clamav_provider)
+    antivirus_provider: AntivirusProvider = Depends(create_antivirus_provider)
 ):
     """
-    Scan a file or directory with ClamAV and YARA rules.
+    Scan a file or directory with antivirus and YARA rules.
     
     **IMPORTANT:** This endpoint scans files that are ALREADY on disk.
     Files are NOT uploaded - you provide the path to existing files.
@@ -26,10 +28,9 @@ async def scan_path(
     The service automatically detects if the path is a file or directory
     and scans accordingly. This endpoint only scans - it does NOT move files.
     
-    **Shared paths between FastAPI and ClamAV:**
-    - `/downloads/` - Downloads folder (read-only in ClamAV)
-    - `/media/` - Media folder (read-only in ClamAV)
-    - `/media/quarantine/` - Quarantine folder (shared, read-write)
+    **Shared paths between FastAPI and antivirus:**
+
+    - `/downloads/quarantine/` - Quarantine folder (shared, read-write)
     
     **Example paths (from FastAPI container perspective):**
     - `/downloads/movie.mkv` - Scan a single file
@@ -45,7 +46,7 @@ async def scan_path(
     - `infected_files`: Files that were infected
     """
     try:
-        scan_result = clamav_provider.scan(request.path)
+        scan_result = antivirus_provider.scan(request.path)
         return {
             "status": "infected" if scan_result.is_infected else "clean",
             "infected": scan_result.is_infected,
@@ -58,33 +59,84 @@ async def scan_path(
                 "total_infected": len(scan_result.infected_files)
             }
         }
+    except httpx.HTTPStatusError as e:
+        # Preserve the status code from the scan service
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"Scan service error: {e.response.text[:200]}"
+        )
+    except httpx.RequestError as e:
+        # Connection/timeout errors
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Unable to connect to scan service: {str(e)}"
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error scanning path: {str(e)}")
+        # Other unexpected errors
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error scanning path: {str(e)}"
+        )
 
 
 @antivirusRoutes.get("/health")
 async def health_check(
-    clamav_provider: ClamAVProvider = Depends(create_clamav_provider)
+    antivirus_provider: AntivirusProvider = Depends(create_antivirus_provider)
 ):
     """
-    Check ClamAV service health and connection status.
+    Check antivirus service health and connection status.
     
     **Returns:**
-    - `connected`: Boolean indicating if ClamAV daemon is reachable
+    - `connected`: Boolean indicating if antivirus daemon is reachable
     - `status`: "healthy" or "unhealthy"
     """
     try:
-        is_connected = clamav_provider.test_connection()
+        is_connected = antivirus_provider.test_connection()
         return {
-            "service": "clamav",
+            "service": "antivirus",
             "connected": is_connected,
             "status": "healthy" if is_connected else "unhealthy"
         }
     except Exception as e:
         return {
-            "service": "clamav",
+            "service": "antivirus",
             "connected": False,
             "status": "unhealthy",
             "error": str(e)
         }
+
+
+class ScanTorrentRequest(BaseModel):
+    """Request model for scanning a torrent."""
+    torrent_hash: str
+
+
+@antivirusRoutes.post("/scan/torrent")
+async def scan_torrent(
+    request: ScanTorrentRequest,
+    use_case: ScanAndMoveFilesUseCase = Depends(create_scan_and_move_files_use_case)
+):
+    """
+    Scan a torrent's files with antivirus and YARA rules.
+    If clean, move files to appropriate media directory.
+    If infected, delete the files/directory.
+    
+    This endpoint:
+    1. Gets the torrent download by hash from the database
+    2. Scans files from the quarantine path using the torrent's fileName
+    3. If clean: moves to containerPlexPath/movies or tvshow based on type
+    4. If infected: deletes the files/directory
+    
+    **Returns:**
+    - `status`: "clean", "infected", or "error"
+    - `infected`: Boolean indicating if files are infected
+    - `moved`: Boolean indicating if files were moved (if clean)
+    - `deleted`: Boolean indicating if files were deleted (if infected)
+    - `destination_path`: Path where files were moved (if clean and moved)
+    """
+    try:
+        result = await use_case.execute(request.torrent_hash)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error scanning torrent: {str(e)}")
 

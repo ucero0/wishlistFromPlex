@@ -35,7 +35,7 @@ SOURCE_SCORES = {
     "dvdrip": 10, "cam": 1, "ts": 1, "telesync": 1,
 }
 
-MIN_SEEDERS = 1
+MIN_SEEDERS = 2
 
 
 class TorrentQualityService:

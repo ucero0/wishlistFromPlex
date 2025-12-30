@@ -25,17 +25,10 @@ class DownloadTorrentUseCase:
         Returns:
             True if successful, False otherwise
         """
-        try:
-            send_result = await self.search_provider.send_to_download_client(
-                torrent_result.guid, 
-                torrent_result.indexerId
-            )
-            if not send_result:
-                logger.error(f"Error sending torrent '{torrent_result.title}' to download client")
-                return False
-            logger.info(f"Successfully sent torrent '{torrent_result.title}' to download client")
-            return True
-        except Exception as e:
-            logger.error(f"Exception while sending torrent to download client: {e}")
-            return False
 
+        send_result = await self.search_provider.send_to_download_client(
+            torrent_result.guid, 
+            torrent_result.indexerId
+        )
+
+        return send_result

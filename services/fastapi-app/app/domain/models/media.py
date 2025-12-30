@@ -17,3 +17,4 @@ class MediaItem(BaseModel):
     title: Optional[str] = None
     year: Optional[int] = None
     type: Optional[MediaType] = None
+

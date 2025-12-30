@@ -72,3 +72,9 @@ echo "2. Or run: cd services/fastapi-app/migrations && alembic revision --autoge
 
 
 
+
+
+
+
+
+

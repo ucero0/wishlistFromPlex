@@ -3,11 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 from app.infrastructure.persistence.database import get_db
 from app.infrastructure.persistence.antivirus.repo.antivirus_repository import AntivirusRepository
-from app.infrastructure.externalApis.clamav.client import ClamAVClient
-from app.adapters.external.clamav.adapter import ClamAVAdapter
+from app.infrastructure.externalApis.antivirus.client import AntivirusClient
+from app.adapters.external.antivirus.adapter import AntivirusAdapter
 from app.domain.services.filesystem_service import FilesystemServiceImpl
-from app.infrastructure.externalApis.deluge.client import DelugeClient
-from app.adapters.external.deluge.adapter import DelugeAdapter
 from app.application.antivirus.queries import (
     CheckInfectedByGuidProwlarrQuery,
     GetAntivirusScanByIdQuery,
@@ -25,8 +23,9 @@ from app.application.antivirus.useCases import (
     DeleteAntivirusScansByGuidProwlarrUseCase,
 )
 from app.application.antivirus.useCases.scanAndMoveFiles import ScanAndMoveFilesUseCase
-from app.application.torrentDownload.queries.getTorrentDownload import GetTorrentDownloadByGuidProwlarrQuery
-from app.factories.torrentDownload.torrentDownloadFactory import create_get_torrent_download_by_guid_prowlarr_query
+from app.factories.torrentDownload.torrentDownloadFactory import create_get_torrent_download_by_uid_query
+from app.infrastructure.externalApis.deluge.client import DelugeClient
+from app.adapters.external.deluge.adapter import DelugeAdapter
 
 
 def _get_repo(session: AsyncSession) -> AntivirusRepository:
@@ -124,9 +123,9 @@ def create_scan_and_move_files_use_case(
     session: AsyncSession = Depends(get_db)
 ) -> ScanAndMoveFilesUseCase:
     """Factory function to create ScanAndMoveFilesUseCase with all dependencies."""
-    # ClamAV setup
-    clamav_client = ClamAVClient()
-    clamav_adapter = ClamAVAdapter(clamav_client)
+    # Antivirus setup
+    antivirus_client = AntivirusClient()
+    antivirus_adapter = AntivirusAdapter(antivirus_client)
     
     # Filesystem service
     filesystem_service = FilesystemServiceImpl()
@@ -134,15 +133,15 @@ def create_scan_and_move_files_use_case(
     # Antivirus repository
     antivirus_repo = _get_repo(session)
     
-    # Deluge setup
+    # Torrent download query
+    get_torrent_download_query = create_get_torrent_download_by_uid_query(session)
+    
+    # Deluge provider
     deluge_client = DelugeClient()
     deluge_adapter = DelugeAdapter(deluge_client)
     
-    # Torrent download query
-    get_torrent_download_query = create_get_torrent_download_by_guid_prowlarr_query(session)
-    
     return ScanAndMoveFilesUseCase(
-        clamav_provider=clamav_adapter,
+        antivirus_provider=antivirus_adapter,
         filesystem_service=filesystem_service,
         antivirus_repo=antivirus_repo,
         get_torrent_download_query=get_torrent_download_query,
@@ -150,8 +149,8 @@ def create_scan_and_move_files_use_case(
     )
 
 
-def create_clamav_provider() -> ClamAVAdapter:
-    """Factory function to create ClamAVProvider for direct scanning."""
-    client = ClamAVClient()
-    return ClamAVAdapter(client)
+def create_antivirus_provider() -> AntivirusAdapter:
+    """Factory function to create AntivirusProvider for direct scanning."""
+    client = AntivirusClient()
+    return AntivirusAdapter(client)
 

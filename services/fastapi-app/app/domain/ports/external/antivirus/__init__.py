@@ -1,3 +1,3 @@
-"""ClamAV external port."""
+"""Antivirus external port."""
 
 

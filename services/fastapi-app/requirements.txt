@@ -16,7 +16,7 @@ deluge-client==1.10.2
 
 # Scanner dependencies
 pyclamd==0.4.0
-yara-python==4.5.0
+# Note: yara-python removed - YARA scanning is handled by ClamAV container
 aiofiles==23.2.1
 
 # Testing
@@ -25,6 +25,9 @@ pytest-asyncio==0.21.1
 pytest-cov==4.1.0
 responses==0.24.1
 respx==0.20.2
+
+# String similarity matching
+rapidfuzz==3.9.1
 
 
 

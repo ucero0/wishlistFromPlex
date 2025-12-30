@@ -19,8 +19,8 @@ class TorrentStatus(str, Enum):
 
 class Torrent(BaseModel):
     """Internal domain model for a torrent."""
-    torrent_hash: str
-    name: str
+    hash: str
+    fileName: str
     state: str
     progress: float = 0.0
     total_size: Optional[int] = None

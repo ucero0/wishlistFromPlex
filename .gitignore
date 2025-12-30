@@ -65,7 +65,7 @@ deluge/downloads/
 # Gluetun VPN data
 gluetun/
 
-# ClamAV data files (large virus definition files)
+# ClamAV/Antivirus data files (large virus definition files)
 infra/clamav/data/*.cld
 infra/clamav/data/*.cvd
 infra/clamav/data/*.ldb
@@ -84,6 +84,24 @@ infra/clamav/data/*.wdb
 infra/clamav/data/*.idb
 infra/clamav/data/tmp.*/
 infra/clamav/data/*.dat
+infra/antivirus/data/*.cld
+infra/antivirus/data/*.cvd
+infra/antivirus/data/*.ldb
+infra/antivirus/data/*.hsb
+infra/antivirus/data/*.hdb
+infra/antivirus/data/*.hdu
+infra/antivirus/data/*.hsu
+infra/antivirus/data/*.mdb
+infra/antivirus/data/*.mdu
+infra/antivirus/data/*.msb
+infra/antivirus/data/*.msu
+infra/antivirus/data/*.ndb
+infra/antivirus/data/*.ndu
+infra/antivirus/data/*.pdb
+infra/antivirus/data/*.wdb
+infra/antivirus/data/*.idb
+infra/antivirus/data/tmp.*/
+infra/antivirus/data/*.dat
 clamav/data/*.cld
 clamav/data/*.cvd
 clamav/data/*.ldb
