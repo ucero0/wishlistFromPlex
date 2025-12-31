@@ -2,7 +2,7 @@
 services:
   db:
     image: postgres:15-alpine
-    container_name: plex-wishlist-db
+    container_name: fastapi-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-plex_wishlist_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plex_wishlist_pass}
@@ -15,11 +15,12 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - plex-wishlist-network
+      - fastapi-network
+    restart: unless-stopped
 
   fastapi:
     build: ./services/fastapi-app
-    container_name: plex-wishlist-api
+    container_name: fastapi-app
     depends_on:
       db:
         condition: service_healthy
@@ -62,7 +63,7 @@ services:
       - delugeDownloadsQuarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
       - plexMedia:${CONTAINER_PLEX_MEDIA_PATH}
     networks:
-      - plex-wishlist-network
+      - fastapi-network
     restart: unless-stopped
     
   gluetun:
@@ -92,18 +93,23 @@ services:
       - "8191:8191"
     volumes:
       - ./infra/gluetun:/gluetun
+      - ./infra/gluetun/health-monitor-wrapper.sh:/health-monitor-wrapper.sh:ro
+      - ./infra/gluetun/entrypoint-wrapper.sh:/entrypoint-wrapper.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint-wrapper.sh"]
     networks:
-      - plex-wishlist-network
+      - fastapi-network
     healthcheck:
       # Check VPN connection status by verifying:
-      # 1. OpenVPN process is running (check for openvpn in process list)
-      # 2. tun0 interface exists (VPN tunnel is established)
-      # When AUTH_FAILED occurs, OpenVPN will exit and tun0 won't exist, triggering restart
-      test: ["CMD-SHELL", "pgrep openvpn > /dev/null && test -d /proc/sys/net/ipv4/conf/tun0 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      # 1. OpenVPN process is running (process name is openvpn2.6, not openvpn)
+      # 2. tun0 interface exists and has an IP address (VPN tunnel is established)
+      # When AUTH_FAILED occurs, OpenVPN will exit and tun0 won't exist, making healthcheck fail
+      # The health-monitor-wrapper.sh script runs alongside gluetun and exits the container
+      # when it becomes unhealthy (after 3 consecutive failures), triggering Docker's restart policy
+      test: ["CMD-SHELL", "pgrep openvpn > /dev/null && test -d /proc/sys/net/ipv4/conf/tun0 && ip addr show tun0 | grep -q 'inet ' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+      start_period: 10s
     restart: unless-stopped
 
   deluge:
@@ -114,7 +120,6 @@ services:
     # When gluetun restarts, deluge will automatically restart too
     # We can't use condition: service_healthy with network_mode: service
     environment:
-      - CONTAINER_DELUGE_DOWNLOADING_PATH=${CONTAINER_DELUGE_DOWNLOADING_PATH}
       - CONTAINER_DELUGE_QUARANTINE_PATH=${CONTAINER_DELUGE_QUARANTINE_PATH}
       - PUID=1000
       - PGID=1000
@@ -124,7 +129,6 @@ services:
       - SCANFORVIRUS_API_URL=${SCANFORVIRUS_API_URL}
     volumes:
       - ./infra/deluge/config:/config
-      - delugeDownloading:${CONTAINER_DELUGE_DOWNLOADING_PATH}
       - delugeDownloadsQuarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
       - ./infra/deluge/custom-cont-init.d:/custom-cont-init.d:ro
       - ./infra/deluge/scripts:/scripts:ro
@@ -185,7 +189,7 @@ services:
     ports:
       - "32400:32400"
     networks:
-      - plex-wishlist-network
+      - fastapi-network
     restart: unless-stopped
 
   antivirus:
@@ -201,20 +205,25 @@ services:
       - ./infra/antivirus/scan-service:/scan-service:ro
       - ./infra/antivirus/yara-rules:/yara-rules:rw  # Read-write for YARA rule updates
     healthcheck:
-      test: ["CMD", "clamdcheck.sh"]
-      interval: 60s
+      # Check both services:
+      # 1. Clamd daemon is responding on port 3310 (antivirus engine) - required
+      # 2. HTTP scan service process is running (used by FastAPI) - required
+      # The HTTP service listens on port 3311, but we check the process instead of the port
+      # to avoid connection issues during healthcheck
+      test: ["CMD-SHELL", "echo 'PING' | nc localhost 3310 | grep -q 'PONG' && pgrep -f 'http_scan_server.py' > /dev/null || exit 1"]
+      interval: 30s
       timeout: 10s
       retries: 3
       start_period: 120s
     networks:
-      - plex-wishlist-network
+      - fastapi-network
     restart: unless-stopped
     # Use custom startup script that installs dependencies and starts services
     # The startup script will then call the default /init entrypoint
     entrypoint: ["/bin/sh", "/scan-service/startup.sh"]
 
 networks:
-  plex-wishlist-network:
+  fastapi-network:
     driver: bridge
 
 
@@ -225,12 +234,7 @@ volumes:
       type: none
       o: bind
       device: ./infra/plex/media
-  delugeDownloading:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./infra/deluge/downloads/downloading
+
   delugeDownloadsQuarantine:
     driver: local
     driver_opts:

@@ -11,7 +11,7 @@ TORRENT_PATH="$3"
 
 # FastAPI service URL (adjust if running in different network)
 # Default to plex-wishlist-api container if SCANFORVIRUS_API_URL is not set
-API_URL="${SCANFORVIRUS_API_URL:-http://plex-wishlist-api:8000/antivirus/scan/torrent}"
+API_URL="${SCANFORVIRUS_API_URL:-http://fastapi:8000/antivirus/scan/torrent}"
 API_KEY="${API_KEY:-}"
 
 # Log file

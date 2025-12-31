@@ -138,5 +138,11 @@ infra/prowlarr/config/logs.db-wal
 infra/prowlarr/config/Backups/
 infra/prowlarr/config/logs/
 
+# Deluge downloads (quarantine and downloaded files)
+infra/deluge/downloads/
+
+# Plex media files
+infra/plex/media/
+
 
 

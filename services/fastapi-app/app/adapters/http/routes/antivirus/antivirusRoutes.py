@@ -1,20 +1,22 @@
 """Antivirus routes for direct file/directory scanning and torrent scanning."""
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 import httpx
 from app.domain.ports.external.antivirus.antivirusProvider import AntivirusProvider
 from app.factories.antivirus.antivirusFactory import create_antivirus_provider, create_scan_and_move_files_use_case
 from app.application.antivirus.useCases.scanAndMoveFiles import ScanAndMoveFilesUseCase
+from app.adapters.http.schemas.antivirus.antivirusSchemas import (
+    ScanPathRequest,
+    ScanTorrentRequest,
+    ScanPathResponse,
+    HealthCheckResponse,
+    ScanTorrentResponse,
+    ScanSummary
+)
 
 antivirusRoutes = APIRouter(prefix="/antivirus", tags=["antivirus"])
 
 
-class ScanPathRequest(BaseModel):
-    """Request model for scanning a file or directory path."""
-    path: str
-
-
-@antivirusRoutes.post("/scan")
+@antivirusRoutes.post("/scan", response_model=ScanPathResponse)
 async def scan_path(
     request: ScanPathRequest,
     antivirus_provider: AntivirusProvider = Depends(create_antivirus_provider)
@@ -47,18 +49,18 @@ async def scan_path(
     """
     try:
         scan_result = antivirus_provider.scan(request.path)
-        return {
-            "status": "infected" if scan_result.is_infected else "clean",
-            "infected": scan_result.is_infected,
-            "virus_name": scan_result.virus_name,
-            "yara_matches": scan_result.yara_matches,
-            "scanned_files": scan_result.scanned_files,
-            "infected_files": scan_result.infected_files,
-            "summary": {
-                "total_scanned": len(scan_result.scanned_files),
-                "total_infected": len(scan_result.infected_files)
-            }
-        }
+        return ScanPathResponse(
+            status="infected" if scan_result.is_infected else "clean",
+            infected=scan_result.is_infected,
+            virus_name=scan_result.virus_name,
+            yara_matches=scan_result.yara_matches,
+            scanned_files=scan_result.scanned_files,
+            infected_files=scan_result.infected_files,
+            summary=ScanSummary(
+                total_scanned=len(scan_result.scanned_files),
+                total_infected=len(scan_result.infected_files)
+            )
+        )
     except httpx.HTTPStatusError as e:
         # Preserve the status code from the scan service
         raise HTTPException(
@@ -79,7 +81,7 @@ async def scan_path(
         )
 
 
-@antivirusRoutes.get("/health")
+@antivirusRoutes.get("/health", response_model=HealthCheckResponse)
 async def health_check(
     antivirus_provider: AntivirusProvider = Depends(create_antivirus_provider)
 ):
@@ -92,26 +94,21 @@ async def health_check(
     """
     try:
         is_connected = antivirus_provider.test_connection()
-        return {
-            "service": "antivirus",
-            "connected": is_connected,
-            "status": "healthy" if is_connected else "unhealthy"
-        }
+        return HealthCheckResponse(
+            service="antivirus",
+            connected=is_connected,
+            status="healthy" if is_connected else "unhealthy"
+        )
     except Exception as e:
-        return {
-            "service": "antivirus",
-            "connected": False,
-            "status": "unhealthy",
-            "error": str(e)
-        }
+        return HealthCheckResponse(
+            service="antivirus",
+            connected=False,
+            status="unhealthy",
+            error=str(e)
+        )
 
 
-class ScanTorrentRequest(BaseModel):
-    """Request model for scanning a torrent."""
-    torrent_hash: str
-
-
-@antivirusRoutes.post("/scan/torrent")
+@antivirusRoutes.post("/scan/torrent", response_model=ScanTorrentResponse)
 async def scan_torrent(
     request: ScanTorrentRequest,
     use_case: ScanAndMoveFilesUseCase = Depends(create_scan_and_move_files_use_case)
