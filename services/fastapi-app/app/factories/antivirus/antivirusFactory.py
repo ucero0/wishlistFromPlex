@@ -26,6 +26,7 @@ from app.application.antivirus.useCases.scanAndMoveFiles import ScanAndMoveFiles
 from app.factories.torrentDownload.torrentDownloadFactory import create_get_torrent_download_by_uid_query
 from app.infrastructure.externalApis.deluge.client import DelugeClient
 from app.adapters.external.deluge.adapter import DelugeAdapter
+from app.factories.plex.plexWatchListFactory import createAddWatchListItemUseCase
 
 
 def _get_repo(session: AsyncSession) -> AntivirusRepository:
@@ -140,12 +141,16 @@ def create_scan_and_move_files_use_case(
     deluge_client = DelugeClient()
     deluge_adapter = DelugeAdapter(deluge_client)
     
+    # Plex dependency for adding items back to watchlist
+    add_watchlist_item_use_case = createAddWatchListItemUseCase()
+    
     return ScanAndMoveFilesUseCase(
         antivirus_provider=antivirus_adapter,
         filesystem_service=filesystem_service,
         antivirus_repo=antivirus_repo,
         get_torrent_download_query=get_torrent_download_query,
-        deluge_provider=deluge_adapter
+        deluge_provider=deluge_adapter,
+        add_watchlist_item_use_case=add_watchlist_item_use_case
     )
 
 

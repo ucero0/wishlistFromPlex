@@ -100,6 +100,8 @@ class DownloadWatchListMediaUseCase:
                     #add to torrent download
                     await self.createTorrentDownloadUseCase.execute(TorrentDownload(
                         guidPlex=watchlist.guid,
+                        ratingKey=watchlist.ratingKey,
+                        plexUserToken=userToken,
                         guidProwlarr=bestTorrentSearchResult.guid,
                         uid=newTorrent.hash,
                         title=watchlist.title,

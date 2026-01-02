@@ -12,6 +12,8 @@ class TorrentItem(Base):
     
     # Plex Reference - links to wishlist item
     guidPlex = Column(String, nullable=False, index=True)  # Plex GUID
+    ratingKey = Column(String, nullable=True)  # Plex ratingKey for adding back to watchlist
+    plexUserToken = Column(String, nullable=True)  # Plex user token for adding back to watchlist
     
     # Prowlarr Reference - links to Prowlarr search result
     guidProwlarr = Column(String, nullable=False, index=True)  # Prowlarr GUID

@@ -79,6 +79,8 @@ class TorrentRepository(TorrentDownloadRepoPort):
             raise ValueError(f"Torrent download with id {torrent.id} not found")
         
         orm.guidPlex = torrent.guidPlex
+        orm.ratingKey = torrent.ratingKey
+        orm.plexUserToken = torrent.plexUserToken
         orm.guidProwlarr = torrent.guidProwlarr
         orm.uid = torrent.uid
         orm.title = torrent.title
@@ -115,6 +117,8 @@ class TorrentRepository(TorrentDownloadRepoPort):
         return TorrentDownload(
             id=orm.id,
             guidPlex=orm.guidPlex,
+            ratingKey=orm.ratingKey,
+            plexUserToken=orm.plexUserToken,
             guidProwlarr=orm.guidProwlarr,
             uid=orm.uid,
             title=orm.title,
@@ -132,6 +136,8 @@ class TorrentRepository(TorrentDownloadRepoPort):
         return TorrentItem(
             id=domain.id,
             guidPlex=domain.guidPlex,
+            ratingKey=domain.ratingKey,
+            plexUserToken=domain.plexUserToken,
             guidProwlarr=domain.guidProwlarr,
             uid=domain.uid,
             title=domain.title,

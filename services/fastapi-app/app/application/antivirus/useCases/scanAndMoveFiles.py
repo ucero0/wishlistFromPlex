@@ -8,6 +8,7 @@ from app.domain.ports.repositories.antivirus.antivirusRepo import AntivirusRepoP
 from app.domain.models.antivirusScan import AntivirusScan
 from app.application.torrentDownload.queries.getTorrentDownload import GetTorrentDownloadByUidQuery
 from app.domain.ports.external.deluge.delugeProvider import DelugeProvider
+from app.application.plex.useCases.addWatchListItem import AddWatchListItemUseCase
 logger = logging.getLogger(__name__)
 
 
@@ -20,13 +21,15 @@ class ScanAndMoveFilesUseCase:
         filesystem_service: FilesystemService,
         antivirus_repo: AntivirusRepoPort,
         get_torrent_download_query: GetTorrentDownloadByUidQuery,
-        deluge_provider: DelugeProvider
+        deluge_provider: DelugeProvider,
+        add_watchlist_item_use_case: AddWatchListItemUseCase
     ):
         self.antivirus_provider = antivirus_provider
         self.filesystem_service = filesystem_service
         self.antivirus_repo = antivirus_repo
         self.get_torrent_download_query = get_torrent_download_query
         self.deluge_provider = deluge_provider
+        self.add_watchlist_item_use_case = add_watchlist_item_use_case
     
     async def execute(self, torrent_hash: str) -> dict:
         """
@@ -96,6 +99,25 @@ class ScanAndMoveFilesUseCase:
             logger.warning(f"Infected files found in {scan_path}: {scan_result.infected_files}")
             
             deleted = await self.deluge_provider.remove_torrent(torrent_hash, remove_data=True)
+            
+            # Add to watchlist again for re-download
+            try:
+                if not torrent_download.ratingKey:
+                    logger.warning(
+                        f"RatingKey not available for item {torrent_download.title} (guidPlex: {torrent_download.guidPlex}). "
+                        f"Cannot add back to watchlist. This may happen for older records created before ratingKey was stored."
+                    )
+                elif not torrent_download.plexUserToken:
+                    logger.warning(
+                        f"Plex user token not available for item {torrent_download.title} (guidPlex: {torrent_download.guidPlex}). "
+                        f"Cannot add back to watchlist. This may happen for older records created before plexUserToken was stored."
+                    )
+                else:
+                    # Add item back to watchlist using the stored ratingKey and plexUserToken
+                    await self.add_watchlist_item_use_case.execute(torrent_download.ratingKey, torrent_download.plexUserToken)
+                    logger.info(f"Added item {torrent_download.title} back to watchlist for re-download")
+            except Exception as e:
+                logger.error(f"Error adding item back to watchlist: {e}", exc_info=True)
             
             return {
                 "status": "infected",
