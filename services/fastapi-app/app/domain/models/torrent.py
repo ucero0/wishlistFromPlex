@@ -26,6 +26,7 @@ class Torrent(BaseModel):
     total_size: Optional[int] = None
     download_speed: int = 0
     eta: Optional[int] = None
+    time_added: Optional[float] = None  # Unix timestamp when torrent was added
 
 
 class ListTorrents(BaseModel):

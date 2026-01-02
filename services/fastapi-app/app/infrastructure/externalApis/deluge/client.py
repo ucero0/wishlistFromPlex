@@ -86,6 +86,7 @@ class DelugeClient:
         decodedResponse = decode_rpc(rawResponse)
         response: List[ExternalDelugeTorrentStatusResponse] = []
         for hash, torrent in decodedResponse.items():
+            torrent['hash'] = hash  # Add hash to the torrent data
             response.append(ExternalDelugeTorrentStatusResponse(**torrent))
         return response
 
@@ -97,6 +98,7 @@ class DelugeClient:
             raise HTTPException(status_code=404, detail="Torrent not found in deluge")
 
         decodedResponse = decode_rpc(rawResponse)
+        decodedResponse['hash'] = hash  # Add hash to the torrent data
         return ExternalDelugeTorrentStatusResponse(**decodedResponse)
 
     def remove_torrent(self, hash: str, remove_data: bool = False) -> bool:

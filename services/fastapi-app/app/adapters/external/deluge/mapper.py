@@ -13,6 +13,7 @@ def to_domain_torrent(rawTorrent: ExternalDelugeTorrentStatusResponse) -> Torren
             total_size=rawTorrent.total_done,
             download_speed=rawTorrent.download_payload_rate,
             eta=rawTorrent.eta,
+            time_added=rawTorrent.time_added,
         )
 
 def to_domain_list_torrents(rawTorrentsStatus: List[ExternalDelugeTorrentStatusResponse]) -> ListTorrents:

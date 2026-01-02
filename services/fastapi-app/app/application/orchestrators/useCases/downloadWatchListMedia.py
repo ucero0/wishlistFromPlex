@@ -13,6 +13,7 @@ from app.application.orchestrators.useCases.syncTorrentDownloadWithDeluge import
 from app.application.tmdb.queries.getOriginalTitle import GetOriginalTitleFromTMDBQuery
 import logging
 import asyncio
+import time
 from app.domain.models.torrentDownload import TorrentDownload
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,6 @@ class DownloadWatchListMediaUseCase:
                     watchlistsToRemove.append(watchlist)
                     continue
                 query = await self._get_search_query(watchlist)
-                #search if the media is in deluge 
                 bestTorrentSearchResult = await self.findBestTorrentQuery.execute(query)
                 if bestTorrentSearchResult == None:
                     logger.error(f"No found any torrent available for {query}")
@@ -90,8 +90,13 @@ class DownloadWatchListMediaUseCase:
                     continue
                 #download the torrent
                 downloadSuccess = await self.downloadTorrentUseCase.execute(bestTorrentSearchResult)
-                #find the new torrent in deluge by the title of the search query
-                newTorrent = await self.getTorrentByNameQuery.execute(bestTorrentSearchResult.title)
+                #wait for 2 seconds to ensure the torrent is added to deluge
+                await asyncio.sleep(2)
+                #find the new torrent in deluge by time_added (within 3 seconds from now) or by name similarity
+                newTorrent = await self.getTorrentByNameQuery.execute(
+                    bestTorrentSearchResult.title, 
+                    time_added_threshold=3.0
+                )
                 if newTorrent == None:
                     logger.error(f" {bestTorrentSearchResult.title} is not added to deluge, download failed")
                     

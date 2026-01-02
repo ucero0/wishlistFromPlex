@@ -1,5 +1,6 @@
 """Scheduled task implementations."""
 import logging
+import asyncio
 from app.infrastructure.persistence.database import AsyncSessionLocal
 from app.factories.orchestrators.findFiles2Download import create_download_watch_list_media_use_case
 
@@ -16,6 +17,9 @@ async def download_watch_list_media_task():
             use_case = create_download_watch_list_media_use_case(session=session)
             await use_case.execute()
         logger.info("Scheduled task completed successfully")
+    except asyncio.CancelledError:
+        logger.warning("Scheduled task was cancelled")
+        raise  # Re-raise cancellation
     except Exception as e:
         logger.error(f"Error in scheduled task: {e}", exc_info=True)
 

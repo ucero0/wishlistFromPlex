@@ -1,5 +1,6 @@
 """Prowlarr API client."""
 import logging
+import asyncio
 from typing import Optional, List
 import httpx
 
@@ -68,7 +69,10 @@ class ProwlarrClient:
             List of validated ProwlarrRawResult objects
         """
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # Use a more generous timeout for search operations
+            timeout = httpx.Timeout(120.0, connect=10.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                logger.info(f"Searching Prowlarr for: '{query}' (categories: {categories})")
                 response = await client.get(
                     f"{self.base_url}/api/v1/search",
                     headers=self.headers,
@@ -90,18 +94,26 @@ class ProwlarrClient:
                         except Exception as e:
                             logger.warning(f"Failed to parse Prowlarr result: {e}, skipping item")
                             continue
+                    logger.info(f"Prowlarr search returned {len(results)} result(s) for query: '{query}'")
                     return results
                 else:
                     logger.warning(f"Unexpected Prowlarr response format: {type(api_response_data)}")
                     return []
                 
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Prowlarr API HTTP error: {e.response.status_code} - {e.response.text[:200]}")
+        except httpx.TimeoutException as e:
+            logger.error(f"Prowlarr search timeout for query '{query}': {e}")
             return []
+        except httpx.ConnectError as e:
+            logger.error(f"Prowlarr connection error for query '{query}': {e}")
+            return []
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Prowlarr API HTTP error for query '{query}': {e.response.status_code} - {e.response.text[:200]}")
+            return []
+        except asyncio.CancelledError:
+            logger.warning(f"Prowlarr search cancelled for query '{query}'")
+            raise  # Re-raise cancellation so it can be handled upstream
         except Exception as e:
-            logger.error(f"Prowlarr search exception: {e}")
-            import traceback
-            logger.debug(traceback.format_exc())
+            logger.error(f"Prowlarr search exception for query '{query}': {e}", exc_info=True)
             return []
 
     async def send_to_download_client(self, guid: str, indexer_id: int) -> bool:
