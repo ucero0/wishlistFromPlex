@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
 from app.application.prowlarr.useCases.downloadTorrent import DownloadTorrentUseCase
-from app.application.prowlarr.queries.findBestTorrent import FindBestTorrentQuery
+from app.application.prowlarr.queries.findBestTorrent import GetBestTorrentsQuery
 from app.application.prowlarr.queries.testProwlarrConnection import (
     TestProwlarrConnectionQuery,
     GetProwlarrIndexerCountQuery,
@@ -30,7 +30,7 @@ prowlarrRoutes = APIRouter(prefix="/prowlarr", tags=["prowlarr"])
 @prowlarrRoutes.post("/search/by-query", response_model=SearchResponse)
 async def search_torrents_by_query(
     request: SearchByQueryRequest,
-    find_query: FindBestTorrentQuery = Depends(createFindBestTorrentQuery),
+    find_query: GetBestTorrentsQuery = Depends(createFindBestTorrentQuery),
     download_use_case: DownloadTorrentUseCase = Depends(createDownloadTorrentUseCase),
 ):
     """
@@ -50,18 +50,21 @@ async def search_torrents_by_query(
     try:
         logger.info(f"Search request: query='{request.query}', media_type={request.media_type}")
         
-        # 1. Find best torrent
-        best_result = await find_query.execute(
+        # 1. Find best torrents (ordered by score)
+        results = await find_query.execute(
             query=request.query,
             media_type=request.media_type,
         )
         
         # Return 404 if no results found
-        if not best_result:
+        if not results:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No torrents found matching query: '{request.query}'"
             )
+        
+        # Get the best result (first in the ordered list)
+        best_result = results[0]
         
         # 2. Optionally download torrent
         download_success = True

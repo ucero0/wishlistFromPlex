@@ -9,6 +9,9 @@ from app.domain.models.antivirusScan import AntivirusScan
 from app.application.torrentDownload.queries.getTorrentDownload import GetTorrentDownloadByUidQuery
 from app.domain.ports.external.deluge.delugeProvider import DelugeProvider
 from app.application.plex.useCases.addWatchListItem import AddWatchListItemUseCase
+from app.application.plex.useCases.partialScanLibrary import PartialScanLibraryUseCase
+from app.core.config import settings
+from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +25,8 @@ class ScanAndMoveFilesUseCase:
         antivirus_repo: AntivirusRepoPort,
         get_torrent_download_query: GetTorrentDownloadByUidQuery,
         deluge_provider: DelugeProvider,
-        add_watchlist_item_use_case: AddWatchListItemUseCase
+        add_watchlist_item_use_case: AddWatchListItemUseCase,
+        partial_scan_library_use_case: PartialScanLibraryUseCase
     ):
         self.antivirus_provider = antivirus_provider
         self.filesystem_service = filesystem_service
@@ -30,6 +34,7 @@ class ScanAndMoveFilesUseCase:
         self.get_torrent_download_query = get_torrent_download_query
         self.deluge_provider = deluge_provider
         self.add_watchlist_item_use_case = add_watchlist_item_use_case
+        self.partial_scan_library_use_case = partial_scan_library_use_case
     
     async def execute(self, torrent_hash: str) -> dict:
         """
@@ -135,6 +140,14 @@ class ScanAndMoveFilesUseCase:
         # If type is tvshow: move to containerPlexPath/tvshow
         destination_path = self.filesystem_service.get_media_destination_path(media_type, fileName)
         
+        #if movie and a file, create a folder with the filename (without extension) and move the file inside it
+        nameFolder = torrent_download.title + " (" + torrent_download.year + ")"
+        if media_type == "movie" and is_file:
+            destination_path = destination_path + "/" + nameFolder
+        elif media_type == "tvshow" and is_file:
+            destination_path = destination_path + "/" + nameFolder + "/" + torrent_download.season
+
+        
         moved = self.filesystem_service.move(scan_path, destination_path)
         
         # Update scan record with destination path
@@ -144,6 +157,14 @@ class ScanAndMoveFilesUseCase:
             else:
                 created_scan.folderPathDst = destination_path
             await self.antivirus_repo.update(created_scan)
+            
+            # Trigger partial scan of the library after moving files
+            await self._trigger_partial_scan(
+                torrent_download.plexUserToken,
+                media_type,
+                destination_path,
+                is_file
+            )
         
         return {
             "status": "clean",
@@ -153,4 +174,52 @@ class ScanAndMoveFilesUseCase:
             "moved": moved,
             "destination_path": destination_path if moved else None
         }
+    
+    async def _trigger_partial_scan(
+        self,
+        user_token: Optional[str],
+        media_type: str,
+        destination_path: str,
+        is_file: bool
+    ) -> None:
+        """
+        Trigger a partial scan of the Plex library for the moved files.
+        
+        Args:
+            user_token: Plex user token (optional, may be None for older records)
+            media_type: Type of media ("movie" or "show")
+            destination_path: Path where the file/folder was moved
+            is_file: Whether the moved item is a file or directory
+        """
+        if not user_token:
+            logger.warning("Plex user token not available, skipping partial scan")
+            return
+        
+        try:
+            # Get section ID based on media type
+            if media_type.lower() == "movie":
+                section_id = settings.plex_movies_section_id
+            elif media_type.lower() == "show" or media_type.lower() == "tvshow":
+                section_id = settings.plex_tvshows_section_id
+            else:
+                logger.warning(f"Unknown media type: {media_type}, skipping partial scan")
+                return
+            
+            # For files, get the parent folder (Plex scans at directory level)
+            # For directories, use the directory path directly
+            if is_file:
+                folder_path = str(Path(destination_path).parent)
+            else:
+                folder_path = destination_path
+            
+            logger.info(f"Triggering partial scan for section {section_id}, folder: {folder_path}")
+            await self.partial_scan_library_use_case.execute(
+                user_token=user_token,
+                section_id=section_id,
+                folder_path=folder_path
+            )
+            logger.info(f"Successfully triggered partial scan for {media_type} at {folder_path}")
+        except Exception as e:
+            # Log error but don't fail the entire operation
+            logger.error(f"Error triggering partial scan: {e}", exc_info=True)
 

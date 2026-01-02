@@ -40,3 +40,12 @@ class PlexServerLibraryAdapter(PlexServerLibraryProvider):
             result = False
         logger.info(f"Library check result: size={size}, has_media={result}")
         return result
+    
+    async def partial_scan_library(
+        self, 
+        user_token: str, 
+        section_id: int, 
+        folder_path: str
+    ) -> bool:
+        """Trigger a partial scan of a specific folder in the Plex library."""
+        return await self.client.partial_scan_library_raw(user_token, section_id, folder_path)

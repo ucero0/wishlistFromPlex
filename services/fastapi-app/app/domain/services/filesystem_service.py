@@ -1,6 +1,5 @@
 """Filesystem service for file operations."""
 import logging
-import os
 import shutil
 from pathlib import Path
 from typing import Protocol, Optional
@@ -201,30 +200,32 @@ class FilesystemServiceImpl:
     """Implementation of filesystem service."""
     
     def __init__(self):
-        self.downloads_path = settings.container_plex_media_path
-        self.media_movies_path = settings.container_plex_media_path + "/movies"
-        self.media_tvshows_path = settings.container_plex_media_path + "/tvshows"
-        self.media_quarantine_path = settings.container_deluge_quarantine_path
+        self.downloads_path = Path(settings.container_plex_media_path)
+        self.media_movies_path = Path(settings.container_plex_media_path) / "movies"
+        self.media_tvshows_path = Path(settings.container_plex_media_path) / "tvshows"
+        self.media_quarantine_path = Path(settings.container_deluge_quarantine_path)
     
     def move_file(self, source_path: str, destination_path: str) -> bool:
         """Move a file from source to destination."""
         try:
-            if not os.path.exists(source_path):
+            source = Path(source_path)
+            destination = Path(destination_path)
+            
+            if not source.exists():
                 logger.error(f"Source file does not exist: {source_path}")
                 return False
             
-            if not os.path.isfile(source_path):
+            if not source.is_file():
                 logger.error(f"Source path is not a file: {source_path}")
                 return False
             
             # Create destination directory if it doesn't exist
-            dest_dir = os.path.dirname(destination_path)
-            if dest_dir and not os.path.exists(dest_dir):
-                os.makedirs(dest_dir, exist_ok=True)
-                logger.info(f"Created destination directory: {dest_dir}")
+            if not destination.parent.exists():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Created destination directory: {destination.parent}")
             
             # Move the file
-            shutil.move(source_path, destination_path)
+            shutil.move(str(source), str(destination))
             logger.info(f"Moved file from {source_path} to {destination_path}")
             return True
         except Exception as e:
@@ -234,22 +235,24 @@ class FilesystemServiceImpl:
     def move_directory(self, source_path: str, destination_path: str) -> bool:
         """Move a directory from source to destination."""
         try:
-            if not os.path.exists(source_path):
+            source = Path(source_path)
+            destination = Path(destination_path)
+            
+            if not source.exists():
                 logger.error(f"Source directory does not exist: {source_path}")
                 return False
             
-            if not os.path.isdir(source_path):
+            if not source.is_dir():
                 logger.error(f"Source path is not a directory: {source_path}")
                 return False
             
             # Create destination parent directory if it doesn't exist
-            dest_parent = os.path.dirname(destination_path)
-            if dest_parent and not os.path.exists(dest_parent):
-                os.makedirs(dest_parent, exist_ok=True)
-                logger.info(f"Created destination parent directory: {dest_parent}")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if not destination.parent.exists():
+                logger.info(f"Created destination parent directory: {destination.parent}")
             
             # Move the directory
-            shutil.move(source_path, destination_path)
+            shutil.move(str(source), str(destination))
             logger.info(f"Moved directory from {source_path} to {destination_path}")
             return True
         except Exception as e:
@@ -259,54 +262,55 @@ class FilesystemServiceImpl:
     def get_media_path(self, media_type: str) -> str:
         """Get the media path for a given media type."""
         if media_type.lower() == "movie":
-            return self.media_movies_path
+            return str(self.media_movies_path)
         elif media_type.lower() == "show":
-            return self.media_tvshows_path
+            return str(self.media_tvshows_path)
         else:
             logger.warning(f"Unknown media type: {media_type}, defaulting to movies path")
-            return self.media_movies_path
+            return str(self.media_movies_path)
     
     def get_quarantine_path(self) -> str:
         """Get the quarantine path for downloaded files."""
-        return self.media_quarantine_path
+        return str(self.media_quarantine_path)
     
     def build_path(self, *path_parts: str) -> str:
         """Build a path from multiple parts."""
-        return os.path.join(*path_parts)
+        return str(Path(*path_parts))
     
     def path_exists(self, path: str) -> bool:
         """Check if a path exists."""
-        return os.path.exists(path)
+        return Path(path).exists()
     
     def is_file(self, path: str) -> bool:
         """Check if a path is a file."""
-        return os.path.isfile(path)
+        return Path(path).is_file()
     
     def is_directory(self, path: str) -> bool:
         """Check if a path is a directory."""
-        return os.path.isdir(path)
+        return Path(path).is_dir()
     
     def get_quarantine_file_path(self, filename: str) -> str:
         """Get the full path for a file in the quarantine directory."""
-        return self.build_path(self.media_quarantine_path, filename)
+        return str(self.media_quarantine_path / filename)
     
     def get_media_destination_path(self, media_type: str, filename: str) -> str:
         """Get the destination path for a media file based on type."""
-        destination_dir = self.get_media_path(media_type)
-        return self.build_path(destination_dir, filename)
+        destination_dir = Path(self.get_media_path(media_type))
+        return str(destination_dir / filename)
     
     def delete_file(self, file_path: str) -> bool:
         """Delete a file."""
         try:
-            if not os.path.exists(file_path):
+            path = Path(file_path)
+            if not path.exists():
                 logger.warning(f"File does not exist: {file_path}")
                 return False
             
-            if not os.path.isfile(file_path):
+            if not path.is_file():
                 logger.error(f"Path is not a file: {file_path}")
                 return False
             
-            os.remove(file_path)
+            path.unlink()
             logger.info(f"Deleted file: {file_path}")
             return True
         except Exception as e:
@@ -316,44 +320,94 @@ class FilesystemServiceImpl:
     def delete_directory(self, directory_path: str) -> bool:
         """Delete a directory and all its contents."""
         try:
-            if not os.path.exists(directory_path):
+            path = Path(directory_path)
+            if not path.exists():
                 logger.warning(f"Directory does not exist: {directory_path}")
                 return False
             
-            if not os.path.isdir(directory_path):
+            if not path.is_dir():
                 logger.error(f"Path is not a directory: {directory_path}")
                 return False
             
-            shutil.rmtree(directory_path)
+            shutil.rmtree(path)
             logger.info(f"Deleted directory: {directory_path}")
             return True
         except Exception as e:
             logger.error(f"Error deleting directory {directory_path}: {e}")
             return False
     
+    def _validate_source_path(self, source: Path, source_path: str) -> bool:
+        """
+        Validate that source path exists and is a file or directory.
+        
+        Args:
+            source: Path object for the source
+            source_path: Original source path string for logging
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        if not source.exists():
+            logger.error(f"Source path does not exist: {source_path}")
+            return False
+        
+        if not source.is_file() and not source.is_dir():
+            logger.error(f"Source path is neither a file nor a directory: {source_path}")
+            return False
+        
+        return True
+    
+    def _move_directory(self, source: Path, destination: Path, source_path: str, destination_path: str) -> bool:
+        """
+        Move a directory from source to destination.
+        
+        Args:
+            source: Source Path object
+            destination: Destination Path object
+            source_path: Original source path string for logging
+            destination_path: Original destination path string for logging
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Create destination parent directory if it doesn't exist
+            if not destination.parent.exists():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Created destination directory: {destination.parent}")
+            
+            # Move the directory
+            shutil.move(str(source), str(destination))
+            logger.info(f"Moved directory from {source_path} to {destination_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error moving directory from {source_path} to {destination_path}: {e}")
+            return False
+    
     def move(self, source_path: str, destination_path: str) -> bool:
         """Move a file or directory from source to destination. Automatically handles both files and directories."""
         try:
-            if not os.path.exists(source_path):
-                logger.error(f"Source path does not exist: {source_path}")
+            source = Path(source_path)
+            destination = Path(destination_path)
+            
+            if not self._validate_source_path(source, source_path):
                 return False
             
             # Determine if source is a file or directory
-            is_file = os.path.isfile(source_path)
-            is_dir = os.path.isdir(source_path)
+            is_file = source.is_file()
+            is_dir = source.is_dir()
             
             if not is_file and not is_dir:
                 logger.error(f"Source path is neither a file nor a directory: {source_path}")
                 return False
             
             # Create destination directory if it doesn't exist
-            dest_dir = os.path.dirname(destination_path)
-            if dest_dir and not os.path.exists(dest_dir):
-                os.makedirs(dest_dir, exist_ok=True)
-                logger.info(f"Created destination directory: {dest_dir}")
+            if not destination.parent.exists():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Created destination directory: {destination.parent}")
             
             # Move the file or directory
-            shutil.move(source_path, destination_path)
+            shutil.move(str(source), str(destination))
             item_type = "file" if is_file else "directory"
             logger.info(f"Moved {item_type} from {source_path} to {destination_path}")
             return True
@@ -364,13 +418,14 @@ class FilesystemServiceImpl:
     def delete(self, path: str) -> bool:
         """Delete a file or directory. Automatically handles both files and directories."""
         try:
-            if not os.path.exists(path):
+            path_obj = Path(path)
+            if not path_obj.exists():
                 logger.warning(f"Path does not exist: {path}")
                 return False
             
             # Determine if path is a file or directory
-            is_file = os.path.isfile(path)
-            is_dir = os.path.isdir(path)
+            is_file = path_obj.is_file()
+            is_dir = path_obj.is_dir()
             
             if not is_file and not is_dir:
                 logger.error(f"Path is neither a file nor a directory: {path}")
@@ -378,10 +433,10 @@ class FilesystemServiceImpl:
             
             # Delete based on type
             if is_file:
-                os.remove(path)
+                path_obj.unlink()
                 logger.info(f"Deleted file: {path}")
             else:
-                shutil.rmtree(path)
+                shutil.rmtree(path_obj)
                 logger.info(f"Deleted directory: {path}")
             
             return True
@@ -414,27 +469,27 @@ class FilesystemServiceImpl:
         removed_count = 0
         
         try:
-            if not os.path.exists(path):
+            path_obj = Path(path)
+            if not path_obj.exists():
                 logger.warning(f"Path does not exist: {path}")
                 return 0
             
-            if os.path.isfile(path):
+            if path_obj.is_file():
                 # Single file: check if it's a media file
-                file_ext = Path(path).suffix.lower()
+                file_ext = path_obj.suffix.lower()
                 if file_ext not in allowed_extensions:
                     logger.info(f"Removing non-media file: {path}")
                     if self.delete_file(path):
                         removed_count = 1
-            elif os.path.isdir(path):
+            elif path_obj.is_dir():
                 # Directory: recursively process all files
-                for root, dirs, files in os.walk(path):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        file_ext = Path(file_path).suffix.lower()
+                for file_path in path_obj.rglob('*'):
+                    if file_path.is_file():
+                        file_ext = file_path.suffix.lower()
                         
                         if file_ext not in allowed_extensions:
                             logger.info(f"Removing non-media file: {file_path}")
-                            if self.delete_file(file_path):
+                            if self.delete_file(str(file_path)):
                                 removed_count += 1
             else:
                 logger.error(f"Path is neither a file nor a directory: {path}")

@@ -1,4 +1,4 @@
-"""Query for finding the best torrent from search results."""
+"""Query for getting torrents from search results, ordered by score."""
 import logging
 from typing import Optional, List
 from app.domain.ports.external.prowlarr.torrent_search_provider import TorrentSearchProvider
@@ -8,8 +8,8 @@ from app.domain.models.torrent_search import TorrentSearchResult
 logger = logging.getLogger(__name__)
 
 
-class FindBestTorrentQuery:
-    """Query for finding the best torrent from search results."""
+class GetBestTorrentsQuery:
+    """Query for getting torrents from search results, ordered by score."""
     
     def __init__(
         self, 
@@ -23,30 +23,26 @@ class FindBestTorrentQuery:
         self,
         query: str,
         media_type: str = "movie",
-    ) -> Optional[TorrentSearchResult]:
+    ) -> List[TorrentSearchResult]:
         """
-        Search for torrents, process, score, and return the best match.
+        Search for torrents, process, score, and return all results ordered by score.
         
         Args:
             query: Search query string
             media_type: Type of media ('movie' or 'tv')
             
         Returns:
-            The best TorrentSearchResult, or None if no results found
+            List of TorrentSearchResult objects ordered by quality score (highest first),
+            or empty list if no results found
         """
         # 1. Search via adapter
         results = await self.search_provider.search_torrents(query, media_type)
         if not results:
-            return None
+            return []
         
-        # 2. Process and score (orchestration)
+        # 2. Process and score (orchestration) - results are already sorted by score
         processed_results = self._process_search_results(results)
-        if not processed_results:
-            return None
-        
-        # 3. Get best result
-        best_result = processed_results[0]
-        return best_result
+        return processed_results
     
     def _process_search_results(self, results: List[TorrentSearchResult]) -> List[TorrentSearchResult]:
         """Process and score TorrentSearchResult objects with quality information."""

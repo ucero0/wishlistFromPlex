@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     container_plex_media_path: str = "/plex/media"
     container_deluge_quarantine_path: str = "/downloads/quarantine"  # Shared quarantine path between FastAPI and Antivirus containers
     
+    # Plex Library Section IDs
+    plex_movies_section_id: int = 1  # Default section ID for movies library
+    plex_tvshows_section_id: int = 2  # Default section ID for TV shows library
+    
     # Logging
     log_level: str = "INFO"
 
