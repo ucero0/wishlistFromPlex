@@ -26,6 +26,15 @@ class PlexWatchlistClient:
             response.raise_for_status()
             return response.json()
 
+    async def add_item_raw(self, rating_key: str, user_token: str) -> None:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.put(
+                f"{PLEX_DISCOVER_API}/actions/addToWatchlist",
+                params={"ratingKey": rating_key},
+                headers=self._headers(user_token),
+            )
+            response.raise_for_status()
+
     async def delete_item_raw(self, rating_key: str, user_token: str) -> None:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.put(
