@@ -140,12 +140,21 @@ class ScanAndMoveFilesUseCase:
         # If type is tvshow: move to containerPlexPath/tvshow
         destination_path = self.filesystem_service.get_media_destination_path(media_type, fileName)
         
-        #if movie and a file, create a folder with the filename (without extension) and move the file inside it
-        nameFolder = torrent_download.title + " (" + torrent_download.year + ")"
-        if media_type == "movie" and is_file:
-            destination_path = destination_path + "/" + nameFolder
-        elif media_type == "tvshow" and is_file:
-            destination_path = destination_path + "/" + nameFolder + "/" + torrent_download.season
+        # If movie and a file, create a folder with the filename (without extension) and move the file inside it
+        # If tvshow and a file, create a folder structure: Show Name (Year)/Season XX/
+        if is_file:
+            destination = Path(destination_path)
+            year_str = str(torrent_download.year) if torrent_download.year else ""
+            name_folder = f"{torrent_download.title} ({year_str})" if year_str else torrent_download.title
+            
+            if media_type == "movie":
+                destination = destination.parent / name_folder / destination.name
+            elif media_type == "tvshow" or media_type == "show":
+                season_num = torrent_download.season if torrent_download.season else 1
+                season_folder = f"Season {season_num:02d}"
+                destination = destination.parent / name_folder / season_folder / destination.name
+            
+            destination_path = str(destination)
 
         
         moved = self.filesystem_service.move(scan_path, destination_path)
