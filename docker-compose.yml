@@ -231,12 +231,12 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ./infra/plex/media
+      device: ${PLEX_MEDIA_VOLUME_PATH:-./infra/plex/media}
 
   delugeDownloadsQuarantine:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ./infra/deluge/downloads/quarantine
+      device: ${DELUGE_QUARANTINE_VOLUME_PATH:-./infra/deluge/downloads/quarantine}
 
