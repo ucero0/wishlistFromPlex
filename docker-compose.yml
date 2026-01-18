@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plex_wishlist_pass}
       POSTGRES_DB: ${POSTGRES_DB:-plex_wishlist}
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plex_wishlist_user} -d ${POSTGRES_DB:-plex_wishlist}"]
       interval: 10s
