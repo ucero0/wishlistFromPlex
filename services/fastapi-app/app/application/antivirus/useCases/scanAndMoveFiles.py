@@ -161,6 +161,8 @@ class ScanAndMoveFilesUseCase:
         
         # Update scan record with destination path
         if moved:
+            # Remove torrent (without data, since files are already moved)
+            deleted = await self.deluge_provider.remove_torrent(torrent_hash, remove_data=False)
             if is_file:
                 created_scan.filePath = destination_path
             else:
