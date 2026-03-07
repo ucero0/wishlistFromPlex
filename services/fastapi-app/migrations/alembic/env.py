@@ -21,6 +21,9 @@ from app.infrastructure.persistence.base import Base
 from app.infrastructure.persistence.plex.models.plexUserOrm import PlexUserOrm
 from app.infrastructure.persistence.torrentDownloads.model.torrent_orm import TorrentItem
 from app.infrastructure.persistence.antivirus.model.antivirus_orm import AntivirusItem
+from app.infrastructure.persistence.blacklist_torrent.model.blacklist_torrent_orm import (
+    BlacklistTorrentOrm,
+)
 
 
 # this is the Alembic Config object, which provides

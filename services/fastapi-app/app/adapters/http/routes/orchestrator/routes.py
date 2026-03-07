@@ -11,7 +11,11 @@ from app.application.orchestrators.useCases.antivirusScanTorrent import Antiviru
 from app.application.orchestrators.useCases.antivirusScanTorrentAndIngest import (
     AntivirusScanTorrentAndIngestUseCase,
 )
-from app.adapters.http.schemas.antivirus.antivirusSchemas import ScanTorrentRequest, ScanTorrentResponse
+from app.adapters.http.schemas.antivirus.antivirusSchemas import (
+    ScanTorrentRequest,
+    ScanTorrentResponse,
+    ScanTorrentAndIngestResponse,
+)
 
 orchestratorRoutes = APIRouter(prefix="/orchestrator", tags=["orchestrator"])
 
@@ -46,7 +50,7 @@ async def antivirus_scan_torrent(
         raise HTTPException(status_code=500, detail=f"Error scanning torrent: {str(e)}")
 
 
-@orchestratorRoutes.post("/antivirus-scan-torrent-and-ingest", response_model=ScanTorrentResponse)
+@orchestratorRoutes.post("/antivirus-scan-torrent-and-ingest", response_model=ScanTorrentAndIngestResponse)
 async def antivirus_scan_torrent_and_ingest(
     request: ScanTorrentRequest,
     use_case: AntivirusScanTorrentAndIngestUseCase = Depends(
@@ -63,7 +67,7 @@ async def antivirus_scan_torrent_and_ingest(
     """
     try:
         result = await use_case.execute(request.torrent_hash)
-        return ScanTorrentResponse(**result.model_dump())
+        return ScanTorrentAndIngestResponse(**result.model_dump())
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error running antivirus scan and ingest: {str(e)}"

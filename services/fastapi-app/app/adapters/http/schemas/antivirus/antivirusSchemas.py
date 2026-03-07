@@ -41,15 +41,26 @@ class HealthCheckResponse(BaseModel):
 
 
 class ScanTorrentResponse(BaseModel):
-    """Response model for scanning a torrent."""
+    """Response model for scan-only (no move/ingest). No moved, deleted, or destination_path."""
     status: str  # "clean", "infected", or "error"
     message: Optional[str] = None
     infected: bool
-    moved: Optional[bool] = None
-    deleted: Optional[bool] = None
-    destination_path: Optional[str] = None
     virus_name: Optional[str] = None
     infected_files: Optional[List[str]] = None
     yara_matches: Optional[List[str]] = None
     scanned_files: Optional[List[str]] = None
+
+
+class ScanTorrentAndIngestResponse(BaseModel):
+    """Response model for scan + ingest: includes move/delete outcome and destination_path."""
+    status: str  # "clean", "infected", or "error"
+    message: Optional[str] = None
+    infected: bool
+    virus_name: Optional[str] = None
+    infected_files: Optional[List[str]] = None
+    yara_matches: Optional[List[str]] = None
+    scanned_files: Optional[List[str]] = None
+    moved: Optional[bool] = None
+    deleted: Optional[bool] = None
+    destination_path: Optional[str] = None
 

@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 from app.core.config import settings
-from app.adapters.http.routes import plexRoutes, delugeRoutes, prowlarrRoutes, orchestratorRoutes, antivirusRoutes
+from app.adapters.http.routes import plexRoutes, delugeRoutes, prowlarrRoutes, orchestratorRoutes, antivirusRoutes, blacklistTorrentRoutes
 from app.factories.scheduler.schedulerFactory import create_scheduler_service
 # Configure logging
 logging.basicConfig(
@@ -96,6 +96,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 # Include API routers (microservice structure)
 app.include_router(orchestratorRoutes)
+app.include_router(blacklistTorrentRoutes)
 app.include_router(plexRoutes)
 app.include_router(delugeRoutes)
 app.include_router(prowlarrRoutes)

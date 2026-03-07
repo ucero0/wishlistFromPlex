@@ -4,6 +4,7 @@ from .antivirusSchemas import (
     ScanPathResponse,
     HealthCheckResponse,
     ScanTorrentResponse,
+    ScanTorrentAndIngestResponse,
     ScanSummary
 )
 
@@ -13,6 +14,7 @@ __all__ = [
     "ScanPathResponse",
     "HealthCheckResponse",
     "ScanTorrentResponse",
+    "ScanTorrentAndIngestResponse",
     "ScanSummary"
 ]
 

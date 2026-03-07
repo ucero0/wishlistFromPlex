@@ -6,6 +6,7 @@ from app.adapters.http.routes.deluge.delugeRoutes import torrents_routes
 from app.adapters.http.routes.prowlarr.prowlarrRoutes import prowlarrRoutes
 from app.adapters.http.routes.orchestrator.routes import orchestratorRoutes
 from app.adapters.http.routes.antivirus.antivirusRoutes import antivirusRoutes
+from app.adapters.http.routes.blacklist_torrent import blacklistTorrentRoutes
 
 plexRoutes = APIRouter(prefix="/plex", tags=["plex"])
 plexRoutes.include_router(plexServerRoutes)

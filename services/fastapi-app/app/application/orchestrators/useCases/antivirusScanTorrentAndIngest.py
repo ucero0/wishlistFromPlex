@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from app.application.orchestrators.useCases.antivirusScanTorrent import (
     AntivirusScanTorrentUseCase,
 )
+from app.application.blacklist_torrent.use_cases import AddTorrentToBlacklistUseCase
 from app.application.plex.useCases.addWatchListItem import AddWatchListItemUseCase
 from app.application.plex.useCases.partialScanLibrary import PartialScanLibraryUseCase
 from app.domain.models.antivirusScan import AntivirusScan
@@ -57,6 +58,7 @@ class AntivirusScanTorrentAndIngestUseCase:
         filesystem_service: FilesystemService,
         antivirus_repo: AntivirusRepoPort,
         deluge_provider: DelugeProvider,
+        add_torrent_to_blacklist_use_case: AddTorrentToBlacklistUseCase,
         add_watchlist_item_use_case: AddWatchListItemUseCase,
         partial_scan_library_use_case: PartialScanLibraryUseCase,
         plex_section_resolver: PlexSectionResolverPort,
@@ -65,6 +67,7 @@ class AntivirusScanTorrentAndIngestUseCase:
         self._filesystem_service = filesystem_service
         self._antivirus_repo = antivirus_repo
         self._deluge_provider = deluge_provider
+        self._add_torrent_to_blacklist_use_case = add_torrent_to_blacklist_use_case
         self._add_watchlist_item_use_case = add_watchlist_item_use_case
         self._partial_scan_library_use_case = partial_scan_library_use_case
         self._plex_section_resolver = plex_section_resolver
@@ -116,6 +119,13 @@ class AntivirusScanTorrentAndIngestUseCase:
     ) -> AntivirusScanTorrentAndIngestResult:
         logger.warning(
             f"Infected files found: {scan_result.infected_files}"
+        )
+        await self._add_torrent_to_blacklist_use_case.execute(
+            torrent_download.guidProwlarr,
+            reason="infected",
+            name=torrent_download.title,
+            year=torrent_download.year,
+            media_type=torrent_download.type,
         )
         deleted = await self._deluge_provider.remove_torrent(
             torrent_hash, remove_data=True

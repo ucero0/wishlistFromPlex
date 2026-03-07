@@ -6,7 +6,7 @@ from app.application.prowlarr.queries.findBestTorrent import GetBestTorrentsQuer
 from app.application.plex.queries.getPlexServerItem import IsItemInLibraryQuery
 from app.application.deluge.queries.getTorrentStatus import GetTorrentByNameQuery
 from app.application.plex.useCases.removeWatchListItem import RemoveWatchListItemUseCase
-from app.application.antivirus.queries.checkInfectedByGuidProwlarr import CheckInfectedByGuidProwlarrQuery
+from app.application.blacklist_torrent.queries import IsBlacklistedByGuidProwlarrQuery
 from app.application.torrentDownload.useCases.createTorrentDownload import CreateTorrentDownloadUseCase
 from app.application.torrentDownload.queries.getTorrentDownload import IsGuidPlexDownloadingQuery
 from app.application.orchestrators.useCases.syncTorrentDownloadWithDeluge import SyncTorrentDownloadWithDelugeUseCase
@@ -30,7 +30,7 @@ class DownloadWatchListMediaUseCase:
     isItemInLibraryQuery: IsItemInLibraryQuery,
     getTorrentByNameQuery: GetTorrentByNameQuery,
     removeWatchListItemUseCase: RemoveWatchListItemUseCase,
-    checkInfectedByGuidProwlarrQuery: CheckInfectedByGuidProwlarrQuery,
+    is_blacklisted_by_guid_prowlarr_query: IsBlacklistedByGuidProwlarrQuery,
     createTorrentDownloadUseCase: CreateTorrentDownloadUseCase,
     isGuidPlexDownloadingQuery: IsGuidPlexDownloadingQuery,
     syncTorrentDownloadWithDelugeUseCase: SyncTorrentDownloadWithDelugeUseCase,
@@ -41,7 +41,7 @@ class DownloadWatchListMediaUseCase:
         self.isItemInLibraryQuery = isItemInLibraryQuery
         self.getTorrentByNameQuery = getTorrentByNameQuery
         self.removeWatchListItemUseCase = removeWatchListItemUseCase
-        self.checkInfectedByGuidProwlarrQuery = checkInfectedByGuidProwlarrQuery
+        self.is_blacklisted_by_guid_prowlarr_query = is_blacklisted_by_guid_prowlarr_query
         self.createTorrentDownloadUseCase = createTorrentDownloadUseCase
         self.isGuidPlexDownloadingQuery = isGuidPlexDownloadingQuery
         self.syncTorrentDownloadWithDelugeUseCase = syncTorrentDownloadWithDelugeUseCase
@@ -206,9 +206,9 @@ class DownloadWatchListMediaUseCase:
             - success: True if torrent was successfully downloaded and found in Deluge
             - torrent: The Torrent object if found, None otherwise
         """
-        # Check if torrent is infected
-        if await self.checkInfectedByGuidProwlarrQuery.execute(torrent_result.guid):
-            logger.warning(f"Torrent '{torrent_result.title}' is infected, skipping")
+        # Check if torrent is blacklisted (e.g. infected, unhealthy)
+        if await self.is_blacklisted_by_guid_prowlarr_query.execute(torrent_result.guid):
+            logger.warning(f"Torrent '{torrent_result.title}' is blacklisted, skipping")
             return False, None
         
         # Download the torrent

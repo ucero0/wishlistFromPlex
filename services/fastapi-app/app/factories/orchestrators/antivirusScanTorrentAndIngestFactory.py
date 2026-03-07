@@ -18,6 +18,7 @@ from app.factories.torrentDownload.torrentDownloadFactory import (
 )
 from app.infrastructure.externalApis.deluge.client import DelugeClient
 from app.adapters.external.deluge.adapter import DelugeAdapter
+from app.factories.blacklist_torrent import create_add_torrent_to_blacklist_use_case
 from app.factories.plex.plexWatchListFactory import createAddWatchListItemUseCase
 from app.factories.plex.plexServerFactory import createPartialScanLibraryUseCase
 from app.infrastructure.config.plex_section_resolver import PlexSectionResolverAdapter
@@ -48,6 +49,7 @@ def create_antivirus_scan_torrent_and_ingest_use_case(
     antivirus_repo = _get_antivirus_repo(session)
     deluge_client = DelugeClient()
     deluge_adapter = DelugeAdapter(deluge_client)
+    add_torrent_to_blacklist_use_case = create_add_torrent_to_blacklist_use_case(session)
     add_watchlist_item_use_case = createAddWatchListItemUseCase()
     partial_scan_library_use_case = createPartialScanLibraryUseCase()
     plex_section_resolver = PlexSectionResolverAdapter()
@@ -57,6 +59,7 @@ def create_antivirus_scan_torrent_and_ingest_use_case(
         filesystem_service=filesystem_service,
         antivirus_repo=antivirus_repo,
         deluge_provider=deluge_adapter,
+        add_torrent_to_blacklist_use_case=add_torrent_to_blacklist_use_case,
         add_watchlist_item_use_case=add_watchlist_item_use_case,
         partial_scan_library_use_case=partial_scan_library_use_case,
         plex_section_resolver=plex_section_resolver,
