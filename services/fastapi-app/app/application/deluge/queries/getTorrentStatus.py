@@ -15,6 +15,33 @@ class GetTorrentsStatusQuery:
         return torrents
 
 
+class GetCompletedTorrentsQuery:
+    """Query to get only completed torrents (is_finished from Torrent model)."""
+    def __init__(self, get_torrents_status_query: GetTorrentsStatusQuery):
+        self.get_torrents_status_query = get_torrents_status_query
+
+    async def execute(self, torrents: Optional[List[Torrent]] = None) -> List[Torrent]:
+        """Return only completed torrents. If torrents is not provided, fetch via get_torrents_status first."""
+        if torrents is None:
+            torrents = await self.get_torrents_status_query.execute()
+        return [t for t in torrents if t.is_finished is True]
+
+
+class GetDownloadingTorrentsQuery:
+    """Query to get only torrents that are currently downloading."""
+    def __init__(self, get_torrents_status_query: GetTorrentsStatusQuery):
+        self.get_torrents_status_query = get_torrents_status_query
+
+    async def execute(self, torrents: Optional[List[Torrent]] = None) -> List[Torrent]:
+        """Return only downloading torrents. If torrents is not provided, fetch via get_torrents_status first."""
+        if torrents is None:
+            torrents = await self.get_torrents_status_query.execute()
+        return [
+            t for t in torrents
+            if (t.state or "").lower() == "downloading"
+        ]
+
+
 class GetTorrentStatusQuery:
     """Query to get the status of a torrent."""
     def __init__(self, provider: DelugeProvider):

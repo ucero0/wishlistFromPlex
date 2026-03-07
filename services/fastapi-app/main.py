@@ -53,7 +53,9 @@ app = FastAPI(
     - `GET /health` - Health check
     - `GET /` - API information
     - `GET /deluge/status` - Deluge connection status
-    - `GET /deluge/torrents` - List torrents (read-only)
+    - `GET /deluge/torrents` - List all torrents (read-only)
+    - `GET /deluge/torrents/completed` - List only completed torrents
+    - `GET /deluge/torrents/downloading` - List only downloading torrents
     """,
     version="2.0.0",
 )

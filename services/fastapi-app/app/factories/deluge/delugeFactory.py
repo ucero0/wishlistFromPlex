@@ -1,7 +1,13 @@
 """Factory for Deluge query dependencies."""
 from app.infrastructure.externalApis.deluge.client import DelugeClient
 from app.adapters.external.deluge.adapter import DelugeAdapter
-from app.application.deluge.queries.getTorrentStatus import GetTorrentsStatusQuery, GetTorrentStatusQuery, GetTorrentByNameQuery
+from app.application.deluge.queries.getTorrentStatus import (
+    GetTorrentsStatusQuery,
+    GetTorrentStatusQuery,
+    GetTorrentByNameQuery,
+    GetCompletedTorrentsQuery,
+    GetDownloadingTorrentsQuery,
+)
 from app.application.deluge.useCases.removeTorrent import RemoveTorrentUseCase
 
 def createGetTorrentStatusQuery() -> GetTorrentStatusQuery:
@@ -22,6 +28,17 @@ def createGetTorrentByNameQuery() -> GetTorrentByNameQuery:
     client = DelugeClient()
     adapter = DelugeAdapter(client)
     return GetTorrentByNameQuery(adapter)
+
+
+def createGetCompletedTorrentsQuery() -> GetCompletedTorrentsQuery:
+    """Factory function to create GetCompletedTorrentsQuery with its dependencies."""
+    return GetCompletedTorrentsQuery(createGetTorrentsStatusQuery())
+
+
+def createGetDownloadingTorrentsQuery() -> GetDownloadingTorrentsQuery:
+    """Factory function to create GetDownloadingTorrentsQuery with its dependencies."""
+    return GetDownloadingTorrentsQuery(createGetTorrentsStatusQuery())
+
 
 def createRemoveTorrentUseCase() -> RemoveTorrentUseCase:
     """Factory function to create RemoveTorrentUseCase with its dependencies."""
