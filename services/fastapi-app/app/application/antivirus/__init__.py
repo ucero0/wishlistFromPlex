@@ -8,7 +8,7 @@ from app.application.antivirus.queries import (
     GetCleanItemsQuery,
     GetAllAntivirusScansQuery,
 )
-from app.application.antivirus.useCases import (
+from app.application.antivirus.use_cases import (
     CreateAntivirusScanUseCase,
     UpdateAntivirusScanUseCase,
     DeleteAntivirusScanUseCase,

@@ -29,7 +29,7 @@ Updated all user-facing references from "ClamAV" to "antivirus" for consistency 
 - `infra/antivirus/scan-service/http_scan_server.py`
 - `services/fastapi-app/app/infrastructure/externalApis/antivirus/client.py`
 - `services/fastapi-app/app/core/config.py`
-- `services/fastapi-app/app/application/antivirus/useCases/scanAndMoveFiles.py`
+- Torrent scan-and-ingest workflow: `services/fastapi-app/app/application/orchestrators/useCases/scanTorrentAndIngest.py`
 - `docker-compose.yml`
 
 ## What Stayed the Same

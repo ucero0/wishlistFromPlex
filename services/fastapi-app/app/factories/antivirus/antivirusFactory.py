@@ -5,7 +5,6 @@ from app.infrastructure.persistence.database import get_db
 from app.infrastructure.persistence.antivirus.repo.antivirus_repository import AntivirusRepository
 from app.infrastructure.externalApis.antivirus.client import AntivirusClient
 from app.adapters.external.antivirus.adapter import AntivirusAdapter
-from app.domain.services.filesystem_service import FilesystemServiceImpl
 from app.application.antivirus.queries import (
     CheckInfectedByGuidProwlarrQuery,
     GetAntivirusScanByIdQuery,
@@ -15,19 +14,13 @@ from app.application.antivirus.queries import (
     GetCleanItemsQuery,
     GetAllAntivirusScansQuery,
 )
-from app.application.antivirus.useCases import (
+from app.application.antivirus.use_cases import (
     CreateAntivirusScanUseCase,
     UpdateAntivirusScanUseCase,
     DeleteAntivirusScanUseCase,
     DeleteAntivirusScanByIdUseCase,
     DeleteAntivirusScansByGuidProwlarrUseCase,
 )
-from app.application.antivirus.useCases.scanAndMoveFiles import ScanAndMoveFilesUseCase
-from app.factories.torrentDownload.torrentDownloadFactory import create_get_torrent_download_by_uid_query
-from app.infrastructure.externalApis.deluge.client import DelugeClient
-from app.adapters.external.deluge.adapter import DelugeAdapter
-from app.factories.plex.plexWatchListFactory import createAddWatchListItemUseCase
-from app.factories.plex.plexServerFactory import createPartialScanLibraryUseCase
 
 
 def _get_repo(session: AsyncSession) -> AntivirusRepository:
@@ -119,42 +112,6 @@ def create_delete_antivirus_scans_by_guid_prowlarr_use_case(
 ) -> DeleteAntivirusScansByGuidProwlarrUseCase:
     """Factory function to create DeleteAntivirusScansByGuidProwlarrUseCase."""
     return DeleteAntivirusScansByGuidProwlarrUseCase(_get_repo(session))
-
-
-def create_scan_and_move_files_use_case(
-    session: AsyncSession = Depends(get_db)
-) -> ScanAndMoveFilesUseCase:
-    """Factory function to create ScanAndMoveFilesUseCase with all dependencies."""
-    # Antivirus setup
-    antivirus_client = AntivirusClient()
-    antivirus_adapter = AntivirusAdapter(antivirus_client)
-    
-    # Filesystem service
-    filesystem_service = FilesystemServiceImpl()
-    
-    # Antivirus repository
-    antivirus_repo = _get_repo(session)
-    
-    # Torrent download query
-    get_torrent_download_query = create_get_torrent_download_by_uid_query(session)
-    
-    # Deluge provider
-    deluge_client = DelugeClient()
-    deluge_adapter = DelugeAdapter(deluge_client)
-    
-    # Plex dependencies
-    add_watchlist_item_use_case = createAddWatchListItemUseCase()
-    partial_scan_library_use_case = createPartialScanLibraryUseCase()
-    
-    return ScanAndMoveFilesUseCase(
-        antivirus_provider=antivirus_adapter,
-        filesystem_service=filesystem_service,
-        antivirus_repo=antivirus_repo,
-        get_torrent_download_query=get_torrent_download_query,
-        deluge_provider=deluge_adapter,
-        add_watchlist_item_use_case=add_watchlist_item_use_case,
-        partial_scan_library_use_case=partial_scan_library_use_case
-    )
 
 
 def create_antivirus_provider() -> AntivirusAdapter:

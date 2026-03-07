@@ -1,16 +1,13 @@
-"""Antivirus routes for direct file/directory scanning and torrent scanning."""
+"""Antivirus routes: scan path by path, health. Torrent scan/ingest are under /orchestrator."""
 from fastapi import APIRouter, Depends, HTTPException, status
 import httpx
 from app.domain.ports.external.antivirus.antivirusProvider import AntivirusProvider
-from app.factories.antivirus.antivirusFactory import create_antivirus_provider, create_scan_and_move_files_use_case
-from app.application.antivirus.useCases.scanAndMoveFiles import ScanAndMoveFilesUseCase
+from app.factories.antivirus.antivirusFactory import create_antivirus_provider
 from app.adapters.http.schemas.antivirus.antivirusSchemas import (
     ScanPathRequest,
-    ScanTorrentRequest,
     ScanPathResponse,
     HealthCheckResponse,
-    ScanTorrentResponse,
-    ScanSummary
+    ScanSummary,
 )
 
 antivirusRoutes = APIRouter(prefix="/antivirus", tags=["antivirus"])
@@ -106,34 +103,4 @@ async def health_check(
             status="unhealthy",
             error=str(e)
         )
-
-
-@antivirusRoutes.post("/scan/torrent", response_model=ScanTorrentResponse)
-async def scan_torrent(
-    request: ScanTorrentRequest,
-    use_case: ScanAndMoveFilesUseCase = Depends(create_scan_and_move_files_use_case)
-):
-    """
-    Scan a torrent's files with antivirus and YARA rules.
-    If clean, move files to appropriate media directory.
-    If infected, delete the files/directory.
-    
-    This endpoint:
-    1. Gets the torrent download by hash from the database
-    2. Scans files from the quarantine path using the torrent's fileName
-    3. If clean: moves to containerPlexPath/movies or tvshow based on type
-    4. If infected: deletes the files/directory
-    
-    **Returns:**
-    - `status`: "clean", "infected", or "error"
-    - `infected`: Boolean indicating if files are infected
-    - `moved`: Boolean indicating if files were moved (if clean)
-    - `deleted`: Boolean indicating if files were deleted (if infected)
-    - `destination_path`: Path where files were moved (if clean and moved)
-    """
-    try:
-        result = await use_case.execute(request.torrent_hash)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error scanning torrent: {str(e)}")
 

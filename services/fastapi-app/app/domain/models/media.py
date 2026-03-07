@@ -7,6 +7,7 @@ class MediaType(str, Enum):
     """Media type enumeration - domain model."""
     MOVIE = "movie"
     SHOW = "show"
+    TVSHOW = "tvshow"  # alias used by some integrations
     SEASON = "season"
     EPISODE = "episode"
 
