@@ -83,6 +83,9 @@ infra/clamav/data/*.pdb
 infra/clamav/data/*.wdb
 infra/clamav/data/*.idb
 infra/clamav/data/tmp.*/
+
+# Antivirus YARA rules (often symlink or app-managed)
+infra/antivirus/yara-rules
 infra/clamav/data/*.dat
 infra/antivirus/data/*.cld
 infra/antivirus/data/*.cvd
@@ -108,34 +111,50 @@ clamav/data/*.ldb
 clamav/data/*.hsb
 clamav/data/tmp.*/
 
-# Deluge runtime files
+# Deluge runtime files (config has passwords; state has torrents)
 infra/deluge/config/*.pid
 infra/deluge/config/*.state
 infra/deluge/config/*.bak
-infra/deluge/config/state/*.fastresume
-infra/deluge/config/state/*.bak
+infra/deluge/config/core.conf
+infra/deluge/config/web.conf
+infra/deluge/config/auth
+infra/deluge/config/execute.conf
+infra/deluge/config/hostlist.conf
+infra/deluge/config/state/
 infra/deluge/config/archive/
+infra/deluge/config/ssl/
+infra/deluge/config/icons/
+infra/deluge/config/plugins/.python-eggs/
+infra/deluge/config/plugins/*/data/
 
-# Plex runtime files
+# Plex runtime files (Preferences.xml has tokens; certs and cookies are sensitive)
 infra/plex/config/**/*.pid
 infra/plex/config/**/*.db-shm
 infra/plex/config/**/*.db-wal
+infra/plex/config/**/*.p12
+infra/plex/config/**/Preferences.xml
 infra/plex/config/**/Cache/
+infra/plex/config/**/Codecs/
 infra/plex/config/**/Crash Reports/
+infra/plex/config/**/Setup Plex.html
 infra/plex/config/**/Logs/
 infra/plex/config/**/Plug-in Support/Caches/
+infra/plex/config/**/Plug-in Support/Data/
+infra/plex/config/**/Plug-in Support/Metadata Combination/
+infra/plex/config/**/Plug-in Support/Preferences/
 infra/plex/config/**/Plug-in Support/Databases/*.db-shm
 infra/plex/config/**/Plug-in Support/Databases/*.db-wal
 infra/plex/config/**/Plug-in Support/Databases/*.db-*
 infra/plex/config/**/.LocalAdminToken
 
-# Prowlarr runtime files
+# Prowlarr runtime files (Definitions are app-managed, many indexer ymls)
 infra/prowlarr/config/*.pid
 infra/prowlarr/config/*.db-shm
 infra/prowlarr/config/*.db-wal
 infra/prowlarr/config/logs.db-shm
 infra/prowlarr/config/logs.db-wal
 infra/prowlarr/config/Backups/
+infra/prowlarr/config/Definitions/
 infra/prowlarr/config/logs/
 
 # Deluge downloads (quarantine and downloaded files)
