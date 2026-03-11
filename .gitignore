@@ -127,25 +127,8 @@ infra/deluge/config/icons/
 infra/deluge/config/plugins/.python-eggs/
 infra/deluge/config/plugins/*/data/
 
-# Plex runtime files (Preferences.xml has tokens; certs and cookies are sensitive)
-infra/plex/config/**/*.pid
-infra/plex/config/**/*.db-shm
-infra/plex/config/**/*.db-wal
-infra/plex/config/**/*.p12
-infra/plex/config/**/Preferences.xml
-infra/plex/config/**/Cache/
-infra/plex/config/**/Codecs/
-infra/plex/config/**/Crash Reports/
-infra/plex/config/**/Setup Plex.html
-infra/plex/config/**/Logs/
-infra/plex/config/**/Plug-in Support/Caches/
-infra/plex/config/**/Plug-in Support/Data/
-infra/plex/config/**/Plug-in Support/Metadata Combination/
-infra/plex/config/**/Plug-in Support/Preferences/
-infra/plex/config/**/Plug-in Support/Databases/*.db-shm
-infra/plex/config/**/Plug-in Support/Databases/*.db-wal
-infra/plex/config/**/Plug-in Support/Databases/*.db-*
-infra/plex/config/**/.LocalAdminToken
+# Plex (config, media, runtime — all ignored)
+infra/plex/
 
 # Prowlarr runtime files (Definitions are app-managed, many indexer ymls)
 infra/prowlarr/config/*.pid
@@ -159,9 +142,4 @@ infra/prowlarr/config/logs/
 
 # Deluge downloads (quarantine and downloaded files)
 infra/deluge/downloads/
-
-# Plex media files
-infra/plex/media/
-
-
 
