@@ -1,6 +1,5 @@
 """HTTP routes for Prowlarr torrent search."""
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Optional
 from app.application.prowlarr.useCases.downloadTorrent import DownloadTorrentUseCase
 from app.application.prowlarr.queries.findBestTorrent import GetBestTorrentsQuery
 from app.application.prowlarr.queries.testProwlarrConnection import (
@@ -19,7 +18,6 @@ from app.adapters.http.schemas.prowlarr import (
     ProwlarrConnectionResponse,
     ProwlarrIndexerCountResponse,
 )
-from app.domain.models.torrent_search import SearchStatusEnum, TorrentSearchResult
 import logging
 
 logger = logging.getLogger(__name__)
@@ -67,16 +65,15 @@ async def search_torrents_by_query(
         best_result = results[0]
         
         # 2. Optionally download torrent
-        download_success = True
         if request.auto_add_to_deluge:
-            download_success = await download_use_case.execute(best_result)
+            await download_use_case.execute(best_result)
         
         
         # Return 200 OK with results
         return SearchResponse(
             title=best_result.title,
             indexer=best_result.indexer,
-            sizeGb=best_result.size,
+            size_gb=best_result.size,
             seeders=best_result.seeders,
             leechers=best_result.leechers,
  

@@ -6,7 +6,7 @@ def to_external(media: MediaItem) -> PlexWatchlistItemDTO:
     """Map MediaItem to PlexWatchlistItemDTO external schema."""
     return PlexWatchlistItemDTO(
         guid=media.guid,
-        ratingKey=media.ratingKey,
+        ratingKey=media.rating_key,
         title=media.title,
         type=media.type,
         year=media.year,
@@ -17,7 +17,7 @@ def to_domain(dto: PlexWatchlistItemDTO) -> MediaItem:
 
     return MediaItem(
         guid=dto.guid,
-        ratingKey=dto.ratingKey,
+        rating_key=dto.ratingKey,
         title=dto.title,
         type=dto.type,
         year=dto.year,

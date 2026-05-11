@@ -80,12 +80,12 @@ class AntivirusRepository(AntivirusRepoPort):
         if not orm:
             raise ValueError(f"Antivirus scan with id {antivirus_scan.id} not found")
         
-        orm.guidProwlarr = antivirus_scan.guidProwlarr
-        orm.filePath = antivirus_scan.filePath
-        orm.folderPathSrc = antivirus_scan.folderPathSrc
-        orm.folderPathDst = antivirus_scan.folderPathDst
-        orm.Infected = antivirus_scan.Infected
-        orm.scanDateTime = antivirus_scan.scanDateTime
+        orm.guidProwlarr = antivirus_scan.prowlarr_guid
+        orm.filePath = antivirus_scan.file_path
+        orm.folderPathSrc = antivirus_scan.source_folder_path
+        orm.folderPathDst = antivirus_scan.destination_folder_path
+        orm.Infected = antivirus_scan.is_infected
+        orm.scanDateTime = antivirus_scan.scanned_at
         
         await self.session.commit()
         await self.session.refresh(orm)
@@ -125,12 +125,12 @@ class AntivirusRepository(AntivirusRepoPort):
         """Convert ORM model to domain model."""
         return AntivirusScan(
             id=orm.id,
-            guidProwlarr=orm.guidProwlarr,
-            filePath=orm.filePath,
-            folderPathSrc=orm.folderPathSrc,
-            folderPathDst=orm.folderPathDst,
-            Infected=orm.Infected,
-            scanDateTime=orm.scanDateTime,
+            prowlarr_guid=orm.guidProwlarr,
+            file_path=orm.filePath,
+            source_folder_path=orm.folderPathSrc,
+            destination_folder_path=orm.folderPathDst,
+            is_infected=orm.Infected,
+            scanned_at=orm.scanDateTime,
             created_at=orm.created_at,
             updated_at=orm.updated_at,
         )
@@ -139,11 +139,11 @@ class AntivirusRepository(AntivirusRepoPort):
         """Convert domain model to ORM model."""
         return AntivirusItemOrm(
             id=domain.id,
-            guidProwlarr=domain.guidProwlarr,
-            filePath=domain.filePath,
-            folderPathSrc=domain.folderPathSrc,
-            folderPathDst=domain.folderPathDst,
-            Infected=domain.Infected,
-            scanDateTime=domain.scanDateTime,
+            guidProwlarr=domain.prowlarr_guid,
+            filePath=domain.file_path,
+            folderPathSrc=domain.source_folder_path,
+            folderPathDst=domain.destination_folder_path,
+            Infected=domain.is_infected,
+            scanDateTime=domain.scanned_at,
         )
 

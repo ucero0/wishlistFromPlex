@@ -9,6 +9,8 @@ This service provides:
 - (Future) File management for Plex library
 """
 import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -28,8 +30,22 @@ logger = logging.getLogger(__name__)
 # Initialize scheduler service using factory
 scheduler_service = create_scheduler_service()
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Startup and shutdown (replaces deprecated on_event hooks)."""
+    logger.info("Starting up Media Automation Service")
+    scheduler_service.start()
+    logger.info("Startup complete")
+    yield
+    logger.info("Shutting down Media Automation Service")
+    scheduler_service.shutdown()
+    logger.info("Shutdown complete")
+
+
 # Create FastAPI app
 app = FastAPI(
+    lifespan=lifespan,
     title="Media Automation Service",
     description="""
     Automated media management service that:
@@ -101,27 +117,6 @@ app.include_router(plexRoutes)
 app.include_router(delugeRoutes)
 app.include_router(prowlarrRoutes)
 app.include_router(antivirusRoutes)
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database and start scheduler on startup."""
-    logger.info("Starting up Media Automation Service")
-    
-    # Note: Database tables are created via Alembic migrations
-    # which run automatically in the Docker entrypoint script.
-    # No need to create tables here as we're using async engine.
-    
-    # Start the scheduler service
-    scheduler_service.start()
-    logger.info("Startup complete")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Stop scheduler on shutdown."""
-    logger.info("Shutting down Media Automation Service")
-    scheduler_service.shutdown()
-    logger.info("Shutdown complete")
 
 
 @app.get("/health")

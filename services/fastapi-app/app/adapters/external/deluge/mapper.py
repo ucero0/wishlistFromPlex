@@ -7,7 +7,7 @@ def to_domain_torrent(rawTorrent: ExternalDelugeTorrentStatusResponse) -> Torren
     """Map Deluge RPC response to domain Torrent model."""
     return Torrent(
             hash=rawTorrent.hash,
-            fileName=rawTorrent.name,  # Translate external "name" to internal "fileName"
+            file_name=rawTorrent.name,  # Translate external "name" to internal file_name
             state=rawTorrent.state,
             progress=rawTorrent.progress,
             total_size=rawTorrent.total_done,

@@ -3,7 +3,7 @@ import logging
 from typing import List, Optional
 from app.domain.ports.external.prowlarr.torrent_search_provider import TorrentSearchProvider
 from app.infrastructure.externalApis.prowlarr.prowlarr_client import ProwlarrClient
-from app.infrastructure.externalApis.prowlarr.schemas import ProwlarrIndexer
+from app.domain.models.prowlarrIndexer import ProwlarrIndexerInfo
 from app.domain.models.torrent_search import TorrentSearchResult
 from app.adapters.external.prowlarr.mapper import to_domain_list
 
@@ -42,7 +42,15 @@ class ProwlarrAdapter(TorrentSearchProvider):
         """Test connection to Prowlarr."""
         return await self.client.test_connection()
     
-    async def get_indexers(self) -> List[ProwlarrIndexer]:
+    async def get_indexers(self) -> List[ProwlarrIndexerInfo]:
         """Get all indexers from Prowlarr (raw data, no filtering)."""
-        return await self.client.get_indexers()
+        raw_indexers = await self.client.get_indexers()
+        return [
+            ProwlarrIndexerInfo(
+                id=indexer.id,
+                name=indexer.name,
+                enabled=indexer.enable,
+            )
+            for indexer in raw_indexers
+        ]
 

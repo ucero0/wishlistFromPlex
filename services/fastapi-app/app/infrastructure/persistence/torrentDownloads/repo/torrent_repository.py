@@ -78,13 +78,13 @@ class TorrentRepository(TorrentDownloadRepoPort):
         if not orm:
             raise ValueError(f"Torrent download with id {torrent.id} not found")
         
-        orm.guidPlex = torrent.guidPlex
-        orm.ratingKey = torrent.ratingKey
-        orm.plexUserToken = torrent.plexUserToken
-        orm.guidProwlarr = torrent.guidProwlarr
+        orm.guidPlex = torrent.plex_guid
+        orm.ratingKey = torrent.watchlist_item_id
+        orm.plexUserToken = torrent.plex_user_token
+        orm.guidProwlarr = torrent.prowlarr_guid
         orm.uid = torrent.uid
         orm.title = torrent.title
-        orm.fileName = torrent.fileName
+        orm.fileName = torrent.file_name
         orm.year = torrent.year
         orm.type = torrent.type
         orm.season = torrent.season
@@ -116,13 +116,13 @@ class TorrentRepository(TorrentDownloadRepoPort):
         """Convert ORM model to domain model."""
         return TorrentDownload(
             id=orm.id,
-            guidPlex=orm.guidPlex,
-            ratingKey=orm.ratingKey,
-            plexUserToken=orm.plexUserToken,
-            guidProwlarr=orm.guidProwlarr,
+            plex_guid=orm.guidPlex,
+            watchlist_item_id=orm.ratingKey,
+            plex_user_token=orm.plexUserToken,
+            prowlarr_guid=orm.guidProwlarr,
             uid=orm.uid,
             title=orm.title,
-            fileName=orm.fileName,
+            file_name=orm.fileName,
             year=orm.year,
             type=orm.type,
             season=orm.season,
@@ -135,13 +135,13 @@ class TorrentRepository(TorrentDownloadRepoPort):
         """Convert domain model to ORM model."""
         return TorrentItem(
             id=domain.id,
-            guidPlex=domain.guidPlex,
-            ratingKey=domain.ratingKey,
-            plexUserToken=domain.plexUserToken,
-            guidProwlarr=domain.guidProwlarr,
+            guidPlex=domain.plex_guid,
+            ratingKey=domain.watchlist_item_id,
+            plexUserToken=domain.plex_user_token,
+            guidProwlarr=domain.prowlarr_guid,
             uid=domain.uid,
             title=domain.title,
-            fileName=domain.fileName,
+            fileName=domain.file_name,
             year=domain.year,
             type=domain.type,
             season=domain.season,

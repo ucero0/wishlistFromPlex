@@ -1,6 +1,8 @@
 """Port for Plex server library provider."""
 from typing import Protocol
+
 from app.domain.models.media import MediaItem
+from app.domain.models.plexLibraryLocations import PlexLibraryLocationsByMedia
 
 
 class PlexServerLibraryProvider(Protocol):
@@ -8,7 +10,13 @@ class PlexServerLibraryProvider(Protocol):
     async def is_item_in_library(self, user_token: str, media: MediaItem) -> bool:
         """Check if an item is in the Plex library."""
         ...
-    
+
+    async def get_library_locations_by_media(
+        self, user_token: str
+    ) -> PlexLibraryLocationsByMedia:
+        """Return movie and TV library sections with their configured root paths."""
+        ...
+
     async def partial_scan_library(
         self, 
         user_token: str, 

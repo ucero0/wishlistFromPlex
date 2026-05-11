@@ -1,7 +1,7 @@
 """Prowlarr external API schemas - raw responses from Prowlarr API."""
 from __future__ import annotations
 import logging
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 from typing import Optional, Any
 from datetime import datetime
 
@@ -18,16 +18,17 @@ class ProwlarrStatusResponse(BaseModel):
 
 class ProwlarrIndexer(BaseModel):
     """Prowlarr indexer information (external API response)."""
+    model_config = ConfigDict(extra="ignore")
+
     id: int
     name: str
     enable: bool
-    
-    class Config:
-        extra = "ignore"  # Ignore extra fields from Prowlarr
 
 
 class ProwlarrRawResult(BaseModel):
     """Raw result from Prowlarr API (external API response)."""
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
     title: str
     indexer: str = "Unknown"
     size: Optional[int] = 0
@@ -54,6 +55,3 @@ class ProwlarrRawResult(BaseModel):
                     data["seeders"] = data.get("seeds", 0)
         return data
 
-    class Config:
-        populate_by_name = True  # Allow both field name and alias
-        extra = "ignore"  # Ignore extra fields from Prowlarr

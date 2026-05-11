@@ -1,8 +1,11 @@
 """Adapter for Plex server library API."""
-from app.domain.ports.external.plex.plexServerLibraryProvider import PlexServerLibraryProvider
-from app.domain.models.media import MediaItem
-from app.infrastructure.externalApis.plex.plexServer.client import PlexServerLibraryApiClient
 import logging
+
+from app.adapters.external.plexServer import mapper as plex_server_mapper
+from app.domain.models.media import MediaItem
+from app.domain.models.plexLibraryLocations import PlexLibraryLocationsByMedia
+from app.domain.ports.external.plex.plexServerLibraryProvider import PlexServerLibraryProvider
+from app.infrastructure.externalApis.plex.plexServer.client import PlexServerLibraryApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +25,9 @@ class PlexServerLibraryAdapter(PlexServerLibraryProvider):
         else:
             logger.warning(f"Unknown media type: {media.type}, will not filter by type")
 
-        response_json = await self.client.get_library_items_raw(user_token, media.guid,mediaInt)
+        response = await self.client.get_library_items_raw(user_token, media.guid, mediaInt)
         # Extract size from JSON response: MediaContainer.size
-        media_container = response_json.get("MediaContainer", {})
+        media_container = response.MediaContainer
         size = int(media_container.get("size", 0))
         if size == 1:
             metadata = media_container.get("Metadata", [])
@@ -40,7 +43,14 @@ class PlexServerLibraryAdapter(PlexServerLibraryProvider):
             result = False
         logger.info(f"Library check result: size={size}, has_media={result}")
         return result
-    
+
+    async def get_library_locations_by_media(
+        self, user_token: str
+    ) -> PlexLibraryLocationsByMedia:
+        """Load library sections and paths for movie/TV from Plex Server."""
+        raw = await self.client.get_library_locations_by_media_raw(user_token)
+        return plex_server_mapper.library_locations_response_to_domain(raw)
+
     async def partial_scan_library(
         self, 
         user_token: str, 

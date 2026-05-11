@@ -27,5 +27,5 @@ class GetProwlarrIndexerCountQuery:
         Business logic: Only count indexers that are enabled.
         """
         indexers = await self.search_provider.get_indexers()
-        return len([i for i in indexers if i.enable])
+        return len([i for i in indexers if i.enabled])
 

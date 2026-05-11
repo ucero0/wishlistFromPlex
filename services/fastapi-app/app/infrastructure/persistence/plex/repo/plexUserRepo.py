@@ -25,6 +25,13 @@ class PlexUserRepo(PlexUserRepoPort):
         orm = result.scalar_one_or_none()
         return self._to_domain(orm) if orm else None
 
+    async def get_user_by_plex_token(self, plex_token: str) -> PlexUser | None:
+        result = await self.session.execute(
+            select(PlexUserOrm).where(PlexUserOrm.plex_token == plex_token)
+        )
+        orm = result.scalar_one_or_none()
+        return self._to_domain(orm) if orm else None
+
     async def get_active_users(self) -> list[PlexUser]:
         result = await self.session.execute(
             select(PlexUserOrm).where(PlexUserOrm.active.is_(True))
@@ -60,6 +67,16 @@ class PlexUserRepo(PlexUserRepoPort):
         await self.session.commit()
         await self.session.refresh(orm)
         return self._to_domain(orm)
+
+    async def delete_user(self, user: PlexUser) -> PlexUser | None:
+        orm = await self.session.get(PlexUserOrm, user.id)
+        if orm is None:
+            return None
+
+        deleted_user = self._to_domain(orm)
+        await self.session.delete(orm)
+        await self.session.commit()
+        return deleted_user
 
     # ---------- MAPPERS ----------
 

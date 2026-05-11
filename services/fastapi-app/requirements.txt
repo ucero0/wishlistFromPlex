@@ -1,33 +1,22 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+fastapi==0.136.1
+uvicorn[standard]==0.34.2
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9  # For Alembic migrations (sync)
-asyncpg==0.29.0  # For async SQLAlchemy operations
+asyncpg==0.30.0  # For async SQLAlchemy operations (wheels incl. newer Python)
 alembic==1.12.1
-httpx==0.25.1
+httpx==0.28.1
 requests==2.31.0
-python-dotenv==1.0.0
-pydantic-settings==2.1.0
+python-dotenv==1.1.0
+pydantic-settings==2.8.1
 apscheduler==3.10.4
 
 # Deluge client (RPC client for Deluge daemon)
 deluge-client==1.10.2
-
 
 # Scanner dependencies
 pyclamd==0.4.0
 # Note: yara-python removed - YARA scanning is handled by ClamAV container
 aiofiles==23.2.1
 
-# Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-responses==0.24.1
-respx==0.20.2
-
 # String similarity matching
 rapidfuzz==3.9.1
-
-
-

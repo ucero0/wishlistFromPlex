@@ -82,13 +82,13 @@ class DownloadWatchListMediaUseCase:
         # Check if item is already in library
         if await self.isItemInLibraryQuery.execute(user_token, watchlist):
             logger.info(f"Removing {watchlist.title} from watchlist because it is already in the library")
-            await self.removeWatchListItemUseCase.execute(watchlist.ratingKey, user_token)
+            await self.removeWatchListItemUseCase.execute(watchlist.rating_key, user_token)
             return True, "already_in_library"
         
         # Check if torrent is already downloading
         if await self.isGuidPlexDownloadingQuery.execute(watchlist.guid):
             logger.error(f"Torrent {watchlist.title} is already downloading, skipping")
-            await self.removeWatchListItemUseCase.execute(watchlist.ratingKey, user_token)
+            await self.removeWatchListItemUseCase.execute(watchlist.rating_key, user_token)
             return True, "already_downloading"
         
         return False, None
@@ -153,7 +153,7 @@ class DownloadWatchListMediaUseCase:
                     new_torrent, 
                     user_token
                 )
-                await self.removeWatchListItemUseCase.execute(watchlist.ratingKey, user_token)
+                await self.removeWatchListItemUseCase.execute(watchlist.rating_key, user_token)
                 return True
             
             # Try next result
@@ -180,13 +180,13 @@ class DownloadWatchListMediaUseCase:
             user_token: Plex user token
         """
         await self.createTorrentDownloadUseCase.execute(TorrentDownload(
-            guidPlex=watchlist.guid,
-            ratingKey=watchlist.ratingKey,
-            plexUserToken=user_token,
-            guidProwlarr=torrent_result.guid,
+            plex_guid=watchlist.guid,
+            watchlist_item_id=watchlist.rating_key,
+            plex_user_token=user_token,
+            prowlarr_guid=torrent_result.guid,
             uid=new_torrent.hash,
             title=watchlist.title,
-            fileName=new_torrent.fileName,
+            file_name=new_torrent.file_name,
             year=watchlist.year,
             type=watchlist.type,
         ))

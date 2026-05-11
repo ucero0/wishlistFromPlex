@@ -85,7 +85,7 @@ class GetTorrentByNameQuery:
                 if torrent.time_added is not None:
                     # Check if torrent was added within the threshold from now (between time_window_start and current_time)
                     if time_window_start <= torrent.time_added <= current_time:
-                        similarity = self._calculate_similarity(name, torrent.fileName)
+                        similarity = self._calculate_similarity(name, torrent.file_name)
                         if similarity > best_similarity:
                             best_similarity = similarity
                             best_match = torrent
@@ -99,7 +99,7 @@ class GetTorrentByNameQuery:
         best_match = None
         best_similarity = 0.0
         for torrent in torrents:
-            similarity = self._calculate_similarity(name, torrent.fileName)
+            similarity = self._calculate_similarity(name, torrent.file_name)
             if similarity > best_similarity:
                 best_similarity = similarity
                 best_match = torrent

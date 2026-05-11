@@ -21,6 +21,7 @@ from app.domain.models.torrent_search import (
     QualityInfo,
     TorrentSearchResult,
 )
+from app.domain.models.prowlarrIndexer import ProwlarrIndexerInfo
 
 __all__ = [
     "Torrent",
@@ -41,4 +42,5 @@ __all__ = [
     "SearchStatusEnum",
     "QualityInfo",
     "TorrentSearchResult",
+    "ProwlarrIndexerInfo",
 ]

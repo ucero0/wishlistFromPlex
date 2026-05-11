@@ -1,5 +1,5 @@
 """Internal domain models for torrents - pure business logic."""
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -19,8 +19,10 @@ class TorrentStatus(str, Enum):
 
 class Torrent(BaseModel):
     """Internal domain model for a torrent."""
+    model_config = ConfigDict(populate_by_name=True)
+
     hash: str
-    fileName: str
+    file_name: str = Field(alias="fileName")
     state: str
     progress: float = 0.0
     total_size: Optional[int] = None

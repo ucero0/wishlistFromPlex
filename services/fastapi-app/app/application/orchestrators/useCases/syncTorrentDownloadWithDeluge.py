@@ -58,12 +58,12 @@ class SyncTorrentDownloadWithDelugeUseCase:
                 removed_count += 1
             else:
                 # Always update the torrent download DB with the current status from Deluge
-                # Only update fields derived from Deluge (fileName)
+                # Only update fields derived from Deluge (file_name)
                 deluge_torrent = deluge_torrents_dict[db_torrent.uid]
-                logger.debug(f"Updating {db_torrent.title} (hash: {db_torrent.uid[:8]}...) with current Deluge fileName: '{deluge_torrent.fileName}'")
+                logger.debug(f"Updating {db_torrent.title} (hash: {db_torrent.uid[:8]}...) with current Deluge file_name: '{deluge_torrent.file_name}'")
                 # Copy the existing torrent and update only Deluge-derived fields
                 updated_torrent = db_torrent.model_copy(update={
-                    "fileName": deluge_torrent.fileName  # Update with current Deluge fileName
+                    "file_name": deluge_torrent.file_name  # Update with current Deluge file_name
                 })
                 await self.updateTorrentDownloadUseCase.execute(updated_torrent)
                 updated_count += 1

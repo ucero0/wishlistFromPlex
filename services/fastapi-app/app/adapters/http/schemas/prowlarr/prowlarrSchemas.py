@@ -1,10 +1,9 @@
 """HTTP request/response schemas for Prowlarr torrent search endpoints."""
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, Dict, Any
 from datetime import datetime
 from app.domain.models.torrent_search import (
     SearchStatusEnum,
-    TorrentSearchResult,
 )
 
 
@@ -23,15 +22,19 @@ class SearchByQueryRequest(BaseModel):
 
 class SearchResponse(BaseModel):
     """Response from search operation."""
+    model_config = ConfigDict(populate_by_name=True)
+
     title: str
     indexer: str
-    sizeGb: float
+    size_gb: float = Field(alias="sizeGb")
     seeders: int
     leechers: int
 
 
 class SearchResultResponse(BaseModel):
     """Full search result from database."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     rating_key: str
     status: SearchStatusEnum
@@ -46,10 +49,6 @@ class SearchResultResponse(BaseModel):
     searched_at: Optional[datetime] = None
     added_at: Optional[datetime] = None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class SearchStatsResponse(BaseModel):
     """Search statistics."""

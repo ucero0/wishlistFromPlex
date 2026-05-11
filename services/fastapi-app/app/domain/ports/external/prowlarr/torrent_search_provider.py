@@ -1,10 +1,8 @@
 """Port (Protocol) for torrent search provider."""
-from typing import Protocol, List, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from app.infrastructure.externalApis.prowlarr.schemas import ProwlarrIndexer
+from typing import Protocol, List, Optional
 
 from app.domain.models.torrent_search import TorrentSearchResult
+from app.domain.models.prowlarrIndexer import ProwlarrIndexerInfo
 
 
 class TorrentSearchProvider(Protocol):
@@ -53,7 +51,7 @@ class TorrentSearchProvider(Protocol):
         """
         ...
     
-    async def get_indexers(self) -> List["ProwlarrIndexer"]:
+    async def get_indexers(self) -> List[ProwlarrIndexerInfo]:
         """
         Get all indexers from the search provider (raw data, no filtering).
         

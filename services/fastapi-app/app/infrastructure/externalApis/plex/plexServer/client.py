@@ -1,8 +1,12 @@
 import httpx
 from typing import Optional, Dict, Any
 from app.core.config import settings
-import json
 import logging
+from app.infrastructure.externalApis.plex.plexServer.schemas import (
+    PlexLibraryLocationsByMediaResponse,
+    PlexLibraryLocationItem,
+    PlexLibraryAllResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +22,6 @@ class PlexServerLibraryApiClient:
 
     def __init__(self, token: str):
         self.plex_server_url = settings.plex_server_url
-        self.token = token
         self.plex_api_headers = PLEX_API_HEADERS
         self.url_library_search = f"{self.plex_server_url}/library/all"
         logger.debug(f"PlexServerLibraryApiClient initialized with server URL: {self.plex_server_url}")
@@ -33,18 +36,28 @@ class PlexServerLibraryApiClient:
             params["type"] = media_type
         return params
 
-    async def get_library_items_raw(self, user_token: str, guid: str, type: Optional[int] = None) -> Dict[str, Any]:
+    def _normalize_section_media_type(self, section_type: Optional[str]) -> Optional[str]:
+        """Map Plex section type to normalized media type names."""
+        if section_type == "movie":
+            return "movie"
+        if section_type == "show":
+            return "tvshow"
+        return None
+
+    async def get_library_items_raw(
+        self, user_token: str, guid: str, media_type: Optional[int] = None
+    ) -> PlexLibraryAllResponse:
         """Raw Plex request to search library by GUID.
         
         Args:
             user_token: Plex user token (sent as query parameter X-Plex-Token)
             guid: Media GUID to search for
-            type: Optional media type (1=movie, 2=show)
+            media_type: Optional media type (1=movie, 2=show)
             
         Returns:
-            JSON dictionary of the response
+            Typed raw schema of Plex /library/all response
         """
-        params = self._build_params(guid, user_token, type)
+        params = self._build_params(guid, user_token, media_type)
         url = self.url_library_search
         
 
@@ -56,11 +69,60 @@ class PlexServerLibraryApiClient:
             )
             
             response.raise_for_status()
-            # Log the actual URL that was sent (includes query params with token)
-            logger.debug(f"Actual request URL sent: {response.request.url}")
+            logger.debug("Plex library/all request completed successfully")
             
             response_json = response.json()
-            return response_json
+            return PlexLibraryAllResponse(MediaContainer=response_json.get("MediaContainer", {}))
+
+    async def get_library_locations_by_media_raw(
+        self, user_token: str
+    ) -> PlexLibraryLocationsByMediaResponse:
+        """
+        Fetch Plex library sections and extract locations for movies/tvshows.
+
+        Args:
+            user_token: Plex user token (sent as query parameter X-Plex-Token)
+
+        Returns:
+            Typed schema containing library section locations for movie/tvshow.
+        """
+        url = f"{self.plex_server_url}/library/sections"
+        params = {"X-Plex-Token": user_token}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                url,
+                headers=self.plex_api_headers,
+                params=params,
+            )
+            response.raise_for_status()
+            logger.debug("Plex library/sections request completed successfully")
+
+            response_json = response.json()
+            directories = response_json.get("MediaContainer", {}).get("Directory", [])
+
+            items = []
+            for section in directories:
+                media_type = self._normalize_section_media_type(section.get("type"))
+                if media_type is None:
+                    continue
+
+                locations = [
+                    location.get("path")
+                    for location in section.get("Location", [])
+                    if location.get("path")
+                ]
+
+                items.append(
+                    PlexLibraryLocationItem(
+                        section_id=str(section.get("key")),
+                        section_title=section.get("title") or "",
+                        media_type=media_type,
+                        locations=locations,
+                    )
+                )
+
+            return PlexLibraryLocationsByMediaResponse(items=items)
     
     async def partial_scan_library_raw(
         self, 
@@ -107,7 +169,10 @@ class PlexServerLibraryApiClient:
                     f"Partial scan triggered for section {section_id}, "
                     f"path: {folder_path}"
                 )
-                logger.debug(f"Partial scan request URL: {response.request.url}")
+                logger.debug(
+                    "Plex partial scan request completed successfully for section %s",
+                    section_id,
+                )
                 return True
         except httpx.HTTPStatusError as e:
             logger.error(

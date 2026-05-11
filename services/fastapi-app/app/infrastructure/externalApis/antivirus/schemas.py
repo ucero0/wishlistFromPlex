@@ -1,5 +1,5 @@
 """External schemas for Antivirus HTTP scan service API."""
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 
@@ -9,6 +9,8 @@ class ExternalAntivirusScanResponse(BaseModel):
     This represents the response structure from the antivirus container's HTTP scan service.
     The service returns this structure for both file and directory scans.
     """
+    model_config = ConfigDict(extra="ignore")
+
     is_infected: bool
     virus_name: Optional[str] = None
     yara_matches: List[str] = []
@@ -17,7 +19,3 @@ class ExternalAntivirusScanResponse(BaseModel):
     error: Optional[str] = None
     file_path: Optional[str] = None  # Only present for single file scans
     
-    class Config:
-        """Pydantic configuration."""
-        extra = "ignore"  # Ignore extra fields from external API
-

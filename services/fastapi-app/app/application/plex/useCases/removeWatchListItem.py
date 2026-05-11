@@ -1,10 +1,9 @@
-from app.domain.models.media import MediaItem
-from app.adapters.external.plexClient.adapter import PlexWatchlistAdapter
+from app.domain.ports.external.plex.plexWatchListProvider import PlexWatchlistProvider
 
 class RemoveWatchListItemUseCase:
-    def __init__(self, adapter: PlexWatchlistAdapter):
-        self.adapter = adapter
+    def __init__(self, provider: PlexWatchlistProvider):
+        self.provider = provider
 
-    async def execute(self, ratingKey: str, user_token: str) -> None:
-        return await self.adapter.delete_item(ratingKey, user_token)
+    async def execute(self, rating_key: str, user_token: str) -> None:
+        return await self.provider.delete_item(rating_key, user_token)
         

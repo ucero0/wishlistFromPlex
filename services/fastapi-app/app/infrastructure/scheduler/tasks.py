@@ -2,7 +2,7 @@
 import logging
 import asyncio
 from app.infrastructure.persistence.database import AsyncSessionLocal
-from app.factories.orchestrators.findFiles2Download import create_download_watch_list_media_use_case
+from app.composition.orchestrators import build_download_watch_list_media_use_case
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,7 @@ async def download_watch_list_media_task():
         logger.info("Running scheduled task: download watch list media")
         # Create a database session for this task
         async with AsyncSessionLocal() as session:
-            # Use the orchestrator factory directly
-            use_case = create_download_watch_list_media_use_case(session=session)
+            use_case = build_download_watch_list_media_use_case(session=session)
             await use_case.execute()
         logger.info("Scheduled task completed successfully")
     except asyncio.CancelledError:
