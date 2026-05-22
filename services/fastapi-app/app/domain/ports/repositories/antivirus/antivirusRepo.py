@@ -13,6 +13,12 @@ class AntivirusRepoPort(Protocol):
     async def get_by_guid_prowlarr(self, guid_prowlarr: str) -> List[AntivirusScan]:
         """Get all antivirus scans by Prowlarr GUID."""
         ...
+
+    async def get_clean_pending_ingest_by_guid_prowlarr(
+        self, guid_prowlarr: str, quarantine_root: str
+    ) -> Optional[AntivirusScan]:
+        """Latest clean scan still in quarantine (antivirus done, move not completed)."""
+        ...
     
     async def has_infected_by_guid_prowlarr(self, guid_prowlarr: str) -> bool:
         """Check if there are any infected files for a given Prowlarr GUID."""

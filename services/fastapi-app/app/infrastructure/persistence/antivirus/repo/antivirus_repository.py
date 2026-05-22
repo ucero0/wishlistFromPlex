@@ -3,6 +3,7 @@ from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.domain.models.antivirusScan import AntivirusScan
+from app.domain.models.antivirus_scan_status import is_clean_pending_ingest
 from app.domain.ports.repositories.antivirus.antivirusRepo import AntivirusRepoPort
 from app.infrastructure.persistence.antivirus.model.antivirus_orm import AntivirusItem as AntivirusItemOrm
 
@@ -25,6 +26,23 @@ class AntivirusRepository(AntivirusRepoPort):
         )
         orms = result.scalars().all()
         return [self._to_domain(orm) for orm in orms]
+
+    async def get_clean_pending_ingest_by_guid_prowlarr(
+        self, guid_prowlarr: str, quarantine_root: str
+    ) -> Optional[AntivirusScan]:
+        result = await self.session.execute(
+            select(AntivirusItemOrm)
+            .where(
+                AntivirusItemOrm.guidProwlarr == guid_prowlarr,
+                AntivirusItemOrm.Infected.is_(False),
+            )
+            .order_by(AntivirusItemOrm.scanDateTime.desc())
+        )
+        for orm in result.scalars().all():
+            scan = self._to_domain(orm)
+            if is_clean_pending_ingest(scan, quarantine_root):
+                return scan
+        return None
     
     async def has_infected_by_guid_prowlarr(self, guid_prowlarr: str) -> bool:
         """Check if there are any infected files for a given Prowlarr GUID."""
@@ -84,6 +102,8 @@ class AntivirusRepository(AntivirusRepoPort):
         orm.filePath = antivirus_scan.file_path
         orm.folderPathSrc = antivirus_scan.source_folder_path
         orm.folderPathDst = antivirus_scan.destination_folder_path
+        orm.plannedDestination = antivirus_scan.planned_destination_path
+        orm.ingestError = antivirus_scan.ingest_error
         orm.Infected = antivirus_scan.is_infected
         orm.scanDateTime = antivirus_scan.scanned_at
         
@@ -129,6 +149,8 @@ class AntivirusRepository(AntivirusRepoPort):
             file_path=orm.filePath,
             source_folder_path=orm.folderPathSrc,
             destination_folder_path=orm.folderPathDst,
+            planned_destination_path=orm.plannedDestination,
+            ingest_error=orm.ingestError,
             is_infected=orm.Infected,
             scanned_at=orm.scanDateTime,
             created_at=orm.created_at,
@@ -143,6 +165,8 @@ class AntivirusRepository(AntivirusRepoPort):
             filePath=domain.file_path,
             folderPathSrc=domain.source_folder_path,
             folderPathDst=domain.destination_folder_path,
+            plannedDestination=domain.planned_destination_path,
+            ingestError=domain.ingest_error,
             Infected=domain.is_infected,
             scanDateTime=domain.scanned_at,
         )

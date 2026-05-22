@@ -5,7 +5,7 @@ from typing import List, Literal
 
 from pydantic import BaseModel
 
-PlexLibrarySectionMediaKind = Literal["movie", "tvshow"]
+PlexLibrarySectionMediaKind = Literal["movie", "tvshow", "other"]
 
 
 class PlexLibrarySectionLocation(BaseModel):

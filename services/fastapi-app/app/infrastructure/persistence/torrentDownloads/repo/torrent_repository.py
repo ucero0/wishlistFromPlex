@@ -1,8 +1,12 @@
 """Repository for torrent persistence operations."""
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from app.domain.models.torrentDownload import TorrentDownload
+from app.domain.services.media_identity import (
+    normalize_media_type_for_queue_match,
+    normalize_title,
+)
 from app.domain.ports.repositories.torrentDownload.torrentDownloadRepo import TorrentDownloadRepoPort
 from app.infrastructure.persistence.torrentDownloads.model.torrent_orm import TorrentItem
 
@@ -49,7 +53,34 @@ class TorrentRepository(TorrentDownloadRepoPort):
         )
         orm = result.scalar_one_or_none()
         return self._to_domain(orm) if orm else None
-    
+
+    async def has_by_media_identity(
+        self,
+        title: str,
+        year: Optional[int],
+        media_type: str,
+    ) -> bool:
+        norm_title = normalize_title(title)
+        norm_type = normalize_media_type_for_queue_match(media_type)
+        if not norm_title or not norm_type:
+            return False
+
+        type_values = {norm_type}
+        if norm_type == "show":
+            type_values.add("tvshow")
+
+        stmt = select(TorrentItem).where(
+            func.lower(TorrentItem.title) == norm_title,
+            TorrentItem.type.in_(type_values),
+        )
+        if year is None:
+            stmt = stmt.where(TorrentItem.year.is_(None))
+        else:
+            stmt = stmt.where(TorrentItem.year == year)
+
+        result = await self.session.execute(stmt.limit(1))
+        return result.scalar_one_or_none() is not None
+
     async def get_by_type(self, media_type: str) -> List[TorrentDownload]:
         """Get all torrent downloads by media type (movie or show)."""
         result = await self.session.execute(

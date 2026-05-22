@@ -2,6 +2,8 @@
 
 This folder contains Deluge torrent client configuration for the media automation service.
 
+**First-time stack setup:** see [docs/DOCKER_SETUP.md](../../docs/DOCKER_SETUP.md) (Steps 2.3, 5.2).
+
 ## Architecture
 
 - **Deluge** runs through **Gluetun** VPN container (`network_mode: "service:gluetun"`)
@@ -34,12 +36,14 @@ Edit `config/core.conf` and set:
 
 ### 2. Add API User
 
-Add a line to `config/auth`:
+Add a line to `config/auth` (daemon RPC uses **plain** password, unlike the Web UI):
 ```
 deluge:deluge:10
 ```
 
-Format: `username:password:level` (level 10 = admin)
+Format: `username:password:level` (level 10 = admin).
+
+Or let the init script add the user automatically from `DELUGE_USERNAME` / `DELUGE_PASSWORD` in `.env` (see `custom-cont-init.d/99-configure-api-user.sh`).
 
 ### 3. Restart Deluge
 

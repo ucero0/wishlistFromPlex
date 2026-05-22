@@ -4,40 +4,44 @@ from app.application.plex.queries.getPlexLibraryLocationsDiskUsage import (
     GetPlexLibraryLocationsDiskUsageQuery,
 )
 from app.application.plex.queries.getPlexServerItem import IsItemInLibraryQuery
+from app.application.plex.queries.testPlexServerConnection import TestPlexServerConnectionQuery
 from app.application.plex.useCases.partialScanLibrary import PartialScanLibraryUseCase
-from app.core.config import settings
+from app.composition.infrastructure_services import build_filesystem_service
 from app.infrastructure.externalApis.plex.plexServer.client import PlexServerLibraryApiClient
-from app.infrastructure.services.filesystem_service_impl import FilesystemServiceImpl
+
+def _create_plex_server_adapter() -> PlexServerLibraryAdapter:
+    return PlexServerLibraryAdapter(PlexServerLibraryApiClient(token=""))
+
+
+def create_test_plex_server_connection_query() -> TestPlexServerConnectionQuery:
+    return TestPlexServerConnectionQuery(_create_plex_server_adapter())
+
 
 def createIsItemInLibraryQuery() -> IsItemInLibraryQuery:
     """Factory function to create IsItemInLibraryQuery with its dependencies."""
-    # Token is not needed at client initialization, it's passed per request
-    client = PlexServerLibraryApiClient(token="")
-    adapter = PlexServerLibraryAdapter(client)
-    return IsItemInLibraryQuery(adapter)
+    return IsItemInLibraryQuery(_create_plex_server_adapter())
 
 
 def createGetPlexLibraryLocationsByMediaQuery() -> GetPlexLibraryLocationsByMediaQuery:
     """Factory for GetPlexLibraryLocationsByMediaQuery."""
-    client = PlexServerLibraryApiClient(token="")
-    adapter = PlexServerLibraryAdapter(client)
-    return GetPlexLibraryLocationsByMediaQuery(adapter)
+    return GetPlexLibraryLocationsByMediaQuery(_create_plex_server_adapter())
 
 
 def createGetPlexLibraryLocationsDiskUsageQuery() -> GetPlexLibraryLocationsDiskUsageQuery:
     """Plex library paths plus disk usage (paths must exist on this host to get stats)."""
-    client = PlexServerLibraryApiClient(token="")
-    adapter = PlexServerLibraryAdapter(client)
-    filesystem = FilesystemServiceImpl(
-        plex_media_path=settings.container_plex_media_path,
-        quarantine_path=settings.container_deluge_quarantine_path,
+    return GetPlexLibraryLocationsDiskUsageQuery(
+        _create_plex_server_adapter(),
+        build_filesystem_service(),
     )
-    return GetPlexLibraryLocationsDiskUsageQuery(adapter, filesystem)
 
 
 def createPartialScanLibraryUseCase() -> PartialScanLibraryUseCase:
     """Factory function to create PartialScanLibraryUseCase with its dependencies."""
     # Token is not needed at client initialization, it's passed per request
-    client = PlexServerLibraryApiClient(token="")
-    adapter = PlexServerLibraryAdapter(client)
-    return PartialScanLibraryUseCase(adapter)
+    return PartialScanLibraryUseCase(_create_plex_server_adapter())
+
+
+create_get_plex_library_locations_by_media_query = createGetPlexLibraryLocationsByMediaQuery
+create_get_plex_library_locations_disk_usage_query = createGetPlexLibraryLocationsDiskUsageQuery
+create_is_item_in_library_query = createIsItemInLibraryQuery
+create_partial_scan_library_use_case = createPartialScanLibraryUseCase

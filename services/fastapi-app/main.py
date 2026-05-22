@@ -17,8 +17,26 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 from app.core.config import settings
-from app.adapters.http.routes import plexRoutes, delugeRoutes, prowlarrRoutes, orchestratorRoutes, antivirusRoutes, blacklistTorrentRoutes
+from app.adapters.http.routes import (
+    plexRoutes,
+    delugeRoutes,
+    prowlarrRoutes,
+    orchestratorRoutes,
+    antivirusRoutes,
+    blacklistTorrentRoutes,
+    trackingRoutes,
+)
+from app.adapters.http.routes.tmdb.tmdbRoutes import tmdbRoutes
+from app.adapters.http.routes.gluetun.gluetunRoutes import gluetunRoutes
+from app.adapters.http.exception_handlers import external_service_error_handler
+from app.domain.errors.external import ExternalServiceError
+from app.composition.plex_library_paths import (
+    build_sync_plex_library_paths_for_active_users_use_case,
+)
 from app.factories.scheduler.schedulerFactory import create_scheduler_service
+from app.infrastructure.persistence.database import AsyncSessionLocal
+from app.infrastructure.persistence.migration_check import verify_database_schema
+
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper()),
@@ -35,6 +53,24 @@ scheduler_service = create_scheduler_service()
 async def lifespan(_app: FastAPI):
     """Startup and shutdown (replaces deprecated on_event hooks)."""
     logger.info("Starting up Media Automation Service")
+    async with AsyncSessionLocal() as session:
+        try:
+            await verify_database_schema(session)
+            logger.info("Database schema verification passed")
+        except Exception as exc:
+            logger.error("Database schema verification failed: %s", exc)
+            raise
+        try:
+            sync_result = await build_sync_plex_library_paths_for_active_users_use_case(
+                session
+            ).execute()
+            logger.info(
+                "Startup Plex library path sync: %s active paths (%s from server)",
+                sync_result["active_in_database"],
+                sync_result["synced_from_server"],
+            )
+        except Exception as exc:
+            logger.warning("Startup Plex library path sync failed: %s", exc)
     scheduler_service.start()
     logger.info("Startup complete")
     yield
@@ -43,9 +79,21 @@ async def lifespan(_app: FastAPI):
     logger.info("Shutdown complete")
 
 
+OPENAPI_TAGS = [
+    {
+        "name": "Plex Media HDD (DB)",
+        "description": (
+            "Plex library paths and media HDD/volumes stored in PostgreSQL (`plex_library_paths`). "
+            "Syncs from Plex (optional `X-Plex-Token`), measures disk on this host, returns human-readable sizes. "
+            "**Main HDD list:** `GET /plex/library-paths/media-devices`."
+        ),
+    },
+]
+
 # Create FastAPI app
 app = FastAPI(
     lifespan=lifespan,
+    openapi_tags=OPENAPI_TAGS,
     title="Media Automation Service",
     description="""
     Automated media management service that:
@@ -110,13 +158,19 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"detail": exc.errors()},
     )
 
+# Map domain external-service errors to HTTP (hexagonal delivery layer)
+app.add_exception_handler(ExternalServiceError, external_service_error_handler)
+
 # Include API routers (microservice structure)
 app.include_router(orchestratorRoutes)
 app.include_router(blacklistTorrentRoutes)
+app.include_router(trackingRoutes)
 app.include_router(plexRoutes)
 app.include_router(delugeRoutes)
 app.include_router(prowlarrRoutes)
 app.include_router(antivirusRoutes)
+app.include_router(tmdbRoutes)
+app.include_router(gluetunRoutes)
 
 
 @app.get("/health")
@@ -135,6 +189,8 @@ async def root():
         "health": "/health",
         "modules": {
             "plex": "active",
+            "plex_media_hdd_db": "/plex/library-paths/media-devices",
+            "deferred_downloads_process": "POST /tracking/deferred-downloads/process",
             "deluge": "active",
             "antivirus": "active",
             "torrent_search": "active",

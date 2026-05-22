@@ -1,14 +1,18 @@
 from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.adapters.http.routes.deluge.helpers import (
+    DETAIL_NO_COMPLETED_TORRENTS,
+    DETAIL_NO_DOWNLOADING_TORRENTS,
     DETAIL_TORRENT_NAME_NOT_FOUND,
+    DETAIL_TORRENT_NOT_FOUND,
     ensure_torrent_found,
     ensure_torrents_found,
     to_torrent_response,
     to_torrent_responses,
 )
+from app.domain.errors.deluge import DelugeTorrentNotFoundError
 from app.adapters.http.schemas.deluge.delugeSchemas import (
     DelugeTorrentStatusResponse,
     DelugeRemoveRequest,
@@ -49,8 +53,9 @@ async def get_completed_torrents(
 ):
     """Get only completed torrents from Deluge."""
     torrents = await query.execute()
-    found = ensure_torrents_found(torrents)
-    return to_torrent_responses(found)
+    return to_torrent_responses(
+        ensure_torrents_found(torrents, detail=DETAIL_NO_COMPLETED_TORRENTS)
+    )
 
 
 @torrents_routes.get("/downloading", response_model=List[DelugeTorrentStatusResponse])
@@ -59,8 +64,9 @@ async def get_downloading_torrents(
 ):
     """Get only downloading torrents from Deluge."""
     torrents = await query.execute()
-    found = ensure_torrents_found(torrents)
-    return to_torrent_responses(found)
+    return to_torrent_responses(
+        ensure_torrents_found(torrents, detail=DETAIL_NO_DOWNLOADING_TORRENTS)
+    )
 
 
 @torrents_routes.get("/by-hash/{hash}", response_model=DelugeTorrentStatusResponse)
@@ -69,7 +75,13 @@ async def get_torrent_by_hash(
     query: GetTorrentStatusQuery = Depends(createGetTorrentStatusQuery),
 ):
     """Get the status of a torrent from Deluge by its hash."""
-    torrent = await query.execute(hash)
+    try:
+        torrent = await query.execute(hash)
+    except DelugeTorrentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=DETAIL_TORRENT_NOT_FOUND,
+        ) from exc
     return to_torrent_response(torrent)
 
 

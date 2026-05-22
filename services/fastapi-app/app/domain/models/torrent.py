@@ -30,6 +30,15 @@ class Torrent(BaseModel):
     eta: Optional[int] = None
     time_added: Optional[float] = None  # Unix timestamp when torrent was added
 
+    @property
+    def is_finished(self) -> bool:
+        """True when Deluge reports the download as complete (not actively downloading)."""
+        progress = float(self.progress or 0)
+        if progress >= 99.9:
+            return True
+        state = (self.state or "").lower()
+        return state in ("seeding", "paused", "checking", "queued")
+
 
 class ListTorrents(BaseModel):
     """List of torrents."""

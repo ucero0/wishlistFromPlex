@@ -17,10 +17,12 @@ class AntivirusItem(Base):
     filePath = Column(String, nullable=True)  # Full path to the scanned file
     folderPathSrc = Column(String, nullable=True)  # Source folder path
     folderPathDst = Column(String, nullable=True)  # Destination folder path
-    
+    plannedDestination = Column(String, nullable=True)
+    ingestError = Column(String, nullable=True)
+
     # Scan result
     Infected = Column(Boolean, default=False, nullable=False)  # Whether the file is infected
-    
+
     # Scan timestamp
     scanDateTime = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     

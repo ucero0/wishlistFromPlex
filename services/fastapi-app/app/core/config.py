@@ -11,7 +11,12 @@ class Settings(BaseSettings):
 
     # Sync Configuration
     plex_sync_interval_hours: int = 6
+    plex_library_paths_sync_interval_hours: int = 6
     plex_server_url: str = "http://localhost:32400"
+    # Gluetun VPN (Deluge/Prowlarr run through this container)
+    gluetun_host: str = "gluetun"
+    gluetun_health_port: int = 9999
+
     # Deluge Configuration
     deluge_host: str = "gluetun"  # Container name when using docker-compose
     deluge_port: int = 58846  # Deluge daemon port (for RPC)
@@ -30,14 +35,16 @@ class Settings(BaseSettings):
     # TMDB Configuration
     tmdb_api_key: Optional[str] = None  # Set via TMDB_API_KEY environment variable
     
-    # Media paths
-    container_plex_media_path: str = "/plex/media"
-    container_deluge_quarantine_path: str = "/downloads/quarantine"  # Shared quarantine path between FastAPI and Antivirus containers
-    
-    # Plex Library Section IDs
-    plex_movies_section_id: int = 1  # Default section ID for movies library
-    plex_tvshows_section_id: int = 2  # Default section ID for TV shows library
-    
+    # Deluge quarantine (shared with antivirus container for scans/moves)
+    container_deluge_quarantine_path: str = "/downloads/quarantine"
+    # Reserve this much free space on the download volume before adding torrents
+    download_min_free_buffer_gb: float = 10.0
+    # When Prowlarr size is unknown, assume a large release needs this much space
+    download_default_required_gb: float = 50.0
+    deferred_download_process_interval_minutes: int = 15
+    # Use DB free_bytes for ingest when disk_stats_synced_at is newer than this (hours)
+    plex_library_disk_stats_max_age_hours: int = 6
+
     # Logging
     log_level: str = "INFO"
 

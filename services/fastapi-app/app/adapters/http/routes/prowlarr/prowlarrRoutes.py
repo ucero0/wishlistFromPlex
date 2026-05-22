@@ -100,20 +100,13 @@ async def test_prowlarr_connection(
     Returns:
         ProwlarrConnectionResponse with connection status and version
     """
-    try:
-        connected, version, error = await query.execute()
-        return ProwlarrConnectionResponse(
-            connected=connected,
-            version=version,
-            error=error,
-        )
-    except Exception as e:
-        logger.exception(f"Error testing Prowlarr connection: {e}")
-        return ProwlarrConnectionResponse(
-            connected=False,
-            version=None,
-            error=str(e),
-        )
+    status = await query.execute()
+    return ProwlarrConnectionResponse(
+        connected=status.connected,
+        status="healthy" if status.is_healthy else "unhealthy",
+        version=status.version,
+        error=status.error,
+    )
 
 
 @prowlarrRoutes.get("/indexers/count", response_model=ProwlarrIndexerCountResponse)

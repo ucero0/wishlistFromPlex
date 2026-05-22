@@ -61,9 +61,10 @@ async def antivirus_scan_torrent_and_ingest(
     Antivirus scan a torrent; if clean move to Plex library and trigger partial scan.
     If infected, remove the torrent and re-add the item to the user's watchlist.
 
-    1. Scans the torrent (antivirus)
+    1. Scans the torrent (antivirus) unless a clean scan is already in the DB (pending move)
     2. If clean: moves to media path, removes from Deluge, triggers Plex partial scan
-    3. If infected: removes torrent (with data), re-adds to watchlist
+    3. If move fails or no disk space: status ``pending_move`` — retry later without rescanning
+    4. If infected: removes torrent (with data), re-adds to watchlist
     """
     try:
         result = await use_case.execute(request.torrent_hash)
@@ -85,8 +86,19 @@ async def sync_torrent_download_with_deluge(
 ):
     """Sync torrent download DB with Deluge status. Removes DB entries not found in Deluge."""
     result = await use_case.execute()
+    if result.get("skipped"):
+        return {
+            "message": "Sync skipped",
+            "skipped": True,
+            "reason": result.get("reason"),
+            "removed_count": result["removed_count"],
+            "updated_count": result.get("updated_count", 0),
+            "total_checked": result["total_checked"],
+        }
     return {
         "message": "Sync completed successfully",
+        "skipped": False,
         "removed_count": result["removed_count"],
-        "total_checked": result["total_checked"]
+        "updated_count": result.get("updated_count", 0),
+        "total_checked": result["total_checked"],
     }

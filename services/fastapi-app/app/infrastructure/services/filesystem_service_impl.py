@@ -12,10 +12,7 @@ logger = logging.getLogger(__name__)
 class FilesystemServiceImpl:
     """Filesystem service implementation with injected base paths."""
 
-    def __init__(self, plex_media_path: str, quarantine_path: str):
-        self.downloads_path = Path(plex_media_path)
-        self.media_movies_path = Path(plex_media_path) / "movies"
-        self.media_tvshows_path = Path(plex_media_path) / "tvshows"
+    def __init__(self, quarantine_path: str):
         self.media_quarantine_path = Path(quarantine_path)
 
     def move_file(self, source_path: str, destination_path: str) -> bool:
@@ -43,14 +40,6 @@ class FilesystemServiceImpl:
         except Exception:
             return False
 
-    def get_media_path(self, media_type: str) -> str:
-        if media_type.lower() == "movie":
-            return str(self.media_movies_path)
-        if media_type.lower() in {"show", "tvshow"}:
-            return str(self.media_tvshows_path)
-        logger.warning("Unknown media type %s, defaulting to movies", media_type)
-        return str(self.media_movies_path)
-
     def get_quarantine_path(self) -> str:
         return str(self.media_quarantine_path)
 
@@ -69,8 +58,18 @@ class FilesystemServiceImpl:
     def get_quarantine_file_path(self, filename: str) -> str:
         return str(self.media_quarantine_path / filename)
 
-    def get_media_destination_path(self, media_type: str, filename: str) -> str:
-        return str(Path(self.get_media_path(media_type)) / filename)
+    def get_path_size_bytes(self, path: str) -> int:
+        """Total size of a file or directory tree (bytes)."""
+        target = Path(path)
+        if not target.exists():
+            raise ValueError(f"Path does not exist: {path}")
+        if target.is_file():
+            return target.stat().st_size
+        total = 0
+        for entry in target.rglob("*"):
+            if entry.is_file():
+                total += entry.stat().st_size
+        return total
 
     def delete_file(self, file_path: str) -> bool:
         try:
@@ -104,6 +103,41 @@ class FilesystemServiceImpl:
             return True
         except Exception:
             return False
+
+    def explain_move_failure(self, source_path: str, destination_path: str) -> str:
+        """Human-readable reason why ``move`` would fail (does not move files)."""
+        source = Path(source_path)
+        destination = Path(destination_path)
+        if not source.exists():
+            return f"Source does not exist: {source_path}"
+        if destination.exists():
+            return f"Destination already exists: {destination_path}"
+        parent = destination.parent
+        if not parent.exists():
+            try:
+                parent.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                return (
+                    f"Cannot create destination parent {parent}: {exc}. "
+                    "Check Plex library bind mounts and permissions on the fastapi container."
+                )
+        usage_root = parent if parent.exists() else source.parent
+        try:
+            free = shutil.disk_usage(str(usage_root)).free
+            size = self.get_path_size_bytes(source_path)
+            if free < size:
+                return (
+                    f"Not enough free space on {usage_root}: need {size} bytes, "
+                    f"have {free} bytes free"
+                )
+        except (OSError, ValueError) as exc:
+            return f"Cannot check disk space for {usage_root}: {exc}"
+        if not os.access(str(parent), os.W_OK):
+            return f"Destination parent not writable: {parent}"
+        return (
+            f"Move from {source_path} to {destination_path} failed "
+            "(permissions, cross-device move, or filesystem error)"
+        )
 
     def delete(self, path: str) -> bool:
         try:

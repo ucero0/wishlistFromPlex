@@ -63,6 +63,8 @@ class SearchStatsResponse(BaseModel):
 class ProwlarrConnectionResponse(BaseModel):
     """Response for Prowlarr connection test."""
     connected: bool
+    status: str
+    service: str = "prowlarr"
     version: Optional[str] = None
     error: Optional[str] = None
 

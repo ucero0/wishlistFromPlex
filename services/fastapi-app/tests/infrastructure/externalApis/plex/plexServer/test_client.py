@@ -149,11 +149,13 @@ async def test_get_library_locations_by_media_raw_filters_and_normalizes_media_t
 
     assert route.called
     assert isinstance(result, PlexLibraryLocationsByMediaResponse)
-    assert len(result.items) == 2
+    assert len(result.items) == 3
     assert result.items[0].media_type == "movie"
     assert result.items[0].locations == ["/data/movies"]
     assert result.items[1].media_type == "tvshow"
     assert result.items[1].locations == ["/data/tvshows"]
+    assert result.items[2].media_type == "other"
+    assert result.items[2].locations == ["/data/music"]
 
 
 @pytest.mark.asyncio

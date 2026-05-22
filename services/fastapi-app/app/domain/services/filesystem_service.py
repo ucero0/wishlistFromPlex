@@ -33,18 +33,6 @@ class FilesystemService(Protocol):
         """
         ...
     
-    def get_media_path(self, media_type: str) -> str:
-        """
-        Get the media path for a given media type.
-        
-        Args:
-            media_type: "movie" or "show"
-            
-        Returns:
-            Path to the media directory
-        """
-        ...
-    
     def get_quarantine_path(self) -> str:
         """
         Get the quarantine path for downloaded files.
@@ -114,17 +102,8 @@ class FilesystemService(Protocol):
         """
         ...
     
-    def get_media_destination_path(self, media_type: str, filename: str) -> str:
-        """
-        Get the destination path for a media file based on type.
-        
-        Args:
-            media_type: "movie" or "show"
-            filename: Name of the file or directory
-            
-        Returns:
-            Full destination path
-        """
+    def get_path_size_bytes(self, path: str) -> int:
+        """Total size in bytes of a file or directory tree."""
         ...
     
     def delete_file(self, file_path: str) -> bool:
@@ -163,6 +142,10 @@ class FilesystemService(Protocol):
         Returns:
             True if successful, False otherwise
         """
+        ...
+
+    def explain_move_failure(self, source_path: str, destination_path: str) -> str:
+        """Explain why a move would fail (for ingest error reporting; does not move)."""
         ...
     
     def delete(self, path: str) -> bool:

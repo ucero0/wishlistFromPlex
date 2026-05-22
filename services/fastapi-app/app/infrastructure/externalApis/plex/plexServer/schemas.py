@@ -7,7 +7,7 @@ class PlexLibraryLocationItem(BaseModel):
     """Plex library location info for movie/tvshow sections."""
     section_id: str
     section_title: str
-    media_type: Literal["movie", "tvshow"]
+    media_type: Literal["movie", "tvshow", "other"]
     locations: List[str]
 
 

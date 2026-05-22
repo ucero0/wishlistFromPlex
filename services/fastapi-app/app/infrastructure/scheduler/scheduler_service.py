@@ -33,7 +33,25 @@ class SchedulerService:
             replace_existing=True,
         )
         logger.info(f"Registered download watch list media task (interval: {interval_minutes} minutes)")
-    
+
+    def register_interval_task(
+        self,
+        task_func: Callable[[], Awaitable[None]],
+        *,
+        interval_minutes: int,
+        job_id: str,
+        name: str,
+    ) -> None:
+        """Register a generic async interval job."""
+        self.scheduler.add_job(
+            task_func,
+            trigger=IntervalTrigger(minutes=interval_minutes),
+            id=job_id,
+            name=name,
+            replace_existing=True,
+        )
+        logger.info("Registered %s (interval: %s minutes)", name, interval_minutes)
+
     def start(self):
         """Start the scheduler."""
         logger.info("Starting scheduler service")

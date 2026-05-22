@@ -13,6 +13,10 @@ class AntivirusScan(BaseModel):
     file_path: Optional[str] = Field(default=None, alias="filePath")
     source_folder_path: Optional[str] = Field(default=None, alias="folderPathSrc")
     destination_folder_path: Optional[str] = Field(default=None, alias="folderPathDst")
+    planned_destination_path: Optional[str] = Field(
+        default=None, alias="plannedDestination"
+    )
+    ingest_error: Optional[str] = Field(default=None, alias="ingestError")
     is_infected: bool = Field(default=False, alias="Infected")
     scanned_at: datetime = Field(alias="scanDateTime")
     created_at: Optional[datetime] = None

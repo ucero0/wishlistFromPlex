@@ -25,6 +25,15 @@ class TorrentDownloadRepoPort(Protocol):
     async def get_by_guid_prowlarr(self, guid_prowlarr: str) -> Optional[TorrentDownload]:
         """Get a torrent download by its Prowlarr GUID."""
         ...
+
+    async def has_by_media_identity(
+        self,
+        title: str,
+        year: Optional[int],
+        media_type: str,
+    ) -> bool:
+        """True if any torrent row matches normalized title/year/type (another Plex user)."""
+        ...
     
     async def get_by_type(self, media_type: str) -> List[TorrentDownload]:
         """Get all torrent downloads by media type (movie or show)."""

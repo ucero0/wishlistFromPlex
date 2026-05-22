@@ -1,4 +1,4 @@
-"""Query: list Plex library section root paths for movies and TV shows."""
+"""Query: list Plex library section root paths (movie, tvshow, other) from Plex Server API."""
 from app.domain.models.plexLibraryLocations import PlexLibraryLocationsByMedia
 from app.domain.ports.external.plex.plexServerLibraryProvider import PlexServerLibraryProvider
 

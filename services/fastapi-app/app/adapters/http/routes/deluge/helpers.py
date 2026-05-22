@@ -12,6 +12,8 @@ from app.domain.models.torrent import Torrent
 DETAIL_TORRENT_NOT_FOUND = "Torrent not found in deluge"
 DETAIL_TORRENT_NAME_NOT_FOUND = "Torrent name not found in deluge"
 DETAIL_NO_TORRENTS_FOUND = "No torrents found in deluge"
+DETAIL_NO_DOWNLOADING_TORRENTS = "No downloading torrents in deluge"
+DETAIL_NO_COMPLETED_TORRENTS = "No completed torrents in deluge"
 
 # -----------------------------------------------------------------------------
 # Ensure found (raise 404 if missing / empty)
@@ -51,7 +53,15 @@ def ensure_torrents_found(
 
 def to_torrent_response(torrent: Torrent) -> DelugeTorrentStatusResponse:
     """Map domain Torrent to HTTP response schema."""
-    return DelugeTorrentStatusResponse(**torrent.model_dump())
+    return DelugeTorrentStatusResponse(
+        hash=torrent.hash,
+        fileName=torrent.file_name,
+        state=torrent.state,
+        progress=torrent.progress,
+        download_speed=torrent.download_speed or 0,
+        eta=torrent.eta,
+        total_size=torrent.total_size,
+    )
 
 
 def to_torrent_responses(torrents: List[Torrent]) -> List[DelugeTorrentStatusResponse]:

@@ -31,7 +31,6 @@ services:
       API_KEY: ${API_KEY}
       PLEX_SERVER_URL: ${PLEX_SERVER_URL:-http://plex:32400}
       PLEX_SYNC_INTERVAL_HOURS: ${PLEX_SYNC_INTERVAL_HOURS:-6}
-      CONTAINER_PLEX_MEDIA_PATH: ${CONTAINER_PLEX_MEDIA_PATH}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Deluge configuration - connects via gluetun container
       DELUGE_HOST: ${DELUGE_HOST}
@@ -61,7 +60,7 @@ services:
       - ./services/fastapi-app/main.py:/app/main.py
       - ./services/fastapi-app/migrations:/app/migrations
       - delugeDownloadsQuarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
-      - plexMedia:${CONTAINER_PLEX_MEDIA_PATH}
+      # Plex library roots: add bind mounts here matching paths configured in Plex (see docs/DOCKER_SETUP.md)
     networks:
       - fastapi-network
     restart: unless-stopped
@@ -80,9 +79,10 @@ services:
       - OPENVPN_PASSWORD=${NORDVPN_PASSWORD}
       - HEALTH_SERVER_AUTH=no
       - HEALTH_SERVER_PORT=9999
+      - HEALTH_SERVER_ADDRESS=0.0.0.0:9999
       - SERVER_COUNTRIES=${SERVER_COUNTRIES}
       - FIREWALL=on
-      - FIREWALL_INPUT_PORTS=8112,58846,${PROWLARR_PORT},8191
+      - FIREWALL_INPUT_PORTS=8112,58846,${PROWLARR_PORT},8191,9999
       - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12,172.18.0.0/16
       - FIREWALL_IPV6=off
     ports:
@@ -119,6 +119,8 @@ services:
     # We can't use condition: service_healthy with network_mode: service
     environment:
       - CONTAINER_DELUGE_QUARANTINE_PATH=${CONTAINER_DELUGE_QUARANTINE_PATH}
+      - DELUGE_USERNAME=${DELUGE_USERNAME:-deluge}
+      - DELUGE_PASSWORD=${DELUGE_PASSWORD:-deluge}
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
@@ -180,10 +182,11 @@ services:
       - TZ=Europe/Madrid
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM:-}
-      - CONTAINER_PLEX_MEDIA_PATH=${CONTAINER_PLEX_MEDIA_PATH}
     volumes:
       - ./infra/plex/config:/config
-      - plexMedia:${CONTAINER_PLEX_MEDIA_PATH}
+      # Plex library roots: add bind mounts here (same container paths as in Plex library settings)
+      # Example: - D:/Media/Movies:/movies
+      #          - D:/Media/TV:/tv
     ports:
       - "32400:32400"
     networks:
@@ -226,13 +229,6 @@ networks:
 
 
 volumes:
-  plexMedia:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PLEX_MEDIA_VOLUME_PATH:-./infra/plex/media}
-
   delugeDownloadsQuarantine:
     driver: local
     driver_opts:
