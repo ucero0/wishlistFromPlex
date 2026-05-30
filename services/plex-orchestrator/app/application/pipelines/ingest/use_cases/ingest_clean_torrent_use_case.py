@@ -5,6 +5,9 @@ from typing import List
 from app.application.pipelines.ingest.models.scan_and_ingest_torrent_result import (
     ScanAndIngestTorrentResult,
 )
+from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_with_deluge_use_case import (
+    ReconcileActiveDownloadsWithDelugeUseCase,
+)
 from app.application.plex.use_cases.partial_scan_library_use_case import PartialScanLibraryUseCase
 from app.application.plex.use_cases.sync_plex_library_paths_use_case import (
     SyncPlexLibraryPathsFromServerUseCase,
@@ -36,6 +39,7 @@ class IngestCleanTorrentUseCase:
         destination_resolver: IngestDestinationResolver,
         partial_scan_library_use_case: PartialScanLibraryUseCase,
         sync_library_paths_use_case: SyncPlexLibraryPathsFromServerUseCase,
+        reconcile_active_downloads_use_case: ReconcileActiveDownloadsWithDelugeUseCase,
     ):
         self._filesystem_service = filesystem_service
         self._antivirus_repo = antivirus_repo
@@ -44,6 +48,7 @@ class IngestCleanTorrentUseCase:
         self._destination_resolver = destination_resolver
         self._partial_scan_library_use_case = partial_scan_library_use_case
         self._sync_library_paths = sync_library_paths_use_case
+        self._reconcile_active_downloads_use_case = reconcile_active_downloads_use_case
 
     async def execute(
         self,
@@ -84,6 +89,19 @@ class IngestCleanTorrentUseCase:
             )
 
         moved = self._filesystem_service.move(scan_path, destination_path)
+        if moved and not is_file:
+            renamed = self._destination_resolver.apply_plex_media_names(
+                destination_path,
+                torrent_download,
+                list_video_files=self._filesystem_service.list_video_files,
+                rename_file=self._filesystem_service.move_file,
+            )
+            if renamed:
+                logger.info(
+                    "Renamed %s media file(s) under %s to Plex naming",
+                    renamed,
+                    destination_path,
+                )
         if moved:
             await self._deluge_provider.remove_torrent(torrent_hash, remove_data=False)
             await self._update_scan_with_destination(
@@ -94,6 +112,7 @@ class IngestCleanTorrentUseCase:
                 destination_path,
                 is_file,
             )
+            await self._reconcile_active_downloads()
 
         if moved:
             message = (
@@ -203,3 +222,26 @@ class IngestCleanTorrentUseCase:
             )
         except Exception as exc:
             logger.error("Error triggering partial scan: %s", exc, exc_info=True)
+
+    async def _reconcile_active_downloads(self) -> None:
+        """Drop DB rows for torrents no longer in Deluge (e.g. after successful ingest)."""
+        try:
+            result = await self._reconcile_active_downloads_use_case.execute()
+            if result.get("skipped"):
+                logger.warning(
+                    "Active download reconcile skipped after ingest: reason=%s",
+                    result.get("reason"),
+                )
+                return
+            logger.info(
+                "Active download reconcile after ingest: removed=%s updated=%s checked=%s",
+                result["removed_count"],
+                result.get("updated_count", 0),
+                result["total_checked"],
+            )
+        except Exception as exc:
+            logger.error(
+                "Active download reconcile failed after ingest: %s",
+                exc,
+                exc_info=True,
+            )

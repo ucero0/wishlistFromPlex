@@ -130,6 +130,14 @@ class FilesystemService(Protocol):
         """
         ...
     
+    def list_video_files(self, path: str) -> list[str]:
+        """
+        List video file paths under a file or directory (recursive for directories).
+
+        Returns absolute/normalized paths as strings usable with move/rename helpers.
+        """
+        ...
+
     def move(self, source_path: str, destination_path: str) -> bool:
         """
         Move a file or directory from source to destination.

@@ -26,7 +26,10 @@ from app.composition.plex_external import (
     build_partial_scan_library_use_case,
 )
 from app.composition.plex_library_paths import build_sync_plex_library_paths_use_case
-from app.composition.active_downloads import build_get_active_download_by_uid_query
+from app.composition.active_downloads import (
+    build_get_active_download_by_uid_query,
+    build_reconcile_active_downloads_with_deluge_use_case,
+)
 from app.domain.services.ingest_destination_resolver import IngestDestinationResolver
 
 
@@ -48,6 +51,9 @@ def build_handle_infected_torrent_use_case(
             session
         ),
         add_watchlist_item_use_case=build_add_watchlist_item_use_case(),
+        reconcile_active_downloads_use_case=build_reconcile_active_downloads_with_deluge_use_case(
+            session
+        ),
     )
 
 
@@ -62,6 +68,9 @@ def build_ingest_clean_torrent_use_case(
         destination_resolver=IngestDestinationResolver(),
         partial_scan_library_use_case=build_partial_scan_library_use_case(),
         sync_library_paths_use_case=build_sync_plex_library_paths_use_case(session),
+        reconcile_active_downloads_use_case=build_reconcile_active_downloads_with_deluge_use_case(
+            session
+        ),
     )
 
 

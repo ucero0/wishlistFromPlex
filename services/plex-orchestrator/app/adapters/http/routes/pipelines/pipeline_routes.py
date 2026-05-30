@@ -77,9 +77,11 @@ async def scan_and_ingest_torrent(
     If infected, remove the torrent and re-add the item to the user's watchlist.
 
     1. Scans the torrent (antivirus) unless a clean scan is already in the DB (pending move)
-    2. If clean: moves to media path, removes from Deluge, triggers Plex partial scan
-    3. If move fails or no disk space: status ``pending_move`` — retry later without rescanning
-    4. If infected: removes torrent (with data), re-adds to watchlist
+    2. If clean: moves to media path, removes from Deluge, triggers Plex partial scan,
+       then reconciles active-download tracking with Deluge (removes DB rows only when gone from Deluge)
+    3. If move fails or no disk space: status ``pending_move`` — torrent stays in Deluge and tracking is unchanged
+    4. If infected: blacklists release, removes torrent (with data), re-adds to watchlist,
+       then reconciles active-download tracking with Deluge
     """
     try:
         result = await use_case.execute(request.torrent_hash)

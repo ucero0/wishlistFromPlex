@@ -13,9 +13,30 @@ QUARANTINE = os.environ.get("CONTAINER_DELUGE_QUARANTINE_PATH", "/downloads/quar
 CORE_FILE = Path("/config/core.conf")
 EXECUTE_FILE = Path("/config/execute.conf")
 EXECUTE_MARKER = Path("/config/.deluge-execute-hook-configured")
+LABEL_MARKER = Path("/config/.deluge-prowlarr-label-configured")
+LABEL_FILE = Path("/config/label.conf")
 HOOK_COMMAND = "/scripts/on-torrent-complete.sh"
 EXECUTE_PLUGIN = "Execute"
 LABEL_PLUGIN = "Label"
+PROWLARR_LABEL = "prowlarr"
+PROWLARR_LABEL_OPTIONS = {
+    "apply_max": False,
+    "max_download_speed": -1,
+    "max_upload_speed": -1,
+    "max_connections": -1,
+    "max_upload_slots": -1,
+    "prioritize_first_last": False,
+    "apply_queue": False,
+    "is_auto_managed": False,
+    "stop_at_ratio": False,
+    "stop_ratio": 2.0,
+    "remove_at_ratio": False,
+    "apply_move_completed": False,
+    "move_completed": False,
+    "move_completed_path": "",
+    "auto_add": False,
+    "auto_add_trackers": [],
+}
 
 
 def warn(msg: str) -> None:
@@ -43,6 +64,27 @@ def parse_deluge_json(path: Path) -> tuple[dict, dict]:
 
 def write_deluge_json(path: Path, header: dict, body: dict) -> None:
     path.write_text(json.dumps(header) + json.dumps(body, indent=4) + "\n", encoding="utf-8")
+
+
+def ensure_prowlarr_label() -> None:
+    header = {"file": 1, "format": 1}
+    body = {"torrent_labels": {}, "labels": {}}
+
+    if LABEL_FILE.is_file():
+        try:
+            header, body = parse_deluge_json(LABEL_FILE)
+        except json.JSONDecodeError as exc:
+            warn(f"Could not parse {LABEL_FILE}: {exc}; recreating label config")
+
+    labels = body.setdefault("labels", {})
+    body.setdefault("torrent_labels", {})
+    if PROWLARR_LABEL in labels and LABEL_MARKER.is_file():
+        return
+
+    labels[PROWLARR_LABEL] = dict(PROWLARR_LABEL_OPTIONS)
+    write_deluge_json(LABEL_FILE, header, body)
+    LABEL_MARKER.write_text("bootstrapped-from-repo\n", encoding="utf-8")
+    print(f"[deluge-init] label.conf: ensured '{PROWLARR_LABEL}' label for Prowlarr")
 
 
 def ensure_execute_hook() -> None:
@@ -92,5 +134,6 @@ print(
     f"plugins={body['enabled_plugins']}"
 )
 
+ensure_prowlarr_label()
 ensure_execute_hook()
 PY

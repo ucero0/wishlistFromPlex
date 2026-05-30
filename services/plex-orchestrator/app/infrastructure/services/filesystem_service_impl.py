@@ -160,6 +160,26 @@ class FilesystemServiceImpl:
         except Exception:
             return False
 
+    def list_video_files(self, path: str) -> list[str]:
+        video_extensions = {
+            ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v",
+            ".mpg", ".mpeg", ".3gp", ".ogv", ".ts", ".m2ts", ".mts", ".vob",
+            ".divx", ".xvid", ".asf", ".rm", ".rmvb", ".f4v", ".mxf",
+        }
+        try:
+            target = self._resolve_path(path)
+            if not target.exists():
+                return []
+            if target.is_file():
+                return [path] if target.suffix.lower() in video_extensions else []
+            files: list[str] = []
+            for entry in target.rglob("*"):
+                if entry.is_file() and entry.suffix.lower() in video_extensions:
+                    files.append(self._to_plex_path(str(entry)))
+            return files
+        except Exception:
+            return []
+
     def move(self, source_path: str, destination_path: str) -> bool:
         try:
             source = self._resolve_path(source_path)

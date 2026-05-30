@@ -37,6 +37,8 @@ def is_prowlarr_deluge_send_recoverable(response_body: str) -> bool:
         return True
     if "unknown method" in lower and "deluge" in lower:
         return True
+    if "unknown label" in lower:
+        return True
     return False
 
 
