@@ -3,7 +3,18 @@
 set -euo pipefail
 
 CONFIG="/config/config.xml"
+CONFIG_DIR="/config"
 API_KEY="${PROWLARR_API_KEY:-}"
+PUID_VAL="${PUID:-1000}"
+PGID_VAL="${PGID:-1000}"
+
+fix_config_perms() {
+  chown "${PUID_VAL}:${PGID_VAL}" "$CONFIG_DIR" 2>/dev/null || true
+  if [[ -f "$CONFIG" ]]; then
+    chown "${PUID_VAL}:${PGID_VAL}" "$CONFIG" 2>/dev/null || true
+    chmod 664 "$CONFIG" 2>/dev/null || true
+  fi
+}
 
 if [[ -z "$API_KEY" ]]; then
   echo "[prowlarr-init] WARNING: PROWLARR_API_KEY is not set. Set it in .env before first start." >&2
@@ -11,7 +22,7 @@ if [[ -z "$API_KEY" ]]; then
 fi
 
 if [[ ! -f "$CONFIG" ]]; then
-  mkdir -p /config
+  mkdir -p "$CONFIG_DIR"
   cat >"$CONFIG" <<EOF
 <Config>
   <BindAddress>*</BindAddress>
@@ -31,6 +42,7 @@ if [[ ! -f "$CONFIG" ]]; then
   <UpdateMechanism>Docker</UpdateMechanism>
 </Config>
 EOF
+  fix_config_perms
   echo "[prowlarr-init] Created config.xml with API key from .env"
   exit 0
 fi
@@ -40,4 +52,5 @@ if grep -q "<ApiKey>" "$CONFIG"; then
 else
   sed -i "s|</Config>|  <ApiKey>${API_KEY}</ApiKey>\n</Config>|" "$CONFIG"
 fi
+fix_config_perms
 echo "[prowlarr-init] config.xml API key synced from .env"
