@@ -17,11 +17,11 @@ def to_domain_torrent(rawTorrent: ExternalDelugeTorrentStatusResponse) -> Torren
         )
 
 def to_domain_list_torrents(rawTorrentsStatus: List[ExternalDelugeTorrentStatusResponse]) -> ListTorrents:
-    """Map Deluge RPC response to domain Torrent model."""
+    """Map Deluge RPC responses to domain ListTorrents model."""
     domain_torrents = []
     for rawTorrent in rawTorrentsStatus:
         domain_torrent = to_domain_torrent(rawTorrent)
         domain_torrents.append(domain_torrent)
-    return domain_torrents
+    return ListTorrents(torrents=domain_torrents)
 
 
