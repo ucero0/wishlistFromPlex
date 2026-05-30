@@ -324,17 +324,15 @@ DELUGE_PASSWORD=your-long-random-password
 # DELUGE_WEB_PASSWORD=
 ```
 
-On first container start, `custom-cont-init.d/99-configure-api-user.sh`:
+On first container start, `custom-cont-init.d/` scripts:
 
-- Removes the well-known default RPC user `deluge:deluge`
-- Writes your `DELUGE_USERNAME` / `DELUGE_PASSWORD` into `infra/deluge/config/auth`
-- Sets the Web UI password from `DELUGE_WEB_PASSWORD` (or `DELUGE_PASSWORD`)
+- Set `allow_remote: true`, quarantine download path, Execute plugin, and torrent-complete hook (`98-configure-deluge-downloads.sh`)
+- Remove the well-known default RPC user `deluge:deluge`
+- Write your `DELUGE_USERNAME` / `DELUGE_PASSWORD` into `infra/deluge/config/auth`
+- Set the Web UI password from `DELUGE_WEB_PASSWORD` (or `DELUGE_PASSWORD`)
 
 1. Web UI: http://localhost:8112 — login **`admin`** + password from `.env`
-2. Confirm remote RPC in `infra/deluge/config/core.conf`:
-   ```json
-   "allow_remote": true,
-   ```
+2. RPC remote access and quarantine path are applied automatically on start (no manual `core.conf` edit required).
 3. After changing `.env` passwords later, restart Deluge (RPC syncs automatically; Web UI only re-applies if you set `DELUGE_FORCE_WEB_PASSWORD=true` or delete `infra/deluge/config/.deluge-web-password-configured`):
    ```powershell
    docker compose restart deluge

@@ -52,14 +52,14 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Deluge runtime data (contains passwords, certs, logs)
-deluge/config/
-deluge/downloads/
+# Deluge runtime data (legacy top-level paths)
+/deluge/config/
+/deluge/downloads/
 # Keep the custom init script
 !deluge/custom-cont-init.d/
 
-# Gluetun VPN data
-gluetun/
+# Gluetun VPN runtime data (wrapper scripts in infra/gluetun/ are tracked)
+infra/gluetun/servers.json
 
 # ClamAV/Antivirus data files (large virus definition files)
 infra/clamav/data/*.cld
@@ -137,5 +137,7 @@ infra/prowlarr/config/.prowlarr-bootstrap-v1.done
 !infra/prowlarr/config/prowlarr.db
 
 # Deluge downloads (quarantine and downloaded files)
-infra/deluge/downloads/
+infra/deluge/downloads/*
+!infra/deluge/downloads/quarantine/
+!infra/deluge/downloads/quarantine/.gitkeep
 

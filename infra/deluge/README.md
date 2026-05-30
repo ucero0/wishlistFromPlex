@@ -19,24 +19,19 @@ deluge/
 ├── config/           # Auto-generated at first run (gitignored)
 │   ├── auth          # User authentication
 │   ├── core.conf     # Deluge settings
+│   ├── execute.conf  # Execute plugin hooks (auto-configured on start)
 │   ├── ssl/          # Certificates
 │   └── state/        # Session data
-├── downloads/        # Downloaded files (gitignored)
+├── downloads/        # Downloaded files (gitignored except quarantine/.gitkeep)
 ├── custom-cont-init.d/
-│   └── 99-fix-daemon-interface  # Enables remote daemon connections
+│   ├── 98-configure-deluge-downloads.sh  # Quarantine path, Execute plugin, complete hook
+│   └── 99-configure-api-user.sh          # RPC + Web UI credentials from .env
+├── scripts/
+│   └── on-torrent-complete.sh            # Calls FastAPI scan-and-ingest on torrent complete
 └── README.md         # This file
 ```
 
-## Initial Setup (after first container start)
-
-### 1. Enable Remote Connections
-
-Edit `config/core.conf` and set:
-```json
-"allow_remote": true,
-```
-
-### 2. Set credentials in `.env` (recommended)
+## Initial Setup
 
 Before the **first** `docker compose up`, set a strong password in `.env`:
 
@@ -45,20 +40,21 @@ DELUGE_USERNAME=deluge
 DELUGE_PASSWORD=your-long-random-password
 ```
 
-The init script (`custom-cont-init.d/99-configure-api-user.sh`) then:
+On container start, init scripts in `custom-cont-init.d/` automatically:
 
-- Removes the default RPC user `deluge:deluge`
-- Configures RPC auth from `.env` (plain password in `config/auth`, format `user:password:level`)
-- Sets the Web UI password (login **`admin`**) from `DELUGE_WEB_PASSWORD` or `DELUGE_PASSWORD`
+- Set `allow_remote: true` and quarantine `download_location` in `core.conf` (`98-configure-deluge-downloads.sh`)
+- Enable the **Execute** plugin and register `/scripts/on-torrent-complete.sh` on torrent complete
+- Apply RPC/Web UI credentials from `.env` (`99-configure-api-user.sh`)
 
-Manual edit of `config/auth` is only needed if you skip the init script or change credentials outside `.env`.
+When a download finishes, Deluge runs `scripts/on-torrent-complete.sh`, which calls `POST /pipelines/ingest/scan-and-ingest` on FastAPI (URL from `SCANFORVIRUS_API_URL` in `.env`).
 
-### 3. Restart Deluge
+After changing `.env` passwords later, restart Deluge:
 
 ```bash
-docker-compose restart deluge
+docker compose restart deluge
 ```
 
+Manual edit of `config/auth` is only needed if you skip the init scripts or change credentials outside `.env`.
 ## Environment Variables
 
 Set these in your `.env` file:
@@ -82,8 +78,7 @@ Default password: `deluge`
 ## Troubleshooting
 
 ### Connection Refused
-- Ensure `allow_remote: true` in `config/core.conf`
-- Ensure the `99-fix-daemon-interface` script is present
+- Init script sets `allow_remote: true` in `core.conf` on start
 - VPN stack: check Gluetun is healthy (`docker compose ps gluetun`)
 - No-VPN: check Deluge is running (`docker compose ps deluge`)
 
