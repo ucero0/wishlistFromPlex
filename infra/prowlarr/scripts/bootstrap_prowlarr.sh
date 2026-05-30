@@ -79,7 +79,7 @@ seed_or_env() {
 ensure_tag() {
   local label="$1"
   local tag_id
-  tag_id="$(api "${API}/tag" | jq -r --arg l "$label" '.[] | select(.label == $l) | .id' | head -n1)"
+  tag_id="$(api "${API}/tag" | jq -r --arg l "$label" 'first(.[] | select(.label == $l) | .id) // empty')"
   if [[ -n "$tag_id" && "$tag_id" != "null" ]]; then
     echo "$tag_id"
     return 0
@@ -94,7 +94,7 @@ ensure_flaresolverr() {
   local tag_id="$2"
   local host="${FLARE_URL%/}/"
   local existing_id
-  existing_id="$(api "${API}/indexerProxy" | jq -r --arg n "$name" '.[] | select(.name == $n) | .id' | head -n1)"
+  existing_id="$(api "${API}/indexerProxy" | jq -r --arg n "$name" 'first(.[] | select(.name == $n) | .id) // empty')"
   local payload
   payload="$(api "${API}/indexerProxy/schema" | jq \
     --arg n "$name" \
@@ -124,37 +124,59 @@ ensure_deluge() {
   if [[ -z "$DELUGE_PASS" ]]; then
     warn "DELUGE_WEB_PASSWORD / DELUGE_PASSWORD not set; Deluge client may fail auth"
   fi
-  local existing_id
-  existing_id="$(api "${API}/downloadclient" | jq -r --arg n "$name" '.[] | select(.name == $n) | .id' | head -n1)"
-  local payload
-  payload="$(api "${API}/downloadclient/schema" | jq \
-    --arg n "$name" \
-    --arg host "$DELUGE_HOST" \
-    --argjson port "$DELUGE_PORT" \
-    --arg pass "$DELUGE_PASS" \
-    --arg category "$DELUGE_CATEGORY" \
-    --argjson use_ssl "$DELUGE_USE_SSL" \
-    --argjson add_paused "$DELUGE_ADD_PAUSED" '
-    .[] | select(.implementation == "Deluge") |
-    .enable = true |
-    .name = $n |
-    .fields = (.fields | map(
-      if .name == "host" then .value = $host
-      elif .name == "port" then .value = $port
-      elif .name == "password" then .value = $pass
-      elif .name == "category" then .value = $category
-      elif .name == "useSsl" then .value = $use_ssl
-      elif .name == "addPaused" then .value = $add_paused
-      else . end))
-  ')"
-  if [[ -n "$existing_id" && "$existing_id" != "null" ]]; then
-    payload="$(echo "$payload" | jq --argjson id "$existing_id" '. + {id: $id}')"
-    api_json PUT "${API}/downloadclient/${existing_id}?forceSave=true" "$payload" >/dev/null
-    log "Updated Deluge download client (${DELUGE_HOST}:${DELUGE_PORT}, category=${DELUGE_CATEGORY})"
-  else
-    api_json POST "${API}/downloadclient?forceSave=true" "$payload" >/dev/null
-    log "Created Deluge download client (${DELUGE_HOST}:${DELUGE_PORT}, category=${DELUGE_CATEGORY})"
-  fi
+
+  local deadline=$((SECONDS + 300))
+  while (( SECONDS < deadline )); do
+    local existing_id payload method url http_code
+    existing_id="$(api "${API}/downloadclient" | jq -r --arg n "$name" 'first(.[] | select(.name == $n) | .id) // empty')"
+    payload="$(api "${API}/downloadclient/schema" | jq \
+      --arg n "$name" \
+      --arg host "$DELUGE_HOST" \
+      --argjson port "$DELUGE_PORT" \
+      --arg pass "$DELUGE_PASS" \
+      --arg category "$DELUGE_CATEGORY" \
+      --argjson use_ssl "$DELUGE_USE_SSL" \
+      --argjson add_paused "$DELUGE_ADD_PAUSED" '
+      .[] | select(.implementation == "Deluge") |
+      .enable = true |
+      .name = $n |
+      .fields = (.fields | map(
+        if .name == "host" then .value = $host
+        elif .name == "port" then .value = $port
+        elif .name == "password" then .value = $pass
+        elif .name == "category" then .value = $category
+        elif .name == "useSsl" then .value = $use_ssl
+        elif .name == "addPaused" then .value = $add_paused
+        else . end))
+    ')"
+
+    if [[ -n "$existing_id" && "$existing_id" != "null" ]]; then
+      payload="$(echo "$payload" | jq --argjson id "$existing_id" '. + {id: $id}')"
+      method="PUT"
+      url="${API}/downloadclient/${existing_id}?forceSave=true"
+    else
+      method="POST"
+      url="${API}/downloadclient?forceSave=true"
+    fi
+
+    http_code="$(curl -sS -o /dev/null -w "%{http_code}" -X "$method" \
+      -H "X-Api-Key: ${API_KEY}" -H "Accept: application/json" \
+      -H "Content-Type: application/json" -d "$payload" "$url")"
+    if [[ "$http_code" =~ ^(200|201|202)$ ]]; then
+      if [[ "$method" == "PUT" ]]; then
+        log "Updated Deluge download client (${DELUGE_HOST}:${DELUGE_PORT}, category=${DELUGE_CATEGORY})"
+      else
+        log "Created Deluge download client (${DELUGE_HOST}:${DELUGE_PORT}, category=${DELUGE_CATEGORY})"
+      fi
+      return 0
+    fi
+
+    warn "Deluge download client not ready (HTTP ${http_code}); waiting for Deluge Web UI..."
+    sleep 10
+  done
+
+  warn "Could not configure Deluge download client after 300s — check DELUGE_PASSWORD and restart deluge + prowlarr"
+  return 1
 }
 
 ensure_indexers() {
@@ -212,7 +234,6 @@ DELUGE_NAME="$(seed_or_env "${PROWLARR_DELUGE_CLIENT_NAME:-}" '.deluge.name')"
 
 TAG_ID="$(ensure_tag "$TAG_LABEL")"
 ensure_flaresolverr "$FLARE_NAME" "$TAG_ID"
-ensure_deluge "$DELUGE_NAME"
 
 if [[ "$SYNC_INDEXERS" == "true" ]]; then
   ensure_indexers "$TAG_ID"
@@ -221,5 +242,7 @@ if [[ "$SYNC_INDEXERS" == "true" ]]; then
 else
   log "Indexers skipped (already bootstrapped); Deluge and FlareSolverr synced from docker-compose env"
 fi
+
+ensure_deluge "$DELUGE_NAME" || true
 
 log "Bootstrap completed successfully"

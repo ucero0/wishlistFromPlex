@@ -95,6 +95,7 @@ services:
       - ./infra/deluge/config:/config
       - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
       - ./infra/deluge/custom-cont-init.d:/custom-cont-init.d:ro
+      - ./infra/deluge/custom-services.d:/custom-services.d:ro
       - ./infra/deluge/scripts:/scripts:ro
     restart: unless-stopped
 

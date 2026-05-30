@@ -7,6 +7,8 @@ Prowlarr is configured on container start by bootstrap scripts — **not** from 
 | **Every start** | Sync API key → `config.xml`; update Deluge + FlareSolverr clients from `.env` |
 | **First start only** | Create indexers from `bootstrap/seed.json` (marker: `config/.prowlarr-bootstrap-v1.done`) |
 
+`PROWLARR_API_KEY` in `.env` is the single source of truth — written to Prowlarr `config.xml` on start and used by both bootstrap and FastAPI. No manual copy step.
+
 ## In Git
 
 | Path | Purpose |
@@ -15,7 +17,6 @@ Prowlarr is configured on container start by bootstrap scripts — **not** from 
 | `scripts/bootstrap_prowlarr.sh` | Prowlarr API bootstrap |
 | `custom-cont-init.d/99-ensure-api-key.sh` | Writes `PROWLARR_API_KEY` to `config.xml` |
 | `custom-services.d/bootstrap` | Runs bootstrap after Prowlarr starts |
-| `config/.gitkeep` | Empty config mount point |
 
 ## Not in Git (runtime)
 
@@ -29,7 +30,7 @@ Prowlarr is configured on container start by bootstrap scripts — **not** from 
 
 | Variable | Purpose |
 |----------|---------|
-| `PROWLARR_API_KEY` | Prowlarr API key (source of truth — written to `config.xml` on start) |
+| `PROWLARR_API_KEY` | Prowlarr API key (source of truth — written to `config.xml` on start; used by FastAPI and bootstrap) |
 | `PROWLARR_HOST` | `gluetun` (VPN stack) or `prowlarr` (no-vpn) — for **FastAPI** only |
 | `DELUGE_PASSWORD` | Deluge Web UI password — synced to Prowlarr download client every start |
 | `DELUGE_WEB_PASSWORD` | Optional; defaults to `DELUGE_PASSWORD` for Prowlarr → Deluge |
@@ -45,7 +46,7 @@ Deluge/FlareSolverr **host URLs** for Prowlarr are set in `docker-compose.yml` (
    ```
 2. Start stack:
    ```powershell
-   docker compose up -d gluetun deluge flaresolverr prowlarr
+   docker compose up -d gluetun deluge flaresolverr prowlarr fastapi
    ```
 3. Check bootstrap logs:
    ```powershell
