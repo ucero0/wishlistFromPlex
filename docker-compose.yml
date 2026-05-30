@@ -84,13 +84,13 @@ services:
       - HEALTH_SERVER_ADDRESS=0.0.0.0:9999
       - SERVER_COUNTRIES=${SERVER_COUNTRIES}
       - FIREWALL=on
-      - FIREWALL_INPUT_PORTS=8112,58846,${PROWLARR_PORT},8191,9999
+      - FIREWALL_INPUT_PORTS=${DELUGE_WEB_PORT:-8112},${DELUGE_PORT:-58846},${PROWLARR_PORT:-9696},${FLARESOLVERR_PORT:-8191},9999
       - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12,172.18.0.0/16
       - FIREWALL_IPV6=off
     ports:
-      - "8112:8112"
-      - "${PROWLARR_PORT}:${PROWLARR_PORT}"
-      - "8191:8191"
+      - "${DELUGE_WEB_PORT:-8112}:${DELUGE_WEB_PORT:-8112}"
+      - "${PROWLARR_PORT:-9696}:${PROWLARR_PORT:-9696}"
+      - "${FLARESOLVERR_PORT:-8191}:${FLARESOLVERR_PORT:-8191}"
     volumes:
       - ./infra/gluetun:/gluetun
       - ./infra/gluetun/health-monitor-wrapper.sh:/health-monitor-wrapper.sh:ro
@@ -169,14 +169,14 @@ services:
       - DELUGE_PASSWORD=${DELUGE_PASSWORD}
       - DELUGE_WEB_PASSWORD=${DELUGE_WEB_PASSWORD:-}
       - PROWLARR_BOOTSTRAP_SEED=/bootstrap/seed.json
-      # Prowlarr, Deluge, FlareSolverr share Gluetun network → localhost
-      - FLARESOLVERR_URL=http://127.0.0.1:8191
-      - FLARESOLVERR_REQUEST_TIMEOUT=60
-      - PROWLARR_DELUGE_HOST=127.0.0.1
-      - PROWLARR_DELUGE_WEB_PORT=8112
-      - PROWLARR_DELUGE_CATEGORY=prowlarr
-      - PROWLARR_FLARESOLVERR_TAG=flaresolverr
-      - PROWLARR_BOOTSTRAP_FORCE=false
+      # Prowlarr, Deluge, FlareSolverr share Gluetun network → localhost (override in .env if needed)
+      - FLARESOLVERR_URL=${FLARESOLVERR_URL:-http://127.0.0.1:${FLARESOLVERR_PORT:-8191}}
+      - FLARESOLVERR_REQUEST_TIMEOUT=${FLARESOLVERR_REQUEST_TIMEOUT:-60}
+      - PROWLARR_DELUGE_HOST=${PROWLARR_BOOTSTRAP_DELUGE_HOST:-127.0.0.1}
+      - PROWLARR_DELUGE_WEB_PORT=${DELUGE_WEB_PORT:-8112}
+      - PROWLARR_DELUGE_CATEGORY=${PROWLARR_DELUGE_CATEGORY:-prowlarr}
+      - PROWLARR_FLARESOLVERR_TAG=${PROWLARR_FLARESOLVERR_TAG:-flaresolverr}
+      - PROWLARR_BOOTSTRAP_FORCE=${PROWLARR_BOOTSTRAP_FORCE:-false}
     volumes:
       - ./infra/prowlarr/config:/config
       - ./infra/prowlarr/bootstrap:/bootstrap:ro

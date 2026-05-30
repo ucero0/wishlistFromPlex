@@ -9,8 +9,7 @@
 #   PROWLARR_HOST=prowlarr
 #   (NordVPN variables not required)
 #
-# Prowlarr UI: set Deluge to deluge:8112 and FlareSolverr to http://flaresolverr:8191
-# if prowlarr.db still has 127.0.0.1 from the VPN layout.
+# Prowlarr bootstrap defaults: deluge + flaresolverr hostnames (override PROWLARR_BOOTSTRAP_DELUGE_HOST / FLARESOLVERR_URL in .env).
 
 services:
   db:
@@ -77,8 +76,8 @@ services:
     networks:
       - fastapi-network
     ports:
-      - "8112:8112"
-      - "58846:58846"
+      - "${DELUGE_WEB_PORT:-8112}:${DELUGE_WEB_PORT:-8112}"
+      - "${DELUGE_PORT:-58846}:${DELUGE_PORT:-58846}"
     environment:
       - CONTAINER_DELUGE_QUARANTINE_PATH=${CONTAINER_DELUGE_QUARANTINE_PATH}
       - DELUGE_USERNAME=${DELUGE_USERNAME:-deluge}
@@ -114,13 +113,13 @@ services:
       - DELUGE_PASSWORD=${DELUGE_PASSWORD}
       - DELUGE_WEB_PASSWORD=${DELUGE_WEB_PASSWORD:-}
       - PROWLARR_BOOTSTRAP_SEED=/bootstrap/seed.json
-      - FLARESOLVERR_URL=http://flaresolverr:8191
-      - FLARESOLVERR_REQUEST_TIMEOUT=60
-      - PROWLARR_DELUGE_HOST=deluge
-      - PROWLARR_DELUGE_WEB_PORT=8112
-      - PROWLARR_DELUGE_CATEGORY=prowlarr
-      - PROWLARR_FLARESOLVERR_TAG=flaresolverr
-      - PROWLARR_BOOTSTRAP_FORCE=false
+      - FLARESOLVERR_URL=${FLARESOLVERR_URL:-http://flaresolverr:${FLARESOLVERR_PORT:-8191}}
+      - FLARESOLVERR_REQUEST_TIMEOUT=${FLARESOLVERR_REQUEST_TIMEOUT:-60}
+      - PROWLARR_DELUGE_HOST=${PROWLARR_BOOTSTRAP_DELUGE_HOST:-deluge}
+      - PROWLARR_DELUGE_WEB_PORT=${DELUGE_WEB_PORT:-8112}
+      - PROWLARR_DELUGE_CATEGORY=${PROWLARR_DELUGE_CATEGORY:-prowlarr}
+      - PROWLARR_FLARESOLVERR_TAG=${PROWLARR_FLARESOLVERR_TAG:-flaresolverr}
+      - PROWLARR_BOOTSTRAP_FORCE=${PROWLARR_BOOTSTRAP_FORCE:-false}
     volumes:
       - ./infra/prowlarr/config:/config
       - ./infra/prowlarr/bootstrap:/bootstrap:ro
@@ -135,7 +134,7 @@ services:
     networks:
       - fastapi-network
     ports:
-      - "8191:8191"
+      - "${FLARESOLVERR_PORT:-8191}:${FLARESOLVERR_PORT:-8191}"
     environment:
       - LOG_LEVEL=${FLARESOLVERR_LOG_LEVEL:-info}
       - TZ=Europe/Madrid
