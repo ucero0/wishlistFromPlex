@@ -47,6 +47,7 @@ services:
       PLEX_SERVER_ADMIN_TOKEN: ${PLEX_SERVER_ADMIN_TOKEN:-}
       PLEX_SYNC_INTERVAL_HOURS: ${PLEX_SYNC_INTERVAL_HOURS:-6}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CONTAINER_HOST_FS_PREFIX: ${CONTAINER_HOST_FS_PREFIX:-/host}
       DELUGE_HOST: ${DELUGE_HOST:-deluge}
       DELUGE_PORT: ${DELUGE_PORT:-58846}
       DELUGE_USERNAME: ${DELUGE_USERNAME}
@@ -64,6 +65,7 @@ services:
       - "8000:8000"
     volumes:
       - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
+      - ${HOST_FS_BIND_SOURCE:-/}:${CONTAINER_HOST_FS_PREFIX:-/host}:rw,rslave
     networks:
       - plex-orchestrator-network
     extra_hosts:

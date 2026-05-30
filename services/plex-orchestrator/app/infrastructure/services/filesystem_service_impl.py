@@ -12,13 +12,64 @@ logger = logging.getLogger(__name__)
 class FilesystemServiceImpl:
     """Filesystem service implementation with injected base paths."""
 
-    def __init__(self, quarantine_path: str):
+    def __init__(self, quarantine_path: str, host_fs_prefix: str = ""):
         self.media_quarantine_path = Path(quarantine_path)
+        self._host_fs_prefix = host_fs_prefix.strip()
+
+    def _to_plex_path(self, container_path: str) -> str:
+        """Map a container-resolved path back to the Plex/host path (strip host prefix)."""
+        prefix = self._host_fs_prefix.rstrip("/")
+        norm = os.path.normpath(container_path)
+        if not prefix:
+            return norm
+        if norm == prefix:
+            return "/"
+        prefix_with_sep = prefix + os.sep
+        if norm.startswith(prefix_with_sep):
+            rest = norm[len(prefix) :]
+            return rest if rest else "/"
+        return norm
+
+    def _resolve_path(self, path: str) -> Path:
+        """
+        Resolve a Plex/host path to an existing path in this process.
+
+        Tries the path as given first, then ``{host_fs_prefix}{absolute_path}`` when
+        configured (Docker bind-mount of the host root at ``/host``, etc.).
+        """
+        direct = Path(path).expanduser()
+        try:
+            direct = direct.resolve(strict=False)
+        except (OSError, RuntimeError):
+            direct = Path(path).expanduser()
+        if direct.exists():
+            return direct
+
+        prefix = self._host_fs_prefix.rstrip("/")
+        if prefix and os.path.isabs(str(direct)):
+            prefixed = Path(prefix + os.path.normpath(str(direct)))
+            try:
+                prefixed = prefixed.resolve(strict=False)
+            except (OSError, RuntimeError):
+                pass
+            if prefixed.exists():
+                return prefixed
+
+        hint = (
+            f"Set CONTAINER_HOST_FS_PREFIX (e.g. /host) and bind-mount the host filesystem "
+            f"({prefix or 'HOST_FS_BIND_SOURCE'}:{prefix or '/host'}) in docker-compose."
+            if not prefix
+            else f"Ensure the host path exists under bind mount {prefix!r}."
+        )
+        raise ValueError(
+            f"Path {path!r} does not exist on this host/container. {hint} "
+            "See docs/DOCKER_SETUP.md."
+        )
 
     def move_file(self, source_path: str, destination_path: str) -> bool:
         try:
-            source = Path(source_path)
-            destination = Path(destination_path)
+            source = self._resolve_path(source_path)
+            destination = self._resolve_path(destination_path)
             if not source.exists() or not source.is_file():
                 return False
             if not destination.parent.exists():
@@ -30,8 +81,8 @@ class FilesystemServiceImpl:
 
     def move_directory(self, source_path: str, destination_path: str) -> bool:
         try:
-            source = Path(source_path)
-            destination = Path(destination_path)
+            source = self._resolve_path(source_path)
+            destination = self._resolve_path(destination_path)
             if not source.exists() or not source.is_dir():
                 return False
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -47,22 +98,29 @@ class FilesystemServiceImpl:
         return str(Path(*path_parts))
 
     def path_exists(self, path: str) -> bool:
-        return Path(path).exists()
+        try:
+            return self._resolve_path(path).exists()
+        except ValueError:
+            return False
 
     def is_file(self, path: str) -> bool:
-        return Path(path).is_file()
+        try:
+            return self._resolve_path(path).is_file()
+        except ValueError:
+            return False
 
     def is_directory(self, path: str) -> bool:
-        return Path(path).is_dir()
+        try:
+            return self._resolve_path(path).is_dir()
+        except ValueError:
+            return False
 
     def get_quarantine_file_path(self, filename: str) -> str:
         return str(self.media_quarantine_path / filename)
 
     def get_path_size_bytes(self, path: str) -> int:
         """Total size of a file or directory tree (bytes)."""
-        target = Path(path)
-        if not target.exists():
-            raise ValueError(f"Path does not exist: {path}")
+        target = self._resolve_path(path)
         if target.is_file():
             return target.stat().st_size
         total = 0
@@ -73,7 +131,7 @@ class FilesystemServiceImpl:
 
     def delete_file(self, file_path: str) -> bool:
         try:
-            path = Path(file_path)
+            path = self._resolve_path(file_path)
             if not path.exists() or not path.is_file():
                 return False
             path.unlink()
@@ -83,7 +141,7 @@ class FilesystemServiceImpl:
 
     def delete_directory(self, directory_path: str) -> bool:
         try:
-            path = Path(directory_path)
+            path = self._resolve_path(directory_path)
             if not path.exists() or not path.is_dir():
                 return False
             shutil.rmtree(path)
@@ -93,8 +151,8 @@ class FilesystemServiceImpl:
 
     def move(self, source_path: str, destination_path: str) -> bool:
         try:
-            source = Path(source_path)
-            destination = Path(destination_path)
+            source = self._resolve_path(source_path)
+            destination = self._resolve_path(destination_path)
             if not source.exists():
                 return False
             if not destination.parent.exists():
@@ -106,8 +164,11 @@ class FilesystemServiceImpl:
 
     def explain_move_failure(self, source_path: str, destination_path: str) -> str:
         """Human-readable reason why ``move`` would fail (does not move files)."""
-        source = Path(source_path)
-        destination = Path(destination_path)
+        try:
+            source = self._resolve_path(source_path)
+            destination = self._resolve_path(destination_path)
+        except ValueError as exc:
+            return str(exc)
         if not source.exists():
             return f"Source does not exist: {source_path}"
         if destination.exists():
@@ -141,7 +202,7 @@ class FilesystemServiceImpl:
 
     def delete(self, path: str) -> bool:
         try:
-            path_obj = Path(path)
+            path_obj = self._resolve_path(path)
             if not path_obj.exists():
                 return False
             if path_obj.is_file():
@@ -165,7 +226,7 @@ class FilesystemServiceImpl:
         removed_count = 0
 
         try:
-            path_obj = Path(path)
+            path_obj = self._resolve_path(path)
             if not path_obj.exists():
                 return 0
             if path_obj.is_file():
@@ -182,21 +243,53 @@ class FilesystemServiceImpl:
             return removed_count
 
     @staticmethod
-    def _first_existing_path(path: str) -> Path:
-        """Resolve to the nearest existing Path (file or directory) for volume/disk queries."""
-        p = Path(path).expanduser()
+    def _decode_proc_mount_field(field: str) -> str:
+        """Decode octal escape sequences in /proc/self/mounts fields (e.g. \\040 -> space)."""
+        out: list[str] = []
+        i = 0
+        while i < len(field):
+            if field[i] == "\\" and i + 3 < len(field):
+                try:
+                    out.append(chr(int(field[i + 1 : i + 4], 8)))
+                    i += 4
+                    continue
+                except ValueError:
+                    pass
+            out.append(field[i])
+            i += 1
+        return "".join(out)
+
+    @staticmethod
+    def _read_mount_points() -> list[str]:
+        mounts: list[str] = []
         try:
-            p = p.resolve(strict=False)
-        except (OSError, RuntimeError):
-            p = Path(path).expanduser()
-        while not p.exists() and p != p.parent:
-            p = p.parent
-        if not p.exists():
-            raise ValueError(f"No existing path on filesystem for {path!r}")
-        return p
+            with open("/proc/self/mounts", encoding="utf-8") as mounts_file:
+                for line in mounts_file:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        mounts.append(
+                            FilesystemServiceImpl._decode_proc_mount_field(parts[1])
+                        )
+        except OSError:
+            pass
+        return mounts
+
+    @staticmethod
+    def _longest_mount_prefix(path: str, mount_points: list[str]) -> str:
+        """Return the longest /proc/self/mounts target that contains ``path``."""
+        norm = os.path.normpath(path)
+        best = "/"
+        best_len = 1
+        for mount_point in mount_points:
+            mp_norm = os.path.normpath(mount_point)
+            if norm == mp_norm or norm.startswith(mp_norm + os.sep):
+                if len(mp_norm) >= best_len:
+                    best_len = len(mp_norm)
+                    best = mp_norm
+        return best
 
     def get_volume_root(self, path: str) -> str:
-        p = self._first_existing_path(path)
+        p = self._resolve_path(path)
         rp = p.resolve(strict=False)
         if os.name == "nt":
             vol, _rest = os.path.splitdrive(str(rp))
@@ -208,19 +301,27 @@ class FilesystemServiceImpl:
             if vol.endswith(":"):
                 return vol + os.sep
             return vol
-        cur = rp if rp.is_dir() else rp.parent
+
+        usage_path = str(rp if rp.is_dir() else rp.parent)
+        mount_points = self._read_mount_points()
+        if mount_points:
+            return self._to_plex_path(
+                self._longest_mount_prefix(usage_path, mount_points)
+            )
+
+        cur = Path(usage_path)
         while True:
             try:
                 if cur.is_mount():
-                    return str(cur)
+                    return self._to_plex_path(str(cur))
             except OSError:
                 pass
             if cur == cur.parent:
-                return str(cur)
+                return self._to_plex_path(str(cur))
             cur = cur.parent
 
     def get_disk_usage(self, path: str) -> DiskUsageStats:
-        p = self._first_existing_path(path)
+        p = self._resolve_path(path)
         if p.is_file():
             p = p.parent
         usage = shutil.disk_usage(str(p))

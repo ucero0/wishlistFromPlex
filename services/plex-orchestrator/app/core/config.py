@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     deferred_download_process_interval_minutes: int = 15
     # Use DB free_bytes for ingest when disk_stats_synced_at is newer than this (hours)
     plex_library_disk_stats_max_age_hours: int = 6
+    # Docker: host paths are visible under this prefix (e.g. /host/mnt/media -> Plex path /mnt/media)
+    container_host_fs_prefix: str = ""
 
     # Logging
     log_level: str = "INFO"

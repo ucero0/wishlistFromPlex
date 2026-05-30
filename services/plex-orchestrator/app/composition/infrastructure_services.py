@@ -17,6 +17,7 @@ def _gb_to_bytes(gb: float) -> int:
 def build_filesystem_service() -> FilesystemServiceImpl:
     return FilesystemServiceImpl(
         quarantine_path=settings.container_deluge_quarantine_path,
+        host_fs_prefix=settings.container_host_fs_prefix,
     )
 
 
