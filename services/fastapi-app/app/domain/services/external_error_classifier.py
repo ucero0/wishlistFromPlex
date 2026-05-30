@@ -8,7 +8,6 @@ from app.domain.errors.deluge import (
     DelugeTorrentNotFoundError,
 )
 from app.domain.errors.external import ExternalServiceError
-from app.domain.errors.gluetun import GluetunConnectionError, GluetunUnhealthyError
 from app.domain.errors.plex import (
     PlexAuthError,
     PlexConnectionError,
@@ -57,12 +56,9 @@ def classify_external_service_error(exc: ExternalServiceError) -> str:
             AntivirusConnectionError,
             PlexConnectionError,
             TMDBConnectionError,
-            GluetunConnectionError,
         ),
     ):
         return "connection"
-    if isinstance(exc, GluetunUnhealthyError):
-        return "unhealthy"
     if isinstance(exc, ProwlarrDownloadError):
         return "download"
     return "operation"

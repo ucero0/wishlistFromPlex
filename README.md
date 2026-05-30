@@ -1,6 +1,6 @@
 # Wishlist from Plex
 
-Automated media pipeline: sync Plex watchlists, search torrents (Prowlarr), download over VPN (Deluge + Gluetun), scan (ClamAV + YARA), and ingest clean files into your Plex libraries.
+Automated media pipeline: sync Plex watchlists, search torrents (Prowlarr), download via Deluge (VPN through Gluetun by default), scan (ClamAV + YARA), and ingest clean files into your Plex libraries.
 
 ## What it does
 
@@ -46,7 +46,6 @@ The **FastAPI** service orchestrates everything. Scheduled jobs also run watchli
 
 ```powershell
 curl http://localhost:8000/health
-curl http://localhost:8000/gluetun/health
 curl http://localhost:8000/deluge/test-connection
 curl http://localhost:8000/prowlarr/test-connection
 curl http://localhost:8000/plex/test-connection

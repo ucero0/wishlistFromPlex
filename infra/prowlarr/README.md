@@ -24,11 +24,15 @@ Prowlarr is pre-configured from files committed under `config/`. On `docker comp
 
 | Variable | Purpose |
 |----------|---------|
-| `PROWLARR_HOST` | `gluetun` (FastAPI reaches Prowlarr via Gluetun) |
+| `PROWLARR_HOST` | `gluetun` (VPN stack) or `prowlarr` (no-vpn overlay) |
 | `PROWLARR_PORT` | `9696` |
 | `PROWLARR_API_KEY` | Must match `<ApiKey>` in `config/config.xml` |
 
-Deluge Web UI credentials for the Prowlarr → Deluge client are stored **inside** `prowlarr.db`. Use the same `DELUGE_PASSWORD` / `DELUGE_WEB_PASSWORD` as when the DB was created, or update the Deluge client once in the Prowlarr UI (http://localhost:9696).
+Deluge Web UI credentials for the Prowlarr → Deluge client are stored **inside** `prowlarr.db`.
+
+**VPN stack:** Deluge/FlareSolverr use `127.0.0.1` inside the shared Gluetun network (committed `prowlarr.db`).
+
+**No-VPN overlay:** update clients in the Prowlarr UI to `deluge:8112` and `http://flaresolverr:8191`.
 
 ## First start
 

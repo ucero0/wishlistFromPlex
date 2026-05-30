@@ -1,3 +1,16 @@
+# Full stack WITHOUT Gluetun/NordVPN — for local development and testing.
+#
+# Usage:
+#   docker compose -f docker-compose.no-vpn.yml up -d --build
+#   docker compose -f docker-compose.no-vpn.yml -f docker-compose.dev.yml up -d --build   # + hot reload
+#
+# .env:
+#   DELUGE_HOST=deluge
+#   PROWLARR_HOST=prowlarr
+#   (NordVPN variables not required)
+#
+# Prowlarr UI: set Deluge to deluge:8112 and FlareSolverr to http://flaresolverr:8191
+# if prowlarr.db still has 127.0.0.1 from the VPN layout.
 
 services:
   db:
@@ -35,88 +48,37 @@ services:
       PLEX_SERVER_ADMIN_TOKEN: ${PLEX_SERVER_ADMIN_TOKEN:-}
       PLEX_SYNC_INTERVAL_HOURS: ${PLEX_SYNC_INTERVAL_HOURS:-6}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      # Deluge / Prowlarr — hostnames from .env (gluetun on VPN stack, deluge/prowlarr on no-vpn overlay)
-      DELUGE_HOST: ${DELUGE_HOST}
+      DELUGE_HOST: ${DELUGE_HOST:-deluge}
       DELUGE_PORT: ${DELUGE_PORT:-58846}
       DELUGE_USERNAME: ${DELUGE_USERNAME}
       DELUGE_PASSWORD: ${DELUGE_PASSWORD}
       CONTAINER_DELUGE_QUARANTINE_PATH: ${CONTAINER_DELUGE_QUARANTINE_PATH}
-      # Scanner configuration
-      # ANTIVIRUS_DAEMON_HOST and ANTIVIRUS_DAEMON_PORT are for the antivirus daemon (port 3310)
-      # ANTIVIRUS_HOST and ANTIVIRUS_PORT are for the HTTP scan service (port 3311)
       ANTIVIRUS_DAEMON_HOST: antivirus
       ANTIVIRUS_DAEMON_PORT: 3310
       ANTIVIRUS_HOST: antivirus
       ANTIVIRUS_PORT: 3311
-      # Prowlarr configuration
-      PROWLARR_HOST: ${PROWLARR_HOST}
+      PROWLARR_HOST: ${PROWLARR_HOST:-prowlarr}
       PROWLARR_PORT: ${PROWLARR_PORT:-9696}
       PROWLARR_API_KEY: ${PROWLARR_API_KEY}
-      # TMDB configuration
       TMDB_API_KEY: ${TMDB_API_KEY}
-
-
     ports:
       - "8000:8000"
     volumes:
       - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
-      # Plex library roots: add bind mounts here matching paths configured in Plex (see docs/DOCKER_SETUP.md)
     networks:
       - fastapi-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
-  gluetun:
-    image: qmcgaw/gluetun:latest
-    container_name: gluetun
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    environment:
-      - VPN_SERVICE_PROVIDER=nordvpn
-      - VPN_TYPE=openvpn
-      - OPENVPN_USER=${NORDVPN_USER}
-      - OPENVPN_PASSWORD=${NORDVPN_PASSWORD}
-      - HEALTH_SERVER_AUTH=no
-      - HEALTH_SERVER_PORT=9999
-      - HEALTH_SERVER_ADDRESS=0.0.0.0:9999
-      - SERVER_COUNTRIES=${SERVER_COUNTRIES}
-      - FIREWALL=on
-      - FIREWALL_INPUT_PORTS=8112,58846,${PROWLARR_PORT},8191,9999
-      - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12,172.18.0.0/16
-      - FIREWALL_IPV6=off
-    ports:
-      - "8112:8112"
-      - "${PROWLARR_PORT}:${PROWLARR_PORT}"
-      - "8191:8191"
-    volumes:
-      - ./infra/gluetun:/gluetun
-      - ./infra/gluetun/health-monitor-wrapper.sh:/health-monitor-wrapper.sh:ro
-      - ./infra/gluetun/entrypoint-wrapper.sh:/entrypoint-wrapper.sh:ro
-    entrypoint: ["/bin/sh", "/entrypoint-wrapper.sh"]
-    networks:
-      - fastapi-network
-    healthcheck:
-      # Check VPN connection status by verifying:
-      # 1. OpenVPN process is running (process name is openvpn2.6, not openvpn)
-      # 2. tun0 interface exists and has an IP address (VPN tunnel is established)
-      # When AUTH_FAILED occurs, OpenVPN will exit and tun0 won't exist, making healthcheck fail
-      # The health-monitor-wrapper.sh script runs alongside gluetun and exits the container
-      # when it becomes unhealthy (after 3 consecutive failures), triggering Docker's restart policy
-      test: ["CMD-SHELL", "pgrep openvpn > /dev/null && test -d /proc/sys/net/ipv4/conf/tun0 && ip addr show tun0 | grep -q 'inet ' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 2
-      start_period: 10s
-    restart: unless-stopped
-
   deluge:
     image: linuxserver/deluge:latest
     container_name: deluge
-    network_mode: "service:gluetun"
-    # Shares Gluetun network — ports published on gluetun, not here
+    networks:
+      - fastapi-network
+    ports:
+      - "8112:8112"
+      - "58846:58846"
     environment:
       - CONTAINER_DELUGE_QUARANTINE_PATH=${CONTAINER_DELUGE_QUARANTINE_PATH}
       - DELUGE_USERNAME=${DELUGE_USERNAME:-deluge}
@@ -134,37 +96,34 @@ services:
       - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
       - ./infra/deluge/custom-cont-init.d:/custom-cont-init.d:ro
       - ./infra/deluge/scripts:/scripts:ro
-    depends_on:
-      gluetun:
-        condition: service_started
     restart: unless-stopped
 
   prowlarr:
     image: linuxserver/prowlarr:latest
     container_name: prowlarr
-    network_mode: "service:gluetun"
+    networks:
+      - fastapi-network
+    ports:
+      - "${PROWLARR_PORT:-9696}:9696"
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
     volumes:
       - ./infra/prowlarr/config:/config
-    depends_on:
-      gluetun:
-        condition: service_started
     restart: unless-stopped
 
   flaresolverr:
     image: flaresolverr/flaresolverr:latest
     container_name: flaresolverr
-    network_mode: "service:gluetun"
+    networks:
+      - fastapi-network
+    ports:
+      - "8191:8191"
     environment:
       - LOG_LEVEL=${FLARESOLVERR_LOG_LEVEL:-info}
       - TZ=Europe/Madrid
       - CAPTCHA_SOLVER=${FLARESOLVERR_CAPTCHA_SOLVER:-none}
-    depends_on:
-      gluetun:
-        condition: service_started
     restart: unless-stopped
 
   plex:
@@ -179,9 +138,6 @@ services:
       - PLEX_CLAIM=${PLEX_CLAIM:-}
     volumes:
       - ./infra/plex/config:/config
-      # Plex library roots: add bind mounts here (same container paths as in Plex library settings)
-      # Example: - D:/Media/Movies:/movies
-      #          - D:/Media/TV:/tv
     ports:
       - "32400:32400"
     networks:
@@ -189,23 +145,18 @@ services:
     restart: unless-stopped
 
   antivirus:
-    image: clamav/clamav:latest  # Always use latest image for latest ClamAV version
+    image: clamav/clamav:latest
     container_name: antivirus
     environment:
       - CLAMAV_NO_FRESHCLAMD=false
       - CLAMAV_NO_CLAMD=false
     volumes:
-      - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}:rw  # Shared quarantine folder (read-write)
+      - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}:rw
       - ./infra/antivirus/data:/var/lib/clamav
       - ./infra/antivirus/update-scripts:/update-scripts:ro
       - ./infra/antivirus/scan-service:/scan-service:ro
-      - ./infra/antivirus/yara-rules:/yara-rules:rw  # Read-write for YARA rule updates
+      - ./infra/antivirus/yara-rules:/yara-rules:rw
     healthcheck:
-      # Check both services:
-      # 1. Clamd daemon is responding on port 3310 (antivirus engine) - required
-      # 2. HTTP scan service process is running (used by FastAPI) - required
-      # The HTTP service listens on port 3311, but we check the process instead of the port
-      # to avoid connection issues during healthcheck
       test: ["CMD-SHELL", "echo 'PING' | nc localhost 3310 | grep -q 'PONG' && pgrep -f 'http_scan_server.py' > /dev/null || exit 1"]
       interval: 30s
       timeout: 10s
@@ -214,11 +165,8 @@ services:
     networks:
       - fastapi-network
     restart: unless-stopped
-    # Use custom startup script that installs dependencies and starts services
-    # The startup script will then call the default /init entrypoint
     entrypoint: ["/bin/sh", "/scan-service/startup.sh"]
 
 networks:
   fastapi-network:
     driver: bridge
-

@@ -15,12 +15,8 @@ class Settings(BaseSettings):
     plex_server_url: str = "http://localhost:32400"
     # Owner/admin X-Plex-Token for local Plex Media Server API (library paths, scans, in-library checks)
     plex_server_admin_token: Optional[str] = None
-    # Gluetun VPN (Deluge/Prowlarr run through this container)
-    gluetun_host: str = "gluetun"
-    gluetun_health_port: int = 9999
-
     # Deluge Configuration
-    deluge_host: str = "gluetun"  # Container name when using docker-compose
+    deluge_host: str = "deluge"
     deluge_port: int = 58846  # Deluge daemon port (for RPC)
     deluge_username: str = "deluge"
     deluge_password: str = "deluge"  # Read from auth file or set via env
@@ -30,7 +26,7 @@ class Settings(BaseSettings):
     antivirus_port: int = 3311  # HTTP scan service port (antivirus daemon is on 3310)
     
     # Prowlarr Configuration
-    prowlarr_host: str = "gluetun"  # Prowlarr runs through gluetun VPN
+    prowlarr_host: str = "prowlarr"
     prowlarr_port: int = 9696
     prowlarr_api_key: Optional[str] = None
     

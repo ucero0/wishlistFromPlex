@@ -26,7 +26,7 @@ Guides for **Wishlist from Plex** — setup, daily use, and development.
 | **antivirus** | ClamAV + YARA HTTP scan | internal |
 | **plex** | Media server (optional Docker profile) | http://localhost:32400 |
 
-FastAPI talks to Deluge and Prowlarr at hostname **`gluetun`**, not `deluge` or `prowlarr`.
+Default stack routes Deluge/Prowlarr through Gluetun; FastAPI uses `DELUGE_HOST` / `PROWLARR_HOST` from `.env` (no Gluetun code in the app). No-VPN: [docker-compose.no-vpn.yml](../docker-compose.no-vpn.yml).
 
 ## Compose commands
 

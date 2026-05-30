@@ -25,7 +25,9 @@ FlareSolverr has **no config folder** in this project. Runtime settings come fro
 | FlareSolverr URL | `http://127.0.0.1:8191` |
 | Request timeout | `60` s |
 
-Prowlarr shares Gluetun’s network with FlareSolverr, so the URL uses `127.0.0.1:8191`.
+**VPN stack:** FlareSolverr URL in `prowlarr.db` is `http://127.0.0.1:8191` (shared Gluetun network).
+
+**No-VPN overlay:** use `http://flaresolverr:8191` in the Prowlarr UI.
 
 ## Not in Git
 

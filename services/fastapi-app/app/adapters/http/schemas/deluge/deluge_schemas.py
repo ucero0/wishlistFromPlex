@@ -2,8 +2,6 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.adapters.http.schemas.gluetun.gluetun_schemas import VpnHealthSummary
-
 
 class DelugeTorrentStatusResponse(BaseModel):
     """Response schema for Deluge torrent status."""
@@ -24,10 +22,6 @@ class DelugeConnectionResponse(BaseModel):
     service: str = "deluge"
     error: str | None = None
     error_type: str | None = None
-    vpn: VpnHealthSummary | None = Field(
-        default=None,
-        description="Gluetun VPN health (Deluge uses gluetun network)",
-    )
 
 
 class DelugeRemoveRequest(BaseModel):

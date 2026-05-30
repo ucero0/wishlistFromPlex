@@ -14,29 +14,36 @@ Use this before your first `docker compose up`.
 | **fastapi** | API, orchestration, Plex sync | http://localhost:8000 |
 | **db** | PostgreSQL | internal only |
 | **gluetun** | VPN tunnel (NordVPN) | — |
-| **deluge** | Torrent client (via VPN) | http://localhost:8112 (Web UI) |
+| **deluge** | Torrent client (via VPN) | http://localhost:8112 |
 | **prowlarr** | Indexer search (via VPN) | http://localhost:9696 |
 | **flaresolverr** | Cloudflare bypass (via VPN) | internal |
 | **plex** | Media server (**optional** — see [Plex: two ways to run](#plex-two-ways-to-run)) | http://localhost:32400 |
 | **antivirus** | ClamAV + scan API | internal |
 
-Deluge, Prowlarr, and FlareSolverr share Gluetun’s network (`network_mode: service:gluetun`). FastAPI talks to them at hostname **`gluetun`**, not `deluge` or `prowlarr`.
+Default stack: Deluge, Prowlarr, and FlareSolverr share Gluetun’s network (`network_mode: service:gluetun`). FastAPI reaches them using **`DELUGE_HOST`** / **`PROWLARR_HOST`** from `.env` (typically `gluetun` on the VPN stack). FastAPI has no Gluetun-specific code — only generic host/port env vars.
+
+For local work without VPN, use the standalone [docker-compose.no-vpn.yml](../docker-compose.no-vpn.yml).
 
 ---
 
-## Compose files (base / dev)
+## Compose files (base / dev / no-vpn)
 
 | File | Purpose |
 |------|---------|
-| **`docker-compose.yml`** | Full stack + **production FastAPI** (`runtime` image, code baked in at build, operational volumes only) |
-| **`docker-compose.dev.yml`** | **Development overlay** — hot reload + bind-mount `app/` and `main.py` |
+| **`docker-compose.yml`** | Full stack with **Gluetun VPN** + production FastAPI |
+| **`docker-compose.dev.yml`** | Development overlay — hot reload + bind-mount `app/` and `main.py` |
+| **`docker-compose.no-vpn.yml`** | **Standalone** stack without Gluetun (Deluge/Prowlarr on `fastapi-network`) |
 
 | Goal | Command |
 |------|---------|
-| **Development** (edit code, auto-reload) | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build` |
-| **Production** (stable image, rebuild to deploy) | `docker compose -f docker-compose.yml up -d --build` |
+| **Production + VPN** (default) | `docker compose up -d --build` |
+| **Development + VPN** | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build` |
+| **Development, no VPN** | `docker compose -f docker-compose.no-vpn.yml -f docker-compose.dev.yml up -d --build` |
+| **Production, no VPN** | `docker compose -f docker-compose.no-vpn.yml up -d --build` |
 
-**Do not** run dev without `-f docker-compose.dev.yml`. Base alone is **production-style** FastAPI.
+**No-VPN file:** use `DELUGE_HOST=deluge` and `PROWLARR_HOST=prowlarr` in `.env`. NordVPN variables are not required.
+
+**Do not** run dev without `-f docker-compose.dev.yml` when you want hot reload. Base alone is production-style FastAPI.
 
 After code changes in **production** mode: `docker compose build fastapi && docker compose up -d fastapi`.
 
@@ -129,7 +136,7 @@ Open `.env` and set each section. **No spaces around `=`** (use `KEY=value`, not
 
 `DATABASE_URL` in `.env.example` should match the three `POSTGRES_*` values.
 
-### 2.2 NordVPN / Gluetun (required for torrent stack)
+### 2.2 NordVPN / Gluetun (required for default `docker-compose.yml`)
 
 | Variable | What to set |
 |----------|-------------|
@@ -137,13 +144,13 @@ Open `.env` and set each section. **No spaces around `=`** (use `KEY=value`, not
 | `NORDVPN_PASSWORD` | NordVPN OpenVPN password |
 | `SERVER_COUNTRIES` | Comma-separated countries | e.g. `Switzerland,Spain` |
 
-Without valid VPN credentials, Gluetun stays unhealthy and Deluge/Prowlarr will not work reliably.
+Without valid VPN credentials on the default stack, Gluetun stays unhealthy and Deluge/Prowlarr will not work reliably. Skip this section when using `docker-compose.no-vpn.yml`.
 
 ### 2.3 Deluge RPC (required for downloads)
 
 | Variable | What to set | Notes |
 |----------|-------------|--------|
-| `DELUGE_HOST` | `gluetun` | Do not use `deluge` |
+| `DELUGE_HOST` | `gluetun` (VPN stack) or `deluge` (no-vpn overlay) | Hostname FastAPI uses for RPC |
 | `DELUGE_PORT` | `58846` | Daemon RPC port |
 | `DELUGE_USERNAME` | e.g. `deluge` | RPC user; applied to `config/auth` on start |
 | `DELUGE_PASSWORD` | **strong random value** | Set before first start; replaces default `deluge:deluge` |
@@ -154,7 +161,7 @@ Without valid VPN credentials, Gluetun stays unhealthy and Deluge/Prowlarr will 
 
 | Variable | What to set |
 |----------|-------------|
-| `PROWLARR_HOST` | `gluetun` (FastAPI only) |
+| `PROWLARR_HOST` | `gluetun` (VPN stack) or `prowlarr` (no-vpn overlay) |
 | `PROWLARR_PORT` | `9696` |
 | `PROWLARR_API_KEY` | Must match `<ApiKey>` in `infra/prowlarr/config/config.xml` |
 
@@ -299,18 +306,12 @@ docker compose --profile plex-docker ps plex
 
 ## Step 5 — Post-start configuration (per service)
 
-### 5.1 Gluetun (VPN)
+### 5.1 Gluetun (VPN stack only)
 
 1. Wait until `gluetun` is **healthy**: `docker compose ps`
-2. API check: `curl http://localhost:8000/gluetun/health`  
-   - `connected: true` → VPN tunnel OK  
-   - `error` field → read message (auth, timeout, etc.)
+2. Logs: `docker compose logs gluetun --tail 50`
 
-Logs:
-
-```powershell
-docker compose logs gluetun --tail 50
-```
+Skip this section when using `docker-compose.no-vpn.yml`.
 
 ### 5.2 Deluge
 
@@ -343,7 +344,6 @@ On first container start, `custom-cont-init.d/99-configure-api-user.sh`:
    ```powershell
    curl http://localhost:8000/deluge/test-connection
    ```
-   Response includes `vpn` (Gluetun) and `deluge` status.
 
 Details: [infra/deluge/README.md](../infra/deluge/README.md)
 
@@ -359,6 +359,7 @@ Config is committed under `infra/prowlarr/config/` (including `prowlarr.db`). No
    ```powershell
    docker compose up -d gluetun deluge flaresolverr prowlarr
    ```
+   No-VPN: `docker compose -f docker-compose.no-vpn.yml up -d deluge flaresolverr prowlarr`
 3. API check:
    ```powershell
    curl http://localhost:8000/prowlarr/test-connection
@@ -492,7 +493,6 @@ Run these after configuration:
 
 ```powershell
 curl http://localhost:8000/health
-curl http://localhost:8000/gluetun/health
 curl http://localhost:8000/deluge/test-connection
 curl http://localhost:8000/prowlarr/test-connection
 curl http://localhost:8000/plex/test-connection
@@ -503,8 +503,7 @@ curl http://localhost:8000/tmdb/test-connection
 
 | Endpoint | Healthy when |
 |----------|----------------|
-| `/gluetun/health` | VPN up |
-| `/deluge/test-connection` | `connected: true` and `vpn.connected: true` |
+| `/deluge/test-connection` | `connected: true` |
 | `/prowlarr/test-connection` | API key valid |
 | `/plex/test-connection` | Plex server reachable |
 | `/antivirus/health` | ClamAV + scan service up |
@@ -513,27 +512,31 @@ curl http://localhost:8000/tmdb/test-connection
 
 ## Important operational rules
 
-### Recreate VPN-side services together
+### Recreate VPN-side services together (VPN stack only)
 
 If you recreate **only** Gluetun, Deluge/Prowlarr/FlareSolverr can lose the shared network until recreated:
 
 ```powershell
 docker compose up -d --force-recreate gluetun deluge prowlarr flaresolverr
-```
-
-Then restart FastAPI if needed:
-
-```powershell
 docker compose restart fastapi
 ```
 
+### Prowlarr clients on no-vpn overlay
+
+When using `docker-compose.no-vpn.yml`, set in Prowlarr UI if `prowlarr.db` still has `127.0.0.1`:
+
+| Client | Host |
+|--------|------|
+| Deluge Web UI | `deluge` port `8112` |
+| FlareSolverr | `http://flaresolverr:8191` |
+
 ### Do not change these without updating docs/config
 
-| Setting | Keep as |
-|---------|---------|
-| `DELUGE_HOST` / `PROWLARR_HOST` | `gluetun` |
-| `DELUGE_PORT` | `58846` |
-| Gluetun `FIREWALL_INPUT_PORTS` | Must include `58846`, `8112`, `${PROWLARR_PORT}`, `8191`, `9999` |
+| Setting | VPN stack | No-VPN overlay |
+|---------|-----------|----------------|
+| `DELUGE_HOST` | `gluetun` | `deluge` |
+| `PROWLARR_HOST` | `gluetun` | `prowlarr` |
+| `DELUGE_PORT` | `58846` | `58846` |
 
 ### Windows: no `make` required
 
@@ -554,11 +557,11 @@ docker compose down
 
 | Symptom | Likely cause | What to do |
 |---------|--------------|------------|
-| Deluge `connection refused` | Gluetun recreated without Deluge | Recreate `deluge` (see above) |
+| Deluge `connection refused` | Wrong `DELUGE_HOST` or Gluetun/Deluge not up | VPN: `gluetun` + recreate deluge; no-vpn: `deluge` |
+| Gluetun unhealthy | Bad NordVPN creds or country | Fix `.env`, check `docker compose logs gluetun` |
 | Deluge `Username does not exist` | Missing line in `config/auth` | Add `user:pass:10`, restart deluge |
 | Deluge `Password does not match` | Wrong password in `.env` vs `auth` | Align both; plain text in `auth` |
-| Prowlarr unhealthy | Missing/wrong `PROWLARR_API_KEY` | Set in UI + `.env`, restart fastapi |
-| Gluetun unhealthy | Bad NordVPN creds or country | Fix `.env`, check `docker compose logs gluetun` |
+| Prowlarr unhealthy | Missing/wrong `PROWLARR_API_KEY` | Match `config.xml` + `.env`, restart fastapi |
 | `/plex/test-connection` unhealthy, `error_type: connection` | Wrong `PLEX_SERVER_URL` vs mode, or Plex not running | Host Plex: app running + `http://host.docker.internal:32400`. Docker Plex: `--profile plex-docker` + `http://plex:32400` |
 | Plex container not listed in `docker compose ps` | Expected for host Plex | Use `--profile plex-docker` only if you want Plex in Docker |
 | Plex paths empty / ingest cannot move files | Library not in Plex or mounts missing on `fastapi` | Add libraries in Plex UI, add matching bind mounts on `fastapi` (and `plex` if Docker Plex), run sync, recreate containers |

@@ -234,11 +234,6 @@ Health / connectivity probes (non-throwing, return `ExternalConnectionStatus`):
 | Antivirus | `GET /antivirus/health` |
 | Plex server | `GET /plex/test-connection` |
 | TMDB | `GET /tmdb/test-connection` |
-| Gluetun VPN | `GET /gluetun/health` |
-
-`GET /deluge/test-connection` also includes a `vpn` object with Gluetun status (useful when Deluge fails because the VPN tunnel is down).
-
-Gluetun requires `HEALTH_SERVER_ADDRESS=0.0.0.0:9999` and port `9999` in `FIREWALL_INPUT_PORTS` so FastAPI can reach the health server from `fastapi-network`.
 
 Operational routes let domain errors propagate; the global handler converts them to structured JSON.
 

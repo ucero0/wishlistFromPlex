@@ -27,7 +27,6 @@ from app.adapters.http.routes import (
     tracking_routes,
 )
 from app.adapters.http.routes.tmdb.tmdb_routes import tmdbRoutes
-from app.adapters.http.routes.gluetun.gluetun_routes import gluetun_routes
 from app.adapters.http.exception_handlers import external_service_error_handler
 from app.domain.errors.external import ExternalServiceError
 from app.composition.plex_library_paths import (
@@ -99,7 +98,7 @@ app = FastAPI(
     Automated media management service that:
     - Syncs Plex watchlists from multiple users
     - Auto-searches for torrents via Prowlarr (prioritizes TrueHD, 2160p)
-    - Sends downloads to Deluge through VPN
+    - Sends downloads to Deluge
     - Scans completed downloads for viruses (antivirus + YARA)
     - Organizes clean files into Plex library structure
     
@@ -170,7 +169,6 @@ app.include_router(delugeRoutes)
 app.include_router(prowlarr_routes)
 app.include_router(antivirus_routes)
 app.include_router(tmdbRoutes)
-app.include_router(gluetun_routes)
 
 
 @app.get("/health")

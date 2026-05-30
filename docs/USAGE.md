@@ -38,8 +38,7 @@ Public examples (no key): `GET /health`, some Deluge read-only routes — see ht
 
 | Step | Endpoint | Notes |
 |------|----------|--------|
-| VPN | `GET /gluetun/health` | `connected: true` required |
-| Deluge | `GET /deluge/test-connection` | includes `vpn` status |
+| Deluge | `GET /deluge/test-connection` | RPC reachable |
 | Prowlarr | `GET /prowlarr/test-connection` | set `PROWLARR_API_KEY` in `.env` |
 
 ### 3. Run the pipeline
@@ -152,7 +151,6 @@ Details: [ANTIVIRUS.md](ANTIVIRUS.md).
 | `/tracking` | Active / deferred download tracking |
 | `/blacklist-torrents` | Block bad Prowlarr GUIDs |
 | `/tmdb` | TMDB connectivity and title lookup |
-| `/gluetun` | VPN health |
 
 ---
 
@@ -194,12 +192,14 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
 Tables are recreated on FastAPI startup.
 
-**Recreate VPN-side containers** (if Deluge loses network after Gluetun restart):
+**Recreate VPN-side containers** (VPN stack only):
 
 ```powershell
 docker compose up -d --force-recreate gluetun deluge prowlarr flaresolverr
 docker compose restart fastapi
 ```
+
+**No-VPN stack:** see `docker-compose.no-vpn.yml`.
 
 **Rebuild FastAPI after code changes (production):**
 

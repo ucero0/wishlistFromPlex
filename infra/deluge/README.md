@@ -7,9 +7,10 @@ This folder contains Deluge torrent client configuration for the media automatio
 
 ## Architecture
 
-- **Deluge** runs through **Gluetun** VPN container (`network_mode: "service:gluetun"`)
-- All torrent traffic is routed through the VPN tunnel
-- The FastAPI service connects to Deluge daemon via `gluetun:58846`
+- **Deluge** runs through **Gluetun** on the default stack (`network_mode: "service:gluetun"`)
+- Torrent traffic is routed through the VPN tunnel
+- FastAPI connects via `DELUGE_HOST` / `DELUGE_PORT` from `.env` (use `gluetun:58846` on the VPN stack)
+- For local dev without VPN, use `docker-compose.no-vpn.yml` and `DELUGE_HOST=deluge`
 
 ## Directory Structure
 
@@ -63,10 +64,13 @@ docker-compose restart deluge
 Set these in your `.env` file:
 
 ```env
+# VPN stack (default)
 DELUGE_HOST=gluetun
 DELUGE_PORT=58846
 DELUGE_USERNAME=deluge
 DELUGE_PASSWORD=your-long-random-password
+
+# No-VPN standalone file — use DELUGE_HOST=deluge instead
 ```
 
 ## Web UI Access
@@ -80,10 +84,10 @@ Default password: `deluge`
 ### Connection Refused
 - Ensure `allow_remote: true` in `config/core.conf`
 - Ensure the `99-fix-daemon-interface` script is present
-- Check that Gluetun is healthy: `docker-compose ps`
+- VPN stack: check Gluetun is healthy (`docker compose ps gluetun`)
+- No-VPN: check Deluge is running (`docker compose ps deluge`)
 
 ### VPN Not Working
 - Check Gluetun logs: `docker logs gluetun`
 - Verify VPN credentials in `.env`
-- Look for `on_alert_external_ip` in Deluge logs - should show VPN IP, not your real IP
 

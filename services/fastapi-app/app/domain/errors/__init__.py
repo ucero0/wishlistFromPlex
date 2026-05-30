@@ -35,11 +35,6 @@ from app.domain.errors.tmdb import (
     TMDBConnectionError,
     TMDBOperationError,
 )
-from app.domain.errors.gluetun import (
-    GluetunError,
-    GluetunConnectionError,
-    GluetunUnhealthyError,
-)
 
 __all__ = [
     "ExternalServiceError",
@@ -68,7 +63,4 @@ __all__ = [
     "TMDBConnectionError",
     "TMDBOperationError",
     "TMDBConfigurationError",
-    "GluetunError",
-    "GluetunConnectionError",
-    "GluetunUnhealthyError",
 ]
