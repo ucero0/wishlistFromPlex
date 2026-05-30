@@ -12,7 +12,8 @@ COPY ./app ./app
 COPY main.py .
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 # Strip Windows CRLF if present (build hosts may checkout with \r\n)
-RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh \
+    && test -s /docker-entrypoint.sh
 
 ENV PYTHONPATH=/app
 
@@ -21,7 +22,7 @@ FROM base AS dev
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
 EXPOSE 8000
-ENTRYPOINT ["/docker-entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/docker-entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production stage — default when no build target is specified
@@ -29,5 +30,5 @@ FROM base AS runtime
 RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
-ENTRYPOINT ["/docker-entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/docker-entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
