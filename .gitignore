@@ -127,7 +127,7 @@ infra/deluge/config/plugins/*/data/
 # Plex (config, media, runtime — all ignored)
 infra/plex/
 
-# Prowlarr — track seeded config (config.xml, prowlarr.db, Definitions/); ignore runtime noise
+# Prowlarr — runtime config (bootstrap creates indexers/clients from .env + seed.json)
 infra/prowlarr/config/logs/
 infra/prowlarr/config/Backups/
 infra/prowlarr/config/asp/
@@ -135,7 +135,8 @@ infra/prowlarr/config/Sentry/
 infra/prowlarr/config/*.pid
 infra/prowlarr/config/logs.db*
 infra/prowlarr/config/.prowlarr-bootstrap-v1.done
-!infra/prowlarr/config/prowlarr.db
+infra/prowlarr/config/config.xml
+infra/prowlarr/config/prowlarr.db
 
 # Deluge downloads (quarantine and downloaded files)
 infra/deluge/downloads/*

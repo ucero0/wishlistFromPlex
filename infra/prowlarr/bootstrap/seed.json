@@ -1,0 +1,69 @@
+{
+  "_note": "Indexers and display names only. Deluge/FlareSolverr host, port, and password come from docker-compose.yml (and .env passwords) on every Prowlarr start — not from this file.",
+  "version": 1,
+  "tag": {
+    "label": "flaresolverr"
+  },
+  "flaresolverr": {
+    "name": "FlareSolverr"
+  },
+  "deluge": {
+    "name": "Deluge"
+  },
+  "indexers": [
+    {
+      "definition": "yts",
+      "name": "YTS",
+      "flaresolverr": true,
+      "priority": 25
+    },
+    {
+      "definition": "1337x",
+      "name": "1337x",
+      "flaresolverr": true,
+      "priority": 25,
+      "extraFields": {
+        "downloadlink": 0,
+        "downloadlink2": 1,
+        "sort": 2,
+        "type": 1
+      }
+    },
+    {
+      "definition": "eztv",
+      "name": "EZTV",
+      "flaresolverr": true,
+      "priority": 25
+    },
+    {
+      "definition": "thepiratebay",
+      "name": "The Pirate Bay",
+      "flaresolverr": false,
+      "priority": 25
+    },
+    {
+      "definition": "elitetorrent-wf",
+      "name": "Elitetorrent-wf",
+      "flaresolverr": false,
+      "priority": 25
+    },
+    {
+      "definition": "moviesdvdr",
+      "name": "MoviesDVDR",
+      "flaresolverr": false,
+      "priority": 25
+    },
+    {
+      "definition": "nyaasi",
+      "name": "Nyaa.si",
+      "flaresolverr": false,
+      "priority": 25
+    },
+    {
+      "definition": "limetorrents",
+      "name": "LimeTorrents",
+      "flaresolverr": false,
+      "priority": 25
+    }
+  ]
+}

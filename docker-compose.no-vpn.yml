@@ -109,8 +109,23 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      - DELUGE_PASSWORD=${DELUGE_PASSWORD}
+      - DELUGE_WEB_PASSWORD=${DELUGE_WEB_PASSWORD:-}
+      - PROWLARR_BOOTSTRAP_SEED=/bootstrap/seed.json
+      - FLARESOLVERR_URL=http://flaresolverr:8191
+      - FLARESOLVERR_REQUEST_TIMEOUT=60
+      - PROWLARR_DELUGE_HOST=deluge
+      - PROWLARR_DELUGE_WEB_PORT=8112
+      - PROWLARR_DELUGE_CATEGORY=prowlarr
+      - PROWLARR_FLARESOLVERR_TAG=flaresolverr
+      - PROWLARR_BOOTSTRAP_FORCE=false
     volumes:
       - ./infra/prowlarr/config:/config
+      - ./infra/prowlarr/bootstrap:/bootstrap:ro
+      - ./infra/prowlarr/scripts:/scripts:ro
+      - ./infra/prowlarr/custom-cont-init.d:/custom-cont-init.d:ro
+      - ./infra/prowlarr/custom-services.d:/custom-services.d:ro
     restart: unless-stopped
 
   flaresolverr:

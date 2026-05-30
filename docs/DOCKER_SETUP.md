@@ -163,9 +163,9 @@ Without valid VPN credentials on the default stack, Gluetun stays unhealthy and 
 |----------|-------------|
 | `PROWLARR_HOST` | `gluetun` (VPN stack) or `prowlarr` (no-vpn overlay) |
 | `PROWLARR_PORT` | `9696` |
-| `PROWLARR_API_KEY` | Must match `<ApiKey>` in `infra/prowlarr/config/config.xml` |
+| `PROWLARR_API_KEY` | Long random string — written to Prowlarr `config.xml` on start; used by FastAPI and bootstrap |
 
-Indexers, Deluge download client, and FlareSolverr are pre-configured in `infra/prowlarr/config/prowlarr.db` (committed). See [infra/prowlarr/README.md](../infra/prowlarr/README.md).
+Indexers, Deluge download client, and FlareSolverr are created by **bootstrap scripts** on container start (see [infra/prowlarr/README.md](../infra/prowlarr/README.md)). Deluge password is synced from `DELUGE_PASSWORD` in `.env` every time Prowlarr starts.
 
 ### 2.5 Plex (required for library / watchlist)
 
@@ -347,24 +347,35 @@ Details: [infra/deluge/README.md](../infra/deluge/README.md)
 
 ### 5.3 Prowlarr
 
-Config is committed under `infra/prowlarr/config/` (including `prowlarr.db`). No manual UI setup required for indexers, Deluge, or FlareSolverr.
+Bootstrap runs on every Prowlarr start: API key from `.env`, Deluge/FlareSolverr clients from compose env, indexers from `bootstrap/seed.json` on first start only.
 
 1. Set in `.env`:
    ```env
-   PROWLARR_API_KEY=<same value as infra/prowlarr/config/config.xml ApiKey>
+   PROWLARR_API_KEY=your-long-random-key
+   DELUGE_PASSWORD=your-deluge-password
    ```
 2. Start Prowlarr (and dependencies):
    ```powershell
    docker compose up -d gluetun deluge flaresolverr prowlarr
    ```
    No-VPN: `docker compose -f docker-compose.no-vpn.yml up -d deluge flaresolverr prowlarr`
-3. API check:
+3. Check bootstrap:
+   ```powershell
+   docker compose logs prowlarr --tail 30
+   ```
+4. API check:
    ```powershell
    curl http://localhost:8000/prowlarr/test-connection
    curl http://localhost:8000/prowlarr/indexers/count
    ```
 
-Optional UI: http://localhost:9696 (to add private indexers — then stop Prowlarr and commit updated `prowlarr.db`).
+After changing `DELUGE_PASSWORD` in `.env`, restart Prowlarr only — bootstrap updates the download client:
+
+```powershell
+docker compose restart prowlarr
+```
+
+Optional UI: http://localhost:9696 (add indexers in UI — stored in local `prowlarr.db`, not committed).
 
 Details: [infra/prowlarr/README.md](../infra/prowlarr/README.md)
 
@@ -559,7 +570,7 @@ docker compose down
 | Gluetun unhealthy | Bad NordVPN creds or country | Fix `.env`, check `docker compose logs gluetun` |
 | Deluge `Username does not exist` | Missing line in `config/auth` | Add `user:pass:10`, restart deluge |
 | Deluge `Password does not match` | Wrong password in `.env` vs `auth` | Align both; plain text in `auth` |
-| Prowlarr unhealthy | Missing/wrong `PROWLARR_API_KEY` | Match `config.xml` + `.env`, restart fastapi |
+| Prowlarr auth / Deluge grab fails | Wrong `PROWLARR_API_KEY` or Deluge password mismatch | Set `PROWLARR_API_KEY` and `DELUGE_PASSWORD` in `.env`, then `docker compose restart prowlarr` |
 | `/plex/test-connection` unhealthy, `error_type: connection` | Wrong `PLEX_SERVER_URL` vs mode, or Plex not running | Host Plex: app running + `http://host.docker.internal:32400`. Docker Plex: `--profile plex-docker` + `http://plex:32400` |
 | Plex container not listed in `docker compose ps` | Expected for host Plex | Use `--profile plex-docker` only if you want Plex in Docker |
 | Plex paths empty / ingest cannot move files | Library not in Plex or mounts missing on `fastapi` | Add libraries in Plex UI, add matching bind mounts on `fastapi` (and `plex` if Docker Plex), run sync, recreate containers |
