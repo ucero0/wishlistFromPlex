@@ -4,12 +4,15 @@ set -euo pipefail
 
 python3 <<'PY'
 import json
+import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 CORE_FILE = Path("/config/core.conf")
+MARKER = Path("/config/.deluge-remote-rpc-configured")
+RPC_PORT = 58846
 
 
 def warn(msg: str) -> None:
@@ -31,16 +34,20 @@ def write_deluge_json(path: Path, header: dict, body: dict) -> None:
     path.write_text(json.dumps(header) + json.dumps(body, indent=4) + "\n", encoding="utf-8")
 
 
-def rpc_listening_on_all_interfaces() -> bool:
+def rpc_port_open(host: str = "127.0.0.1") -> bool:
     try:
-        out = subprocess.check_output(
-            ["ss", "-tln"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        with socket.create_connection((host, RPC_PORT), timeout=2):
+            return True
+    except OSError:
         return False
-    return "0.0.0.0:58846" in out or "*:58846" in out
+
+
+def wait_for_rpc(seconds: int = 60) -> bool:
+    for _ in range(seconds):
+        if rpc_port_open():
+            return True
+        time.sleep(1)
+    return False
 
 
 if not CORE_FILE.is_file():
@@ -48,31 +55,31 @@ if not CORE_FILE.is_file():
     raise SystemExit(1)
 
 header, body = parse_deluge_json(CORE_FILE)
+if MARKER.is_file() and body.get("allow_remote"):
+    if rpc_port_open():
+        raise SystemExit(0)
+    warn("Remote RPC marker present but daemon not responding; re-applying bootstrap")
+
 changed = False
 if not body.get("allow_remote"):
     body["allow_remote"] = True
     changed = True
-
-if changed:
     write_deluge_json(CORE_FILE, header, body)
     print("[deluge-init] core.conf: allow_remote=true")
 
-if changed or not rpc_listening_on_all_interfaces():
-    if Path("/run/service/svc-deluged").is_dir():
-        subprocess.run(["s6-svc", "-d", "/run/service/svc-deluged"], check=False)
-        time.sleep(2)
-        subprocess.run(["s6-svc", "-u", "/run/service/svc-deluged"], check=False)
-        print("[deluge-init] Restarted Deluge daemon for remote RPC")
-        for _ in range(30):
-            if rpc_listening_on_all_interfaces():
-                break
-            time.sleep(1)
-    else:
-        warn("svc-deluged not found; restart Deluge container to apply allow_remote")
+if changed and Path("/run/service/svc-deluged").is_dir():
+    subprocess.run(["s6-svc", "-d", "/run/service/svc-deluged"], check=False)
+    time.sleep(2)
+    subprocess.run(["s6-svc", "-u", "/run/service/svc-deluged"], check=False)
+    print("[deluge-init] Restarted Deluge daemon once to apply allow_remote")
 
-if rpc_listening_on_all_interfaces():
-    print("[deluge-init] Deluge RPC listening for remote connections on port 58846")
-else:
-    warn("Deluge RPC still not reachable on 0.0.0.0:58846 after restart")
+if not wait_for_rpc():
+    warn(f"Deluge RPC not responding on 127.0.0.1:{RPC_PORT}")
     raise SystemExit(1)
+
+MARKER.write_text("enabled\n", encoding="utf-8")
+print(
+    f"[deluge-init] Deluge RPC ready (allow_remote=true, port {RPC_PORT}); "
+    "orchestrator can use gluetun:58846"
+)
 PY

@@ -26,6 +26,20 @@ def is_deluge_torrent_already_in_session(response_body: str) -> bool:
     return "torrent already in session" in lower or "addtorrenterror" in lower
 
 
+def is_prowlarr_deluge_send_recoverable(response_body: str) -> bool:
+    """
+    True when the torrent likely reached Deluge but Prowlarr still returned HTTP 500.
+
+    Covers duplicate adds and post-add failures (e.g. category label without Label plugin).
+    """
+    lower = response_body.lower()
+    if is_deluge_torrent_already_in_session(lower):
+        return True
+    if "unknown method" in lower and "deluge" in lower:
+        return True
+    return False
+
+
 class ProwlarrClient:
     """Client for interacting with Prowlarr API."""
 
@@ -147,9 +161,10 @@ class ProwlarrClient:
                 if response.status_code == 200:
                     return True
                 body = response.text
-                if is_deluge_torrent_already_in_session(body):
+                if is_prowlarr_deluge_send_recoverable(body):
                     logger.info(
-                        "Torrent already in Deluge session (idempotent grab for guid=%s)",
+                        "Prowlarr grab returned recoverable Deluge error; "
+                        "torrent may already be in session (guid=%s)",
                         guid,
                     )
                     return True

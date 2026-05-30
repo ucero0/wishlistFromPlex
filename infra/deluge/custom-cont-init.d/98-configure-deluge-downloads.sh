@@ -15,6 +15,7 @@ EXECUTE_FILE = Path("/config/execute.conf")
 EXECUTE_MARKER = Path("/config/.deluge-execute-hook-configured")
 HOOK_COMMAND = "/scripts/on-torrent-complete.sh"
 EXECUTE_PLUGIN = "Execute"
+LABEL_PLUGIN = "Label"
 
 
 def warn(msg: str) -> None:
@@ -80,12 +81,16 @@ body["move_completed"] = False
 body["move_completed_path"] = QUARANTINE
 
 plugins = list(body.get("enabled_plugins") or [])
-if EXECUTE_PLUGIN not in plugins:
-    plugins.append(EXECUTE_PLUGIN)
+for plugin_name in (EXECUTE_PLUGIN, LABEL_PLUGIN):
+    if plugin_name not in plugins:
+        plugins.append(plugin_name)
 body["enabled_plugins"] = plugins
 
 write_deluge_json(CORE_FILE, header, body)
-print(f"[deluge-init] core.conf: allow_remote=true, download_location={QUARANTINE}")
+print(
+    f"[deluge-init] core.conf: allow_remote=true, download_location={QUARANTINE}, "
+    f"plugins={body['enabled_plugins']}"
+)
 
 ensure_execute_hook()
 PY
