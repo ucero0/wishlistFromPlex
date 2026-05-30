@@ -11,7 +11,8 @@ COPY requirements.txt requirements-dev.txt ./
 COPY ./app ./app
 COPY main.py .
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+# Strip Windows CRLF if present (build hosts may checkout with \r\n)
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
 ENV PYTHONPATH=/app
 

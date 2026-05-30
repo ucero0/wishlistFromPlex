@@ -565,6 +565,7 @@ docker compose down
 | Plex paths empty / ingest cannot move files | Library not in Plex or mounts missing on `fastapi` | Add libraries in Plex UI, add matching bind mounts on `fastapi` (and `plex` if Docker Plex), run sync, recreate containers |
 | Antivirus slow start | First-time ClamAV download | Wait 2–5 min, check logs |
 | `gluetun` / `antivirus` exit code 2, logs show `: not found` or `syntax error` in `.sh` files | Windows checked out shell scripts with CRLF line endings | Pull latest (`.gitattributes` enforces LF), then run `git add --renormalize infra/ && git checkout -- infra/` and recreate containers |
+| `fastapi-app`: `exec /docker-entrypoint.sh: no such file or directory` | CRLF in `docker-entrypoint.sh` baked into image at build time on Windows | Pull latest, run `git add --renormalize services/fastapi-app/docker-entrypoint.sh && git checkout -- services/fastapi-app/docker-entrypoint.sh`, then `docker compose build --no-cache fastapi && docker compose up -d fastapi` |
 
 ---
 
