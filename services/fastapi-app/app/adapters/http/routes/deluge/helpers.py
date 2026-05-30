@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from fastapi import HTTPException, status
 
-from app.adapters.http.schemas.deluge.delugeSchemas import DelugeTorrentStatusResponse
+from app.adapters.http.schemas.deluge.deluge_schemas import DelugeTorrentStatusResponse
 from app.domain.models.torrent import Torrent
 
 # -----------------------------------------------------------------------------

@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     plex_sync_interval_hours: int = 6
     plex_library_paths_sync_interval_hours: int = 6
     plex_server_url: str = "http://localhost:32400"
+    # Owner/admin X-Plex-Token for local Plex Media Server API (library paths, scans, in-library checks)
+    plex_server_admin_token: Optional[str] = None
     # Gluetun VPN (Deluge/Prowlarr run through this container)
     gluetun_host: str = "gluetun"
     gluetun_health_port: int = 9999

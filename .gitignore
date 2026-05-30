@@ -37,18 +37,14 @@ env/
 .env
 .env.local
 
-# Database
-postgres-data/
+# Persistent runtime data under infra/ (never commit)
+infra/postgres-data/
 *.db
 *.sqlite
 
 # Logs
 *.log
 logs/
-
-# Alembic
-alembic/versions/*.pyc
-
 # Docker
 .dockerignore
 
@@ -130,15 +126,9 @@ infra/deluge/config/plugins/*/data/
 # Plex (config, media, runtime — all ignored)
 infra/plex/
 
-# Prowlarr runtime files (Definitions are app-managed, many indexer ymls)
-infra/prowlarr/config/*.pid
-infra/prowlarr/config/*.db-shm
-infra/prowlarr/config/*.db-wal
-infra/prowlarr/config/logs.db-shm
-infra/prowlarr/config/logs.db-wal
-infra/prowlarr/config/Backups/
-infra/prowlarr/config/Definitions/
-infra/prowlarr/config/logs/
+# Prowlarr runtime (bootstrap seed/scripts are tracked — see infra/prowlarr/README.md)
+infra/prowlarr/config/*
+!infra/prowlarr/config/.gitkeep
 
 # Deluge downloads (quarantine and downloaded files)
 infra/deluge/downloads/

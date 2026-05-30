@@ -1,3 +1,3 @@
-from app.adapters.http.routes.blacklist_torrent.routes import blacklistTorrentRoutes
+from app.adapters.http.routes.blacklist_torrent.routes import blacklist_torrent_routes
 
-__all__ = ["blacklistTorrentRoutes"]
+__all__ = ["blacklist_torrent_routes"]

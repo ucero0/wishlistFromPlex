@@ -1,4 +1,4 @@
-from .antivirusSchemas import (
+from .antivirus_schemas import (
     ScanPathRequest,
     ScanTorrentRequest,
     ScanPathResponse,

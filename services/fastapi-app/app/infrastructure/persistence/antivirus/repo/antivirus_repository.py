@@ -2,9 +2,9 @@
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.domain.models.antivirusScan import AntivirusScan
+from app.domain.models.antivirus_scan import AntivirusScan
 from app.domain.models.antivirus_scan_status import is_clean_pending_ingest
-from app.domain.ports.repositories.antivirus.antivirusRepo import AntivirusRepoPort
+from app.domain.ports.repositories.antivirus.antivirus_repository_port import AntivirusRepoPort
 from app.infrastructure.persistence.antivirus.model.antivirus_orm import AntivirusItem as AntivirusItemOrm
 
 
@@ -88,7 +88,7 @@ class AntivirusRepository(AntivirusRepoPort):
         """Create a new antivirus scan."""
         orm = self._to_orm(antivirus_scan)
         self.session.add(orm)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(orm)
         return self._to_domain(orm)
     
@@ -107,7 +107,7 @@ class AntivirusRepository(AntivirusRepoPort):
         orm.Infected = antivirus_scan.is_infected
         orm.scanDateTime = antivirus_scan.scanned_at
         
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(orm)
         return self._to_domain(orm)
     
@@ -116,14 +116,14 @@ class AntivirusRepository(AntivirusRepoPort):
         orm = await self.session.get(AntivirusItemOrm, antivirus_scan.id)
         if orm:
             await self.session.delete(orm)
-            await self.session.commit()
+            await self.session.flush()
     
     async def delete_by_id(self, antivirus_id: int) -> bool:
         """Delete an antivirus scan by its ID. Returns True if deleted, False if not found."""
         orm = await self.session.get(AntivirusItemOrm, antivirus_id)
         if orm:
             await self.session.delete(orm)
-            await self.session.commit()
+            await self.session.flush()
             return True
         return False
     
@@ -136,7 +136,7 @@ class AntivirusRepository(AntivirusRepoPort):
         count = len(orms)
         for orm in orms:
             await self.session.delete(orm)
-        await self.session.commit()
+        await self.session.flush()
         return count
     
     # ---------- MAPPERS ----------

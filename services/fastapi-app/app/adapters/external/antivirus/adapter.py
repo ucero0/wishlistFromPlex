@@ -2,11 +2,12 @@
 import logging
 import os
 
-from app.domain.errors.antivirus import AntivirusError, AntivirusPathNotFoundError
+from app.domain.errors.antivirus import AntivirusPathNotFoundError
 from app.domain.models.external_connection import ExternalConnectionStatus
-from app.domain.models.scanResult import ScanResult
-from app.domain.ports.external.antivirus.antivirusProvider import AntivirusProvider
-from app.infrastructure.externalApis.antivirus.client import AntivirusClient
+from app.domain.models.scan_result import ScanResult
+from app.domain.ports.external.antivirus.antivirus_provider import AntivirusProvider
+from app.domain.services.connection_probe import capture_sync_connection_probe
+from app.infrastructure.external_apis.antivirus.client import AntivirusClient
 
 logger = logging.getLogger(__name__)
 
@@ -31,21 +32,7 @@ class AntivirusAdapter(AntivirusProvider):
         )
 
     def test_connection(self) -> ExternalConnectionStatus:
-        try:
-            connected = self.client.test_connection()
-            if connected:
-                return ExternalConnectionStatus(service="antivirus", connected=True)
-            return ExternalConnectionStatus(
-                service="antivirus",
-                connected=False,
-                error=f"Cannot connect to antivirus at {self.client._target()}",
-            )
-        except AntivirusError as exc:
-            return ExternalConnectionStatus(
-                service="antivirus", connected=False, error=exc.message
-            )
-        except Exception as exc:
-            logger.exception("Unexpected error testing antivirus connection")
-            return ExternalConnectionStatus(
-                service="antivirus", connected=False, error=str(exc)
-            )
+        return capture_sync_connection_probe(
+            "antivirus",
+            self.client.probe_connection,
+        )

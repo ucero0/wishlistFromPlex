@@ -1,6 +1,6 @@
 """Blacklist torrent repository."""
 from app.infrastructure.persistence.blacklist_torrent.repo.blacklist_torrent_repository import (
-    BlacklistTorrentRepository,
+    BlacklistActiveDownloadRepository,
 )
 
-__all__ = ["BlacklistTorrentRepository"]
+__all__ = ["BlacklistActiveDownloadRepository"]

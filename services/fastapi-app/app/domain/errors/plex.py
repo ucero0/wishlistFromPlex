@@ -18,6 +18,18 @@ class PlexAuthError(PlexError):
     """Plex token is invalid or unauthorized."""
 
 
+class PlexServerAdminTokenNotConfiguredError(PlexError):
+    """Server admin token is missing from configuration."""
+
+
+class PlexServerAuthError(PlexAuthError):
+    """PLEX_SERVER_ADMIN_TOKEN is invalid or unauthorized for this Plex server."""
+
+
+class PlexUserAuthError(PlexAuthError):
+    """A Plex user watchlist token is invalid or unauthorized."""
+
+
 class PlexLibraryPathNotConfiguredError(PlexError):
     """No active library paths in DB for the media type (sync from Plex first)."""
 

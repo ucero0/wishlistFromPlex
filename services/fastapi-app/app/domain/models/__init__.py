@@ -1,9 +1,9 @@
 """Domain models package - pure domain models (not ORM)."""
 from app.domain.models.torrent import Torrent, TorrentStatus
 from app.domain.models.media import MediaItem, MediaType
-from app.domain.models.plexUser import PlexUser
-from app.domain.models.torrentDownload import TorrentDownload
-from app.domain.models.antivirusScan import AntivirusScan
+from app.domain.models.plex_user import PlexUser
+from app.domain.models.active_download import ActiveDownload
+from app.domain.models.antivirus_scan import AntivirusScan
 # from app.domain.models.scanner import (
 #     ScanStatusEnum,
 #     ScanRequest,
@@ -21,7 +21,7 @@ from app.domain.models.torrent_search import (
     QualityInfo,
     TorrentSearchResult,
 )
-from app.domain.models.prowlarrIndexer import ProwlarrIndexerInfo
+from app.domain.models.prowlarr_indexer import ProwlarrIndexerInfo
 
 __all__ = [
     "Torrent",
@@ -29,7 +29,7 @@ __all__ = [
     "MediaItem",
     "MediaType",
     "PlexUser",
-    "TorrentDownload",
+    "ActiveDownload",
     "AntivirusScan",
     # "ScanStatusEnum",
     # "ScanRequest",

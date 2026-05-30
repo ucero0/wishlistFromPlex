@@ -1,6 +1,6 @@
 """Use case for creating an antivirus scan."""
-from app.domain.ports.repositories.antivirus.antivirusRepo import AntivirusRepoPort
-from app.domain.models.antivirusScan import AntivirusScan
+from app.domain.ports.repositories.antivirus.antivirus_repository_port import AntivirusRepoPort
+from app.domain.models.antivirus_scan import AntivirusScan
 
 
 class CreateAntivirusScanUseCase:

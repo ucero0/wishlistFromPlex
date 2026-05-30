@@ -1,3 +1,3 @@
-from app.adapters.http.routes.tracking.trackingRoutes import trackingRoutes
+from app.adapters.http.routes.tracking.tracking_routes import tracking_routes
 
-__all__ = ["trackingRoutes"]
+__all__ = ["tracking_routes"]

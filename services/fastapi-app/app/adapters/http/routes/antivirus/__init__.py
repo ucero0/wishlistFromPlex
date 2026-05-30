@@ -1,5 +1,5 @@
 """Antivirus routes."""
-from .antivirusRoutes import antivirusRoutes
+from .antivirus_routes import antivirus_routes
 
-__all__ = ["antivirusRoutes"]
+__all__ = ["antivirus_routes"]
 

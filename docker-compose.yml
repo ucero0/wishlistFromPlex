@@ -19,7 +19,9 @@ services:
     restart: unless-stopped
 
   fastapi:
-    build: ./services/fastapi-app
+    build:
+      context: ./services/fastapi-app
+      target: runtime
     container_name: fastapi-app
     depends_on:
       db:
@@ -29,7 +31,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-plex_wishlist_user}:${POSTGRES_PASSWORD:-plex_wishlist_pass}@db:5432/${POSTGRES_DB:-plex_wishlist}
       API_KEY: ${API_KEY}
-      PLEX_SERVER_URL: ${PLEX_SERVER_URL:-http://plex:32400}
+      PLEX_SERVER_URL: ${PLEX_SERVER_URL:-http://host.docker.internal:32400}
+      PLEX_SERVER_ADMIN_TOKEN: ${PLEX_SERVER_ADMIN_TOKEN:-}
       PLEX_SYNC_INTERVAL_HOURS: ${PLEX_SYNC_INTERVAL_HOURS:-6}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Deluge configuration - connects via gluetun container
@@ -56,15 +59,14 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./services/fastapi-app/app:/app/app
-      - ./services/fastapi-app/main.py:/app/main.py
-      - ./services/fastapi-app/migrations:/app/migrations
-      - delugeDownloadsQuarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
+      - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
       # Plex library roots: add bind mounts here matching paths configured in Plex (see docs/DOCKER_SETUP.md)
     networks:
       - fastapi-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
-    
+
   gluetun:
     image: qmcgaw/gluetun:latest
     container_name: gluetun
@@ -120,7 +122,9 @@ services:
     environment:
       - CONTAINER_DELUGE_QUARANTINE_PATH=${CONTAINER_DELUGE_QUARANTINE_PATH}
       - DELUGE_USERNAME=${DELUGE_USERNAME:-deluge}
-      - DELUGE_PASSWORD=${DELUGE_PASSWORD:-deluge}
+      - DELUGE_PASSWORD=${DELUGE_PASSWORD}
+      - DELUGE_WEB_PASSWORD=${DELUGE_WEB_PASSWORD:-}
+      - DELUGE_FORCE_WEB_PASSWORD=${DELUGE_FORCE_WEB_PASSWORD:-}
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
@@ -129,7 +133,7 @@ services:
       - SCANFORVIRUS_API_URL=${SCANFORVIRUS_API_URL}
     volumes:
       - ./infra/deluge/config:/config
-      - delugeDownloadsQuarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
+      - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
       - ./infra/deluge/custom-cont-init.d:/custom-cont-init.d:ro
       - ./infra/deluge/scripts:/scripts:ro
     depends_on:
@@ -148,11 +152,25 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
-      # Authentication (set via config file after first setup)
-      # To enable auth: Access UI, Settings → General → Security → Authentication
-      # Set username/password, then API key will be generated
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      # Same passwords as deluge service — Prowlarr uses Web UI auth, not RPC (DELUGE_HOST/PORT are for FastAPI only)
+      - DELUGE_PASSWORD=${DELUGE_PASSWORD}
+      - DELUGE_WEB_PASSWORD=${DELUGE_WEB_PASSWORD:-}
+      - PROWLARR_BOOTSTRAP_SEED=/bootstrap/seed.json
+      # Prowlarr, Deluge, FlareSolverr share Gluetun network → localhost (not gluetun:58846)
+      - FLARESOLVERR_URL=http://127.0.0.1:8191
+      - FLARESOLVERR_REQUEST_TIMEOUT=60
+      - PROWLARR_DELUGE_HOST=127.0.0.1
+      - PROWLARR_DELUGE_WEB_PORT=8112
+      - PROWLARR_DELUGE_CATEGORY=prowlarr
+      - PROWLARR_FLARESOLVERR_TAG=flaresolverr
+      - PROWLARR_BOOTSTRAP_FORCE=false
     volumes:
       - ./infra/prowlarr/config:/config
+      - ./infra/prowlarr/bootstrap:/bootstrap:ro
+      - ./infra/prowlarr/scripts:/scripts:ro
+      - ./infra/prowlarr/custom-cont-init.d:/custom-cont-init.d:ro
+      - ./infra/prowlarr/custom-services.d:/custom-services.d:ro
     depends_on:
       gluetun:
         condition: service_started
@@ -174,6 +192,7 @@ services:
     restart: unless-stopped
 
   plex:
+    profiles: ["plex-docker"]
     image: linuxserver/plex:latest
     container_name: plex
     environment:
@@ -200,7 +219,7 @@ services:
       - CLAMAV_NO_FRESHCLAMD=false
       - CLAMAV_NO_CLAMD=false
     volumes:
-      - delugeDownloadsQuarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}:rw  # Shared quarantine folder (read-write)
+      - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}:rw  # Shared quarantine folder (read-write)
       - ./infra/antivirus/data:/var/lib/clamav
       - ./infra/antivirus/update-scripts:/update-scripts:ro
       - ./infra/antivirus/scan-service:/scan-service:ro
@@ -226,13 +245,4 @@ services:
 networks:
   fastapi-network:
     driver: bridge
-
-
-volumes:
-  delugeDownloadsQuarantine:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${DELUGE_QUARANTINE_VOLUME_PATH:-./infra/deluge/downloads/quarantine}
 

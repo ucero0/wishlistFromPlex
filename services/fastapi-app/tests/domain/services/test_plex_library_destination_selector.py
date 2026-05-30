@@ -5,7 +5,7 @@ from app.domain.errors.plex import (
     PlexLibraryPathNoSpaceError,
     PlexLibraryPathNotConfiguredError,
 )
-from app.domain.models.plexLibraryPath import PlexLibraryPath
+from app.domain.models.plex_library_path import PlexLibraryPath
 from app.domain.plex.library_media_type import normalize_torrent_media_type
 from app.domain.services.plex_library_destination_selector import (
     PlexLibraryDestinationSelector,

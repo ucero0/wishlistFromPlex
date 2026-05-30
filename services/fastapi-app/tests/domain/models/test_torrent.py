@@ -5,7 +5,7 @@ from app.domain.models.torrent import Torrent
 def test_is_finished_when_progress_complete():
     t = Torrent(
         hash="a" * 40,
-        fileName="movie.mkv",
+        file_name="movie.mkv",
         state="Downloading",
         progress=100.0,
     )
@@ -15,7 +15,7 @@ def test_is_finished_when_progress_complete():
 def test_is_finished_when_seeding():
     t = Torrent(
         hash="a" * 40,
-        fileName="movie.mkv",
+        file_name="movie.mkv",
         state="Seeding",
         progress=50.0,
     )
@@ -25,7 +25,7 @@ def test_is_finished_when_seeding():
 def test_is_finished_false_while_downloading():
     t = Torrent(
         hash="a" * 40,
-        fileName="movie.mkv",
+        file_name="movie.mkv",
         state="Downloading",
         progress=10.0,
     )

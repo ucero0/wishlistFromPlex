@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.domain.models.plexLibraryPath import PlexLibraryPath
+from app.domain.models.plex_library_path import PlexLibraryPath
 from app.domain.services.plex_library_destination_selector import (
     PlexLibraryDestinationSelector,
 )

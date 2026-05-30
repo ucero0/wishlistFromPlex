@@ -1,5 +1,5 @@
 """Deluge query classes."""
-from app.application.deluge.queries.getTorrentStatus import (
+from app.application.deluge.queries.get_torrent_status_query import (
     GetTorrentsStatusQuery,
     GetTorrentStatusQuery,
     GetCompletedTorrentsQuery,

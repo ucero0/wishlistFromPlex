@@ -1,12 +1,14 @@
 """Internal domain models for torrents - pure business logic."""
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
 class TorrentStatus(str, Enum):
     """Torrent status enumeration - domain model."""
+
     QUEUED = "queued"
     DOWNLOADING = "downloading"
     SEEDING = "seeding"
@@ -19,10 +21,11 @@ class TorrentStatus(str, Enum):
 
 class Torrent(BaseModel):
     """Internal domain model for a torrent."""
-    model_config = ConfigDict(populate_by_name=True)
+
+    model_config = ConfigDict(from_attributes=False)
 
     hash: str
-    file_name: str = Field(alias="fileName")
+    file_name: str
     state: str
     progress: float = 0.0
     total_size: Optional[int] = None
@@ -42,4 +45,5 @@ class Torrent(BaseModel):
 
 class ListTorrents(BaseModel):
     """List of torrents."""
+
     torrents: List[Torrent]

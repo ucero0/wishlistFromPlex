@@ -1,4 +1,7 @@
 # app/infrastructure/persistence/database.py
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -57,9 +60,25 @@ SessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
-async def get_db() -> AsyncSession:
-    async with AsyncSessionLocal() as session:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session_scope() as session:
         yield session
+
+
+@asynccontextmanager
+async def async_session_scope():
+    """
+    One transaction per scope: repositories flush only; commit happens here.
+
+    Use in scheduled tasks and anywhere that opens a session outside FastAPI DI.
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 def get_db_sync() -> Session:
     """Get a synchronous database session."""

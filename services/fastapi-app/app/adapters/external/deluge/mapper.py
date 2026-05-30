@@ -1,7 +1,7 @@
 """Mapper for converting between Deluge external schemas and domain models."""
 from typing import Dict, List
 from app.domain.models.torrent import Torrent, ListTorrents
-from app.infrastructure.externalApis.deluge.schemas import ExternalDelugeTorrentStatusResponse
+from app.infrastructure.external_apis.deluge.schemas import ExternalDelugeTorrentStatusResponse
 
 def to_domain_torrent(rawTorrent: ExternalDelugeTorrentStatusResponse) -> Torrent:
     """Map Deluge RPC response to domain Torrent model."""

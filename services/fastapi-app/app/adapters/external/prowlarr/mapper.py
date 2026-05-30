@@ -1,6 +1,6 @@
 """Mapper for converting between Prowlarr external schemas and domain models."""
 from typing import List
-from app.infrastructure.externalApis.prowlarr.schemas import ProwlarrRawResult
+from app.infrastructure.external_apis.prowlarr.schemas import ProwlarrRawResult
 from app.domain.models.torrent_search import TorrentSearchResult, QualityInfo
 
 

@@ -1,9 +1,8 @@
 fastapi==0.136.1
 uvicorn[standard]==0.34.2
 sqlalchemy==2.0.23
-psycopg2-binary==2.9.9  # For Alembic migrations (sync)
-asyncpg==0.30.0  # For async SQLAlchemy operations (wheels incl. newer Python)
-alembic==1.12.1
+psycopg2-binary==2.9.9
+asyncpg==0.30.0
 httpx==0.28.1
 requests==2.31.0
 python-dotenv==1.1.0

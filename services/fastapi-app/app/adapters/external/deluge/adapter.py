@@ -3,12 +3,12 @@ import logging
 from typing import List, Optional
 
 from app.adapters.external.deluge.mapper import to_domain_list_torrents, to_domain_torrent
-from app.domain.errors.deluge import DelugeError
 from app.domain.models.external_connection import ExternalConnectionStatus
 from app.domain.models.torrent import Torrent
-from app.domain.ports.external.deluge.delugeProvider import DelugeProvider
-from app.infrastructure.externalApis.deluge.client import DelugeClient
-from app.infrastructure.externalApis.deluge.schemas import ExternalDelugeTorrentStatusResponse
+from app.domain.ports.external.deluge.deluge_provider import DelugeProvider
+from app.domain.services.connection_probe import capture_sync_connection_probe
+from app.infrastructure.external_apis.deluge.client import DelugeClient
+from app.infrastructure.external_apis.deluge.schemas import ExternalDelugeTorrentStatusResponse
 
 logger = logging.getLogger(__name__)
 
@@ -42,39 +42,7 @@ class DelugeAdapter(DelugeProvider):
         return self.client.get_torrent_save_path(hash)
 
     async def test_connection(self) -> ExternalConnectionStatus:
-        """Return structured connection status without raising."""
-        try:
-            connected = self.client.test_connection()
-            if connected:
-                return ExternalConnectionStatus(service="deluge", connected=True)
-            target = self.client._connection_target()
-            detail = self.client.last_connect_error
-            if detail and (
-                "username does not exist" in detail.lower()
-                or "badlogin" in detail.lower()
-            ):
-                error = (
-                    f"Deluge authentication failed at {target} for user "
-                    f"'{self.client.username}': {detail}. "
-                    f"Add the user to infra/deluge/config/auth (plain password, see infra/deluge/README.md)."
-                )
-            else:
-                error = detail or f"Cannot connect to Deluge at {target}"
-            return ExternalConnectionStatus(
-                service="deluge",
-                connected=False,
-                error=error,
-            )
-        except DelugeError as exc:
-            return ExternalConnectionStatus(
-                service="deluge",
-                connected=False,
-                error=exc.message,
-            )
-        except Exception as exc:
-            logger.exception("Unexpected error testing Deluge connection")
-            return ExternalConnectionStatus(
-                service="deluge",
-                connected=False,
-                error=str(exc),
-            )
+        return capture_sync_connection_probe(
+            "deluge",
+            self.client.probe_connection,
+        )

@@ -3,7 +3,7 @@ from typing import Protocol, List
 
 from app.domain.models.external_connection import ExternalConnectionStatus
 from app.domain.models.torrent_search import TorrentSearchResult
-from app.domain.models.prowlarrIndexer import ProwlarrIndexerInfo
+from app.domain.models.prowlarr_indexer import ProwlarrIndexerInfo
 
 
 class TorrentSearchProvider(Protocol):

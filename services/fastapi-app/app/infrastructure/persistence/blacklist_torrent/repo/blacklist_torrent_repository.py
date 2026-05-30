@@ -13,7 +13,7 @@ from app.infrastructure.persistence.blacklist_torrent.model.blacklist_torrent_or
 )
 
 
-class BlacklistTorrentRepository(BlacklistTorrentRepoPort):
+class BlacklistActiveDownloadRepository(BlacklistTorrentRepoPort):
     """Repository for BlacklistTorrent domain model."""
 
     def __init__(self, session: AsyncSession):
@@ -37,7 +37,7 @@ class BlacklistTorrentRepository(BlacklistTorrentRepoPort):
                 orm.name = blacklist_torrent.name
                 orm.year = blacklist_torrent.year
                 orm.type = blacklist_torrent.type
-                await self.session.commit()
+                await self.session.flush()
                 await self.session.refresh(orm)
                 return self._to_domain(orm)
         orm = BlacklistTorrentOrm(
@@ -48,7 +48,7 @@ class BlacklistTorrentRepository(BlacklistTorrentRepoPort):
             type=blacklist_torrent.type,
         )
         self.session.add(orm)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(orm)
         return self._to_domain(orm)
 
@@ -77,7 +77,7 @@ class BlacklistTorrentRepository(BlacklistTorrentRepoPort):
         orm = result.scalars().first()
         if orm:
             await self.session.delete(orm)
-            await self.session.commit()
+            await self.session.flush()
             return True
         return False
 

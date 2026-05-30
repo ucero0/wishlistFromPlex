@@ -2,7 +2,8 @@
 
 This folder contains Deluge torrent client configuration for the media automation service.
 
-**First-time stack setup:** see [docs/DOCKER_SETUP.md](../../docs/DOCKER_SETUP.md) (Steps 2.3, 5.2).
+**First-time stack setup:** see [docs/DOCKER_SETUP.md](../../docs/DOCKER_SETUP.md) (Steps 2.3, 5.2).  
+**API usage:** [docs/USAGE.md](../../docs/USAGE.md) · [Documentation index](../../docs/README.md)
 
 ## Architecture
 
@@ -34,16 +35,22 @@ Edit `config/core.conf` and set:
 "allow_remote": true,
 ```
 
-### 2. Add API User
+### 2. Set credentials in `.env` (recommended)
 
-Add a line to `config/auth` (daemon RPC uses **plain** password, unlike the Web UI):
+Before the **first** `docker compose up`, set a strong password in `.env`:
+
+```env
+DELUGE_USERNAME=deluge
+DELUGE_PASSWORD=your-long-random-password
 ```
-deluge:deluge:10
-```
 
-Format: `username:password:level` (level 10 = admin).
+The init script (`custom-cont-init.d/99-configure-api-user.sh`) then:
 
-Or let the init script add the user automatically from `DELUGE_USERNAME` / `DELUGE_PASSWORD` in `.env` (see `custom-cont-init.d/99-configure-api-user.sh`).
+- Removes the default RPC user `deluge:deluge`
+- Configures RPC auth from `.env` (plain password in `config/auth`, format `user:password:level`)
+- Sets the Web UI password (login **`admin`**) from `DELUGE_WEB_PASSWORD` or `DELUGE_PASSWORD`
+
+Manual edit of `config/auth` is only needed if you skip the init script or change credentials outside `.env`.
 
 ### 3. Restart Deluge
 
@@ -59,7 +66,7 @@ Set these in your `.env` file:
 DELUGE_HOST=gluetun
 DELUGE_PORT=58846
 DELUGE_USERNAME=deluge
-DELUGE_PASSWORD=deluge
+DELUGE_PASSWORD=your-long-random-password
 ```
 
 ## Web UI Access

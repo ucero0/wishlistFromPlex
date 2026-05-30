@@ -1,26 +1,4 @@
-"""Format byte counts for API responses (binary KB/MB/GB/TB)."""
-from __future__ import annotations
+"""HTTP re-export; prefer app.core.formatting for non-HTTP code."""
+from app.core.formatting import format_bytes_for_display
 
-_BINARY_UNITS = ("B", "KB", "MB", "GB", "TB", "PB")
-
-
-def format_bytes_for_display(size: int | None, *, decimals: int = 2) -> str | None:
-    """
-    Turn a byte count into a short label such as ``879.42 GB`` or ``1.01 TB``.
-
-    Uses 1024-based steps (same as most OS disk tools).
-    """
-    if size is None:
-        return None
-    if size < 0:
-        size = 0
-    value = float(size)
-    unit = "B"
-    for candidate in _BINARY_UNITS:
-        unit = candidate
-        if value < 1024.0 or candidate == _BINARY_UNITS[-1]:
-            break
-        value /= 1024.0
-    if unit == "B":
-        return f"{int(value)} B"
-    return f"{value:.{decimals}f} {unit}"
+__all__ = ["format_bytes_for_display"]

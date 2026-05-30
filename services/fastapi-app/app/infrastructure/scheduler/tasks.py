@@ -2,14 +2,14 @@
 import asyncio
 import logging
 
-from app.composition.deferred_torrent_downloads import (
-    build_process_deferred_torrent_downloads_use_case,
+from app.composition.deferred_downloads import (
+    build_process_deferred_downloads_use_case,
 )
-from app.composition.orchestrators import build_download_watch_list_media_use_case
+from app.composition.watchlist_pipeline import build_process_plex_watchlist_downloads_use_case
 from app.composition.plex_library_paths import (
     build_sync_plex_library_paths_for_active_users_use_case,
 )
-from app.infrastructure.persistence.database import AsyncSessionLocal
+from app.infrastructure.persistence.database import async_session_scope
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +19,8 @@ async def download_watch_list_media_task():
     try:
         logger.info("Running scheduled task: download watch list media")
         # Create a database session for this task
-        async with AsyncSessionLocal() as session:
-            use_case = build_download_watch_list_media_use_case(session=session)
+        async with async_session_scope() as session:
+            use_case = build_process_plex_watchlist_downloads_use_case(session=session)
             await use_case.execute()
         logger.info("Scheduled task completed successfully")
     except asyncio.CancelledError:
@@ -30,12 +30,12 @@ async def download_watch_list_media_task():
         logger.error(f"Error in scheduled task: {e}", exc_info=True)
 
 
-async def process_deferred_torrent_downloads_task():
+async def process_deferred_downloads_task():
     """Try to send queued torrents to Prowlarr when download volume has space."""
     try:
         logger.info("Running scheduled task: process deferred torrent downloads")
-        async with AsyncSessionLocal() as session:
-            use_case = build_process_deferred_torrent_downloads_use_case(session)
+        async with async_session_scope() as session:
+            use_case = build_process_deferred_downloads_use_case(session)
             result = await use_case.execute()
         logger.info(
             "Deferred torrent processing: checked=%s sent=%s pending=%s failed=%s",
@@ -59,7 +59,7 @@ async def sync_plex_library_paths_task():
     """
     try:
         logger.info("Running scheduled task: sync Plex library paths from server")
-        async with AsyncSessionLocal() as session:
+        async with async_session_scope() as session:
             use_case = build_sync_plex_library_paths_for_active_users_use_case(session)
             result = await use_case.execute()
         logger.info(

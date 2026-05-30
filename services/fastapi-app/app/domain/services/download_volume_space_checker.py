@@ -1,7 +1,7 @@
 """Check free space on the Deluge download / quarantine volume."""
 import logging
 
-from app.adapters.http.mappers.disk_size_format import format_bytes_for_display
+from app.core.formatting import format_bytes_for_display
 from app.domain.services.filesystem_service import FilesystemService
 
 logger = logging.getLogger(__name__)

@@ -1,8 +1,8 @@
 """Map Plex library location models to persisted path rows."""
 from datetime import datetime, timezone
 
-from app.domain.models.plexLibraryLocations import PlexLibraryLocationsByMedia
-from app.domain.models.plexLibraryPath import PlexLibraryPath
+from app.domain.models.plex_library_locations import PlexLibraryLocationsByMedia
+from app.domain.models.plex_library_path import PlexLibraryPath
 
 
 def locations_by_media_to_paths(
@@ -30,7 +30,7 @@ def locations_by_media_to_paths(
 
 def paths_to_locations_by_media(paths: list[PlexLibraryPath]) -> PlexLibraryLocationsByMedia:
     """Rebuild section layout from DB rows (same shape as Plex API query)."""
-    from app.domain.models.plexLibraryLocations import PlexLibrarySectionLocation
+    from app.domain.models.plex_library_locations import PlexLibrarySectionLocation
 
     by_section: dict[str, PlexLibrarySectionLocation] = {}
     for row in paths:

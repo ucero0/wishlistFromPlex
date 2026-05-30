@@ -1,6 +1,6 @@
 """Map persisted library path rows to disk usage DTOs."""
-from app.domain.models.plexLibraryDiskUsage import PlexLibraryPathDiskInfo
-from app.domain.models.plexLibraryPath import PlexLibraryPath
+from app.domain.models.plex_library_disk_usage import PlexLibraryPathDiskInfo
+from app.domain.models.plex_library_path import PlexLibraryPath
 
 
 def path_row_to_disk_info(row: PlexLibraryPath) -> PlexLibraryPathDiskInfo:

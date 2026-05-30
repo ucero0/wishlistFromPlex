@@ -1,5 +1,5 @@
 """Prowlarr HTTP routes."""
-from app.adapters.http.routes.prowlarr.prowlarrRoutes import prowlarrRoutes
+from app.adapters.http.routes.prowlarr.prowlarr_routes import prowlarr_routes
 
-__all__ = ["prowlarrRoutes"]
+__all__ = ["prowlarr_routes"]
 

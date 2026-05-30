@@ -25,10 +25,10 @@ from app.application.blacklist_torrent.queries import (
     GetBlacklistTorrentByGuidQuery,
 )
 
-blacklistTorrentRoutes = APIRouter(prefix="/blacklist-torrents", tags=["blacklist-torrents"])
+blacklist_torrent_routes = APIRouter(prefix="/blacklist-torrents", tags=["blacklist-torrents"])
 
 
-@blacklistTorrentRoutes.get("", response_model=BlacklistTorrentListResponse)
+@blacklist_torrent_routes.get("", response_model=BlacklistTorrentListResponse)
 async def list_blacklist_torrents(
     query: ListBlacklistTorrentsQuery = Depends(create_list_blacklist_torrents_query),
 ):
@@ -51,7 +51,7 @@ async def list_blacklist_torrents(
     )
 
 
-@blacklistTorrentRoutes.get("/{guid_prowlarr}", response_model=BlacklistTorrentItem)
+@blacklist_torrent_routes.get("/{guid_prowlarr}", response_model=BlacklistTorrentItem)
 async def get_blacklist_torrent_by_guid(
     guid_prowlarr: str,
     query: GetBlacklistTorrentByGuidQuery = Depends(create_get_blacklist_torrent_by_guid_query),
@@ -71,7 +71,7 @@ async def get_blacklist_torrent_by_guid(
     )
 
 
-@blacklistTorrentRoutes.post("/by-hash", response_model=AddToBlacklistResponse)
+@blacklist_torrent_routes.post("/by-hash", response_model=AddToBlacklistResponse)
 async def add_torrent_to_blacklist_by_hash(
     request: AddToBlacklistByHashRequest,
     use_case: AddTorrentToBlacklistByHashUseCase = Depends(
@@ -99,7 +99,7 @@ async def add_torrent_to_blacklist_by_hash(
     )
 
 
-@blacklistTorrentRoutes.post("", response_model=AddToBlacklistResponse)
+@blacklist_torrent_routes.post("", response_model=AddToBlacklistResponse)
 async def add_torrent_to_blacklist(
     request: AddToBlacklistRequest,
     use_case: AddTorrentToBlacklistUseCase = Depends(create_add_torrent_to_blacklist_use_case),
@@ -125,7 +125,7 @@ async def add_torrent_to_blacklist(
     )
 
 
-@blacklistTorrentRoutes.delete("/{guid_prowlarr}")
+@blacklist_torrent_routes.delete("/{guid_prowlarr}")
 async def remove_torrent_from_blacklist(
     guid_prowlarr: str,
     use_case: RemoveTorrentFromBlacklistUseCase = Depends(create_remove_torrent_from_blacklist_use_case),

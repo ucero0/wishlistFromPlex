@@ -16,7 +16,7 @@ class AddToBlacklistRequest(BaseModel):
 
 class AddToBlacklistByHashRequest(BaseModel):
     """Request to add a torrent to the blacklist by its hash (uid from torrent download DB)."""
-    torrent_hash: str  # UID of the torrent in torrent_items (same as used in antivirus scan)
+    torrent_hash: str  # UID in active_downloads (same as used in antivirus scan)
     reason: str  # e.g. "infected", "unhealthy"
 
 

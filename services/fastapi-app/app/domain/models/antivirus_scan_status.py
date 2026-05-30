@@ -1,7 +1,7 @@
 """Helpers for antivirus scan ingest state (no separate moved flag — use paths + Infected)."""
 from pathlib import Path
 
-from app.domain.models.antivirusScan import AntivirusScan
+from app.domain.models.antivirus_scan import AntivirusScan
 
 
 def _path_under_quarantine(path: str, quarantine_root: str) -> bool:

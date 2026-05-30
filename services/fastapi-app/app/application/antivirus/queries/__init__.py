@@ -1,5 +1,5 @@
 """Antivirus query classes."""
-from app.application.antivirus.queries.checkInfectedByGuidProwlarr import (
+from app.application.antivirus.queries.check_infected_by_guid_prowlarr_query import (
     CheckInfectedByGuidProwlarrQuery,
     GetAntivirusScanByIdQuery,
     GetAntivirusScansByGuidProwlarrQuery,

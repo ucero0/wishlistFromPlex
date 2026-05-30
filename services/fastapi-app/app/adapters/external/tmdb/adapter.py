@@ -2,10 +2,11 @@
 import logging
 from typing import Optional, Tuple
 
-from app.domain.errors.tmdb import TMDBConfigurationError, TMDBError
+from app.domain.errors.tmdb import TMDBConfigurationError
 from app.domain.models.external_connection import ExternalConnectionStatus
-from app.domain.ports.external.tmdb.tmdbProvider import TMDBProvider
-from app.infrastructure.externalApis.tmdb.client import TMDBClient
+from app.domain.ports.external.tmdb.tmdb_provider import TMDBProvider
+from app.domain.services.connection_probe import capture_async_connection_probe
+from app.infrastructure.external_apis.tmdb.client import TMDBClient
 
 logger = logging.getLogger(__name__)
 
@@ -17,31 +18,10 @@ class TMDBAdapter(TMDBProvider):
         self.client = client
 
     async def test_connection(self) -> ExternalConnectionStatus:
-        try:
-            connected = await self.client.test_connection()
-            if connected:
-                return ExternalConnectionStatus(service="tmdb", connected=True)
-            api_key = getattr(self.client, "api_key", None)
-            if not api_key or not str(api_key).strip():
-                return ExternalConnectionStatus(
-                    service="tmdb",
-                    connected=False,
-                    error="TMDB API key is not configured",
-                )
-            return ExternalConnectionStatus(
-                service="tmdb",
-                connected=False,
-                error="Cannot connect to TMDB API",
-            )
-        except TMDBError as exc:
-            return ExternalConnectionStatus(
-                service="tmdb", connected=False, error=exc.message
-            )
-        except Exception as exc:
-            logger.exception("Unexpected error testing TMDB connection")
-            return ExternalConnectionStatus(
-                service="tmdb", connected=False, error=str(exc)
-            )
+        return await capture_async_connection_probe(
+            "tmdb",
+            self.client.probe_connection,
+        )
 
     async def get_original_title_and_language(
         self,

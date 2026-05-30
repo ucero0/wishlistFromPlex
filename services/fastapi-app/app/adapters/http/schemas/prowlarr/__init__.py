@@ -1,5 +1,5 @@
 """Prowlarr HTTP schemas."""
-from app.adapters.http.schemas.prowlarr.prowlarrSchemas import (
+from app.adapters.http.schemas.prowlarr.prowlarr_schemas import (
     SearchRequest,
     SearchByQueryRequest,
     SearchResponse,

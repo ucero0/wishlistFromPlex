@@ -1,6 +1,0 @@
-services:
-  fastapi:
-    build:
-      context: ./services/fastapi-app
-      target: runtime
-    volumes: []

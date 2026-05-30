@@ -1,11 +1,11 @@
 """Map domain tracking models to HTTP response schemas."""
-from app.adapters.http.schemas.tracking.trackingSchemas import (
+from app.adapters.http.schemas.tracking.tracking_schemas import (
     AntivirusScanItem,
-    TorrentDownloadItem,
+    ActiveDownloadItem,
 )
 from app.domain.models.antivirus_scan_status import is_clean_pending_ingest
-from app.domain.models.antivirusScan import AntivirusScan
-from app.domain.models.torrentDownload import TorrentDownload
+from app.domain.models.antivirus_scan import AntivirusScan
+from app.domain.models.active_download import ActiveDownload
 
 
 def to_antivirus_scan_item(
@@ -27,8 +27,8 @@ def to_antivirus_scan_item(
     )
 
 
-def to_torrent_download_item(row: TorrentDownload) -> TorrentDownloadItem:
-    return TorrentDownloadItem(
+def to_active_download_item(row: ActiveDownload) -> ActiveDownloadItem:
+    return ActiveDownloadItem(
         id=row.id or 0,
         guid_plex=row.plex_guid,
         rating_key=row.watchlist_item_id,

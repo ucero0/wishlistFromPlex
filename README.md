@@ -1,32 +1,64 @@
 # Wishlist from Plex
 
-Automated media pipeline: Plex watchlists → torrent search (Prowlarr) → Deluge over VPN (Gluetun) → virus scan → Plex library organization.
+Automated media pipeline: sync Plex watchlists, search torrents (Prowlarr), download over VPN (Deluge + Gluetun), scan (ClamAV + YARA), and ingest clean files into your Plex libraries.
+
+## What it does
+
+```text
+Plex watchlist  →  Prowlarr search  →  Deluge (VPN)  →  quarantine scan  →  Plex library
+```
+
+The **FastAPI** service orchestrates everything. Scheduled jobs also run watchlist processing, library-path sync, and deferred downloads when disk space is low.
 
 ## Quick start
 
-1. **First-time Docker setup** → follow **[docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md)** (copy `.env`, configure services, start stack, verify health endpoints).
-2. **Plex libraries** → add movie/TV folders in the Plex UI, then mount those same paths in `docker-compose.yml` for both `plex` and `fastapi` (not in `.env`). Run `POST /plex/servers/library/locations-by-media/sync` so ingest knows where to move files.
-3. Start development stack:
+1. Copy and edit environment:
    ```powershell
-   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+   copy .env.example .env
    ```
-4. API: http://localhost:8000/docs (use `X-API-Key` from `.env`).
+2. Follow **[docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md)** — VPN, Deluge, Prowlarr, Plex, library mounts.
+3. Start the stack:
+
+   **Development** (code hot-reload):
+   ```powershell
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+   ```
+
+   **Production** (stable image):
+   ```powershell
+   docker compose -f docker-compose.yml up -d --build
+   ```
+
+4. Open **http://localhost:8000/docs** — use header `X-API-Key: <API_KEY from .env>` on protected routes.
 
 ## Documentation
 
-| Doc | Description |
-|-----|-------------|
-| [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) | **Step-by-step** initial Docker / `.env` configuration |
-| [infra/deluge/README.md](infra/deluge/README.md) | Deluge RPC auth & VPN networking |
-| [services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md](services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md) | FastAPI hexagonal architecture |
-| [docs/README.md](docs/README.md) | Antivirus service docs |
+| Document | Description |
+|----------|-------------|
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) | First-time Docker and `.env` setup |
+| [docs/USAGE.md](docs/USAGE.md) | How to use the API and workflows |
+| [docs/ANTIVIRUS.md](docs/ANTIVIRUS.md) | Virus scanning and quarantine |
+| [infra/deluge/README.md](infra/deluge/README.md) | Deluge RPC auth and VPN networking |
+| [services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md](services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md) | Code layout (hexagonal architecture) |
 
-## Health checks (after setup)
+## Health checks
 
 ```powershell
+curl http://localhost:8000/health
 curl http://localhost:8000/gluetun/health
 curl http://localhost:8000/deluge/test-connection
 curl http://localhost:8000/prowlarr/test-connection
+curl http://localhost:8000/plex/test-connection
+curl http://localhost:8000/antivirus/health
 ```
 
-`deluge/test-connection` includes a `vpn` field so you can see whether the problem is Gluetun or Deluge RPC.
+Unhealthy service checks return non-200 status codes with an `error_type` field (see [docs/USAGE.md](docs/USAGE.md)).
+
+## Make shortcuts
+
+```powershell
+make dev      # development stack
+make prod     # production stack
+make test     # run pytest in dev container
+```

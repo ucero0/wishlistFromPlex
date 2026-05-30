@@ -1,5 +1,5 @@
 """Antivirus factories."""
-from app.factories.antivirus.antivirusFactory import (
+from app.factories.antivirus.antivirus_factory import (
     create_check_infected_by_guid_prowlarr_query,
     create_get_antivirus_scan_by_id_query,
     create_get_antivirus_scans_by_guid_prowlarr_query,

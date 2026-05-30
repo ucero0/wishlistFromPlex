@@ -19,7 +19,7 @@ def test_ensure_torrents_found_raises_404_when_empty():
 def test_to_torrent_response_allows_null_eta_and_size():
     t = Torrent(
         hash="a" * 40,
-        fileName="movie.mkv",
+        file_name="movie.mkv",
         state="Downloading",
         progress=5.0,
         eta=None,

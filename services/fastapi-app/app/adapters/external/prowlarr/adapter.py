@@ -3,12 +3,16 @@ import logging
 from typing import List
 
 from app.adapters.external.prowlarr.mapper import to_domain_list
-from app.domain.errors.prowlarr import ProwlarrError
+from app.domain.errors.external import ExternalServiceError
 from app.domain.models.external_connection import ExternalConnectionStatus
-from app.domain.models.prowlarrIndexer import ProwlarrIndexerInfo
+from app.domain.models.prowlarr_indexer import ProwlarrIndexerInfo
 from app.domain.models.torrent_search import TorrentSearchResult
 from app.domain.ports.external.prowlarr.torrent_search_provider import TorrentSearchProvider
-from app.infrastructure.externalApis.prowlarr.prowlarr_client import ProwlarrClient
+from app.domain.services.connection_probe import (
+    connection_status_from_error,
+    connection_status_ok,
+)
+from app.infrastructure.external_apis.prowlarr.prowlarr_client import ProwlarrClient
 
 logger = logging.getLogger(__name__)
 
@@ -34,21 +38,17 @@ class ProwlarrAdapter(TorrentSearchProvider):
 
     async def test_connection(self) -> ExternalConnectionStatus:
         try:
-            connected, version, error = await self.client.test_connection()
-            return ExternalConnectionStatus(
-                service="prowlarr",
-                connected=connected,
-                version=version,
-                error=error,
-            )
-        except ProwlarrError as exc:
-            return ExternalConnectionStatus(
-                service="prowlarr", connected=False, error=exc.message
-            )
+            version = await self.client.probe_connection()
+            return connection_status_ok("prowlarr", version=version or None)
+        except ExternalServiceError as exc:
+            return connection_status_from_error(exc)
         except Exception as exc:
             logger.exception("Unexpected error testing Prowlarr connection")
             return ExternalConnectionStatus(
-                service="prowlarr", connected=False, error=str(exc)
+                service="prowlarr",
+                connected=False,
+                error=str(exc),
+                error_type="connection",
             )
 
     async def get_indexers(self) -> List[ProwlarrIndexerInfo]:

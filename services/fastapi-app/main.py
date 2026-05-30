@@ -20,22 +20,22 @@ from app.core.config import settings
 from app.adapters.http.routes import (
     plexRoutes,
     delugeRoutes,
-    prowlarrRoutes,
-    orchestratorRoutes,
-    antivirusRoutes,
-    blacklistTorrentRoutes,
-    trackingRoutes,
+    prowlarr_routes,
+    pipeline_routes,
+    antivirus_routes,
+    blacklist_torrent_routes,
+    tracking_routes,
 )
-from app.adapters.http.routes.tmdb.tmdbRoutes import tmdbRoutes
-from app.adapters.http.routes.gluetun.gluetunRoutes import gluetunRoutes
+from app.adapters.http.routes.tmdb.tmdb_routes import tmdbRoutes
+from app.adapters.http.routes.gluetun.gluetun_routes import gluetun_routes
 from app.adapters.http.exception_handlers import external_service_error_handler
 from app.domain.errors.external import ExternalServiceError
 from app.composition.plex_library_paths import (
     build_sync_plex_library_paths_for_active_users_use_case,
 )
-from app.factories.scheduler.schedulerFactory import create_scheduler_service
-from app.infrastructure.persistence.database import AsyncSessionLocal
-from app.infrastructure.persistence.migration_check import verify_database_schema
+from app.factories.scheduler.scheduler_factory import create_scheduler_service
+from app.infrastructure.persistence.database import async_session_scope
+from app.infrastructure.persistence.schema import init_database
 
 # Configure logging
 logging.basicConfig(
@@ -53,10 +53,10 @@ scheduler_service = create_scheduler_service()
 async def lifespan(_app: FastAPI):
     """Startup and shutdown (replaces deprecated on_event hooks)."""
     logger.info("Starting up Media Automation Service")
-    async with AsyncSessionLocal() as session:
+    async with async_session_scope() as session:
         try:
-            await verify_database_schema(session)
-            logger.info("Database schema verification passed")
+            await init_database()
+            logger.info("Database schema initialized")
         except Exception as exc:
             logger.error("Database schema verification failed: %s", exc)
             raise
@@ -84,7 +84,7 @@ OPENAPI_TAGS = [
         "name": "Plex Media HDD (DB)",
         "description": (
             "Plex library paths and media HDD/volumes stored in PostgreSQL (`plex_library_paths`). "
-            "Syncs from Plex (optional `X-Plex-Token`), measures disk on this host, returns human-readable sizes. "
+            "Syncs from Plex using PLEX_SERVER_ADMIN_TOKEN, measures disk on this host, returns human-readable sizes. "
             "**Main HDD list:** `GET /plex/library-paths/media-devices`."
         ),
     },
@@ -162,15 +162,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.add_exception_handler(ExternalServiceError, external_service_error_handler)
 
 # Include API routers (microservice structure)
-app.include_router(orchestratorRoutes)
-app.include_router(blacklistTorrentRoutes)
-app.include_router(trackingRoutes)
+app.include_router(pipeline_routes)
+app.include_router(blacklist_torrent_routes)
+app.include_router(tracking_routes)
 app.include_router(plexRoutes)
 app.include_router(delugeRoutes)
-app.include_router(prowlarrRoutes)
-app.include_router(antivirusRoutes)
+app.include_router(prowlarr_routes)
+app.include_router(antivirus_routes)
 app.include_router(tmdbRoutes)
-app.include_router(gluetunRoutes)
+app.include_router(gluetun_routes)
 
 
 @app.get("/health")

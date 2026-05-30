@@ -2,14 +2,13 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from app.core.config import settings
 from app.domain.errors.plex import (
     PlexLibraryPathNoSpaceError,
     PlexLibraryPathNotConfiguredError,
 )
-from app.domain.models.plexLibraryPath import PlexLibraryPath
+from app.domain.models.plex_library_path import PlexLibraryPath
 from app.domain.plex.library_media_type import normalize_torrent_media_type
-from app.domain.ports.repositories.plex.plexLibraryPathRepo import PlexLibraryPathRepoPort
+from app.domain.ports.repositories.plex.plex_library_path_repository_port import PlexLibraryPathRepoPort
 from app.domain.services.filesystem_service import FilesystemService
 
 logger = logging.getLogger(__name__)
@@ -28,15 +27,11 @@ class PlexLibraryDestinationSelector:
         path_repo: PlexLibraryPathRepoPort,
         filesystem: FilesystemService,
         *,
-        disk_stats_max_age_hours: int | None = None,
+        disk_stats_max_age_hours: int = 6,
     ):
         self._path_repo = path_repo
         self._filesystem = filesystem
-        self._disk_stats_max_age_hours = (
-            disk_stats_max_age_hours
-            if disk_stats_max_age_hours is not None
-            else settings.plex_library_disk_stats_max_age_hours
-        )
+        self._disk_stats_max_age_hours = disk_stats_max_age_hours
 
     async def select(
         self, media_type: str, required_bytes: int
@@ -108,4 +103,4 @@ class PlexLibraryDestinationSelector:
             synced = synced.replace(tzinfo=timezone.utc)
         max_age = timedelta(hours=self._disk_stats_max_age_hours)
         return datetime.now(timezone.utc) - synced <= max_age
-
+

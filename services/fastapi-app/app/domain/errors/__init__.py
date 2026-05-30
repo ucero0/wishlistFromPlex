@@ -19,6 +19,9 @@ from app.domain.errors.plex import (
     PlexLibraryPathNoSpaceError,
     PlexLibraryPathNotConfiguredError,
     PlexOperationError,
+    PlexServerAdminTokenNotConfiguredError,
+    PlexServerAuthError,
+    PlexUserAuthError,
 )
 from app.domain.errors.prowlarr import (
     ProwlarrError,
@@ -56,6 +59,9 @@ __all__ = [
     "PlexConnectionError",
     "PlexOperationError",
     "PlexAuthError",
+    "PlexServerAdminTokenNotConfiguredError",
+    "PlexServerAuthError",
+    "PlexUserAuthError",
     "PlexLibraryPathNotConfiguredError",
     "PlexLibraryPathNoSpaceError",
     "TMDBError",

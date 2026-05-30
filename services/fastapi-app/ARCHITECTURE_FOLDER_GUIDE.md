@@ -4,6 +4,8 @@ This guide explains the current folder structure in `services/fastapi-app/app`, 
 
 The goal is to keep the codebase scalable, testable, and aligned with Hexagonal Architecture (Ports and Adapters).
 
+**User-facing docs:** [docs/README.md](../../../docs/README.md) · [USAGE.md](../../../docs/USAGE.md)
+
 ---
 
 ## 1) Architecture in one sentence
@@ -20,14 +22,20 @@ Inside `services/fastapi-app/app`:
   - Pure business core.
   - No FastAPI, no SQLAlchemy ORM, no HTTP clients.
   - Contains:
-    - `models/`: business entities/value objects (`PlexUser`, `MediaItem`, `TorrentDownload`, etc.).
+    - `models/`: business entities/value objects (`PlexUser`, `MediaItem`, `ActiveDownload`, `DeferredDownload`, etc.).
     - `ports/`: interfaces/protocols for repositories and external providers.
     - `services/`: domain-level service contracts or domain policies.
 
 - `application/`
   - Use cases and queries (application orchestration).
   - Calls domain ports, not infrastructure implementations directly.
-  - Organized by bounded context (`plex`, `prowlarr`, `antivirus`, `deluge`, `torrentDownload`, `orchestrators`, `tmdb`).
+  - Organized by bounded context (`plex`, `prowlarr`, `antivirus`, `deluge`, `active_downloads`, `deferred_downloads`, `pipelines`, `tmdb`).
+
+- `application/pipelines/`
+  - Multi-step workflows that span bounded contexts.
+  - `watchlist/` — Plex watchlist → Prowlarr → Deluge (and deferred queue).
+  - `ingest/` — antivirus scan → library move → Plex partial scan.
+  - Prefer `use_cases/`, `queries/`, `services/`, `models/` subfolders with `snake_case` file names.
 
 - `adapters/`
   - Boundary translators.
@@ -37,7 +45,7 @@ Inside `services/fastapi-app/app`:
 - `infrastructure/`
   - Technical details and IO implementations.
   - `persistence/`: DB session, ORM models, repository implementations.
-  - `externalApis/`: low-level external clients and raw external schemas.
+  - `external_apis/`: low-level external clients and raw external schemas.
   - `services/`: technical service implementations (for example filesystem implementation).
   - `scheduler/`: scheduled tasks entrypoints.
 
@@ -79,11 +87,11 @@ Use this decision flow:
 1. Is it business data or business rule without IO?
    - Put in `domain/models` or `domain/services`.
 2. Is it a use case/query that orchestrates behavior?
-   - Put in `application/<context>/useCases` or `application/<context>/queries`.
+   - Put in `application/<context>/use_cases` or `application/<context>/queries`.
 3. Is it HTTP input/output or route handling?
    - Put in `adapters/http/schemas` or `adapters/http/routes`.
 4. Is it a raw API client call or DB repository implementation?
-   - Put in `infrastructure/externalApis` or `infrastructure/persistence`.
+   - Put in `infrastructure/external_apis` or `infrastructure/persistence`.
 5. Is it translating external/raw model <-> domain model?
    - Put in `adapters/external/<context>/mapper.py` (or adapter module).
 6. Is it wiring dependencies for runtime?
@@ -104,9 +112,9 @@ Use this decision flow:
 - Domain port (if new behavior contract is needed):
   - `domain/ports/external/plex/...`
 - External raw API call:
-  - `infrastructure/externalApis/plex/plexServer/client.py`
+  - `infrastructure/external_apis/plex/plex_server/client.py`
 - External -> domain mapping:
-  - `adapters/external/plexServer/adapter.py`
+  - `adapters/external/plex_server/adapter.py`
 - Wiring:
   - `composition/...` and thin `factories/...` wrapper
 
@@ -129,8 +137,8 @@ Use this decision flow:
 - Provider port:
   - `domain/ports/external/<provider>/...`
 - Raw client + external DTOs:
-  - `infrastructure/externalApis/<provider>/client.py`
-  - `infrastructure/externalApis/<provider>/schemas.py`
+  - `infrastructure/external_apis/<provider>/client.py`
+  - `infrastructure/external_apis/<provider>/schemas.py`
 - Adapter that maps to domain:
   - `adapters/external/<provider>/adapter.py`
   - `adapters/external/<provider>/mapper.py` (if needed)
@@ -153,8 +161,16 @@ For this repository specifically:
 - Prefer new names like:
   - `use_cases` over `useCases`
   - `external_apis` over `externalApis`
-  - `*_routes.py`, `*_factory.py`
-- Do not do mass rename in one step; migrate incrementally with compatibility wrappers.
+  - `pipelines/` for multi-step workflows (`watchlist/`, `ingest/`)
+  - `*_routes.py`, `*_schemas.py`, `*_factory.py`, `*_repository_port.py`
+  - Factory injectors: `create_get_watchlist_query`, `create_find_best_torrent_query` (always `create_*` + `snake_case`)
+  - Watchlist types: `GetWatchlistQuery`, `RemoveWatchlistItemUseCase`, `GetWatchlistItemsResponse`
+- Pipeline vocabulary (use consistently):
+  - `ProcessPlexWatchlistDownloadsUseCase` — full watchlist download run
+  - `ReconcileActiveDownloadsWithDelugeUseCase` — align DB rows with Deluge
+  - `ScanTorrentUseCase` / `ScanAndIngestTorrentUseCase` — quarantine scan and ingest
+  - `TorrentSearchResult` — Prowlarr candidate; `ActiveDownload` — tracked Deluge download; `DeferredDownload` — queued until volume space
+- HTTP pipeline endpoints live under **`/pipelines`** (e.g. `/pipelines/watchlist/process-downloads`).
 
 ---
 
@@ -195,10 +211,10 @@ Use this pattern for **all** external integrations (Deluge, Prowlarr, Antivirus,
 |-------|----------------|
 | `domain/errors/<service>.py` | Typed exceptions extending `ExternalServiceError` |
 | `domain/models/external_connection.py` | Pydantic `ExternalConnectionStatus` for health probes |
-| `infrastructure/externalApis/<service>/client.py` | Raise domain errors; never `HTTPException` or `[]` on failure |
+| `infrastructure/external_apis/<service>/client.py` | Raise domain errors; never `HTTPException` or `[]` on failure |
 | `infrastructure/http_errors.py` | Shared `raise_mapped_httpx_error()` for httpx → domain mapping |
 | `adapters/external/<service>/adapter.py` | Map infra → domain; implement port |
-| `application/.../queries/test*Connection.py` | Thin query wrapping `provider.test_connection()` |
+| `application/.../queries/test_*_connection_query.py` | Thin query wrapping `provider.test_connection()` |
 | `adapters/http/exception_handlers.py` | Single `ExternalServiceError` handler → HTTP status |
 | `adapters/http/schemas/common/` | Pydantic `ExternalServiceErrorResponse` for API error bodies |
 
@@ -228,7 +244,24 @@ Operational routes let domain errors propagate; the global handler converts them
 
 ---
 
-## 10) Anti-patterns to avoid
+## 10) Database schema (no migrations)
+
+Schema is defined by SQLAlchemy ORM models under `infrastructure/persistence/` and created on startup via `init_database()` in `infrastructure/persistence/schema.py`. There is no Alembic.
+
+| Table | Purpose |
+|-------|---------|
+| `plex_users` | Plex user tokens |
+| `plex_library_paths` | Library root paths and disk stats |
+| `active_downloads` | Tracked Deluge downloads |
+| `deferred_downloads` | Queue until download volume has space |
+| `antivirus_items` | Scan results |
+| `blacklist_torrents` | Blocked Prowlarr GUIDs |
+
+All persistent service data lives under `infra/` as bind mounts (Postgres, Deluge quarantine, Plex, Prowlarr, antivirus definitions, etc.). To reset the database: `docker compose down`, delete `infra/postgres-data/`, then start the stack again (tables are created on FastAPI startup).
+
+---
+
+## 11) Anti-patterns to avoid
 
 - Domain importing:
   - `fastapi`, `sqlalchemy`, `httpx`, infrastructure DTOs.
@@ -239,7 +272,7 @@ Operational routes let domain errors propagate; the global handler converts them
 
 ---
 
-## 11) Quick checklist before adding a new file
+## 12) Quick checklist before adding a new file
 
 - Does this file belong to business core (`domain`) or technical boundary (`adapters`/`infrastructure`)?
 - Am I introducing a new contract (port) before implementation?

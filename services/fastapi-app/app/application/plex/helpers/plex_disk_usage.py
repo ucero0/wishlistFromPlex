@@ -1,7 +1,7 @@
 """Shared disk-usage enrichment for Plex library folder paths."""
 import logging
 
-from app.domain.models.plexLibraryDiskUsage import PlexLibraryPathDiskInfo
+from app.domain.models.plex_library_disk_usage import PlexLibraryPathDiskInfo
 from app.domain.services.filesystem_service import FilesystemService
 
 logger = logging.getLogger(__name__)

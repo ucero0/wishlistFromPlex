@@ -1,0 +1,27 @@
+"""Port for Plex server library provider."""
+from typing import Protocol
+
+from app.domain.models.external_connection import ExternalConnectionStatus
+from app.domain.models.media import MediaItem
+from app.domain.models.plex_library_locations import PlexLibraryLocationsByMedia
+
+
+class PlexServerLibraryProvider(Protocol):
+    """Protocol for Plex server library operations (uses server admin token)."""
+
+    async def test_connection(self) -> ExternalConnectionStatus:
+        """Probe Plex server reachability (non-throwing)."""
+        ...
+
+    async def is_item_in_library(self, media: MediaItem) -> bool:
+        ...
+
+    async def get_library_locations_by_media(self) -> PlexLibraryLocationsByMedia:
+        ...
+
+    async def partial_scan_library(
+        self,
+        section_id: int,
+        folder_path: str,
+    ) -> bool:
+        ...

@@ -11,6 +11,10 @@ class ExternalConnectionStatus(BaseModel):
         default=None,
         description="Human-readable error when connected is False",
     )
+    error_type: str | None = Field(
+        default=None,
+        description="Machine-readable category when connected is False, e.g. connection, server_auth",
+    )
     version: str | None = Field(
         default=None,
         description="Remote service version when available (e.g. Prowlarr)",

@@ -1,0 +1,205 @@
+"""Move a clean scanned torrent into the Plex library and trigger partial scan."""
+import logging
+from typing import List
+
+from app.application.pipelines.ingest.models.scan_and_ingest_torrent_result import (
+    ScanAndIngestTorrentResult,
+)
+from app.application.plex.use_cases.partial_scan_library_use_case import PartialScanLibraryUseCase
+from app.application.plex.use_cases.sync_plex_library_paths_use_case import (
+    SyncPlexLibraryPathsFromServerUseCase,
+)
+from app.domain.errors.plex import (
+    PlexLibraryPathNoSpaceError,
+    PlexLibraryPathNotConfiguredError,
+)
+from app.domain.models.antivirus_scan import AntivirusScan
+from app.domain.models.active_download import ActiveDownload
+from app.domain.ports.external.deluge.deluge_provider import DelugeProvider
+from app.domain.ports.repositories.antivirus.antivirus_repository_port import AntivirusRepoPort
+from app.domain.services.filesystem_service import FilesystemService
+from app.domain.services.ingest_destination_resolver import IngestDestinationResolver
+from app.domain.services.plex_library_destination_selector import (
+    PlexLibraryDestinationSelector,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class IngestCleanTorrentUseCase:
+    def __init__(
+        self,
+        filesystem_service: FilesystemService,
+        antivirus_repo: AntivirusRepoPort,
+        deluge_provider: DelugeProvider,
+        destination_selector: PlexLibraryDestinationSelector,
+        destination_resolver: IngestDestinationResolver,
+        partial_scan_library_use_case: PartialScanLibraryUseCase,
+        sync_library_paths_use_case: SyncPlexLibraryPathsFromServerUseCase,
+    ):
+        self._filesystem_service = filesystem_service
+        self._antivirus_repo = antivirus_repo
+        self._deluge_provider = deluge_provider
+        self._destination_selector = destination_selector
+        self._destination_resolver = destination_resolver
+        self._partial_scan_library_use_case = partial_scan_library_use_case
+        self._sync_library_paths = sync_library_paths_use_case
+
+    async def execute(
+        self,
+        torrent_hash: str,
+        torrent_download: ActiveDownload,
+        scan_record: AntivirusScan,
+        scan_path: str,
+        is_file: bool,
+        scanned_files: List[str],
+        *,
+        scan_skipped: bool = False,
+    ) -> ScanAndIngestTorrentResult:
+        destination_path: str | None = None
+        section_id: int | None = None
+        try:
+            try:
+                await self._sync_library_paths.execute()
+            except Exception as exc:
+                logger.warning(
+                    "Could not refresh Plex library paths before ingest: %s", exc
+                )
+            destination_path, section_id = await self._resolve_destination(
+                torrent_download, scan_path, is_file
+            )
+        except (PlexLibraryPathNotConfiguredError, PlexLibraryPathNoSpaceError) as exc:
+            error_detail = str(exc.message)
+            await self._record_ingest_failure(
+                scan_record, error_detail, destination_path
+            )
+            return ScanAndIngestTorrentResult(
+                status="pending_move",
+                message=error_detail,
+                infected=False,
+                moved=False,
+                scan_skipped=scan_skipped,
+                ingest_error=error_detail,
+                planned_destination=destination_path,
+            )
+
+        moved = self._filesystem_service.move(scan_path, destination_path)
+        if moved:
+            await self._deluge_provider.remove_torrent(torrent_hash, remove_data=False)
+            await self._update_scan_with_destination(
+                scan_record, destination_path, is_file, clear_ingest_error=True
+            )
+            await self._trigger_partial_scan(
+                section_id,
+                destination_path,
+                is_file,
+            )
+
+        if moved:
+            message = (
+                "Moved to library (antivirus scan skipped, already clean)"
+                if scan_skipped
+                else "Files scanned and moved successfully"
+            )
+            status = "clean"
+            ingest_error = None
+            planned_destination = None
+        else:
+            move_error = self._filesystem_service.explain_move_failure(
+                scan_path, destination_path
+            )
+            await self._record_ingest_failure(
+                scan_record, move_error, destination_path
+            )
+            status = "pending_move"
+            message = move_error
+            ingest_error = move_error
+            planned_destination = destination_path
+
+        return ScanAndIngestTorrentResult(
+            status=status,
+            message=message,
+            infected=False,
+            scanned_files=scanned_files if not scan_skipped else None,
+            scan_skipped=scan_skipped,
+            moved=moved,
+            destination_path=destination_path if moved else None,
+            ingest_error=ingest_error,
+            planned_destination=planned_destination,
+        )
+
+    async def _resolve_destination(
+        self, torrent_download: ActiveDownload, scan_path: str, is_file: bool
+    ) -> tuple[str, int]:
+        required_bytes = self._filesystem_service.get_path_size_bytes(scan_path)
+        library_root = await self._destination_selector.select(
+            torrent_download.type, required_bytes
+        )
+        section_id = int(library_root.section_id)
+        destination_path = self._destination_resolver.resolve(
+            library_root.path,
+            torrent_download,
+            scan_path,
+            is_file,
+        )
+        return destination_path, section_id
+
+    async def _record_ingest_failure(
+        self,
+        scan_record: AntivirusScan,
+        error: str,
+        planned_destination: str | None,
+    ) -> None:
+        scan_record.ingest_error = error
+        scan_record.planned_destination_path = planned_destination
+        await self._antivirus_repo.update(scan_record)
+        logger.warning(
+            "Ingest pending for guid %s: %s (planned: %s)",
+            scan_record.prowlarr_guid,
+            error,
+            planned_destination,
+        )
+
+    async def _update_scan_with_destination(
+        self,
+        scan_record: AntivirusScan,
+        destination_path: str,
+        is_file: bool,
+        *,
+        clear_ingest_error: bool = False,
+    ) -> None:
+        if is_file:
+            scan_record.file_path = destination_path
+        else:
+            scan_record.destination_folder_path = destination_path
+        if clear_ingest_error:
+            scan_record.ingest_error = None
+            scan_record.planned_destination_path = None
+        await self._antivirus_repo.update(scan_record)
+
+    async def _trigger_partial_scan(
+        self,
+        section_id: int,
+        destination_path: str,
+        is_file: bool,
+    ) -> None:
+        folder_path = self._destination_resolver.folder_path_for_plex_scan(
+            destination_path, is_file
+        )
+        try:
+            logger.info(
+                "Triggering partial scan for section %s, folder: %s",
+                section_id,
+                folder_path,
+            )
+            await self._partial_scan_library_use_case.execute(
+                section_id=section_id,
+                folder_path=folder_path,
+            )
+            logger.info(
+                "Successfully triggered partial scan for section %s at %s",
+                section_id,
+                folder_path,
+            )
+        except Exception as exc:
+            logger.error("Error triggering partial scan: %s", exc, exc_info=True)
