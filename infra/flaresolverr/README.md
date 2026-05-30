@@ -18,16 +18,16 @@ FlareSolverr has **no config folder** in this project. Runtime settings come fro
 | `FLARESOLVERR_LOG_LEVEL` | `info` | Log verbosity (via `.env`) |
 | `FLARESOLVERR_CAPTCHA_SOLVER` | `none` | External captcha solver (via `.env`) |
 
-**Prowlarr connection** (stored in `infra/prowlarr/config/prowlarr.db`, not `.env`):
+**Prowlarr connection** (synced by bootstrap from `FLARESOLVERR_URL` in compose):
 
 | Setting | Value |
 |---------|-------|
-| FlareSolverr URL | `http://127.0.0.1:8191` |
+| FlareSolverr URL | `http://flaresolverr:8191` |
 | Request timeout | `60` s |
 
-**VPN stack:** FlareSolverr URL in `prowlarr.db` is `http://127.0.0.1:8191` (shared Gluetun network).
+**VPN stack:** FlareSolverr is **not** on Gluetun. Prowlarr (inside VPN) calls `http://flaresolverr:8191` over the Docker bridge (`DNS_ADDRESS=127.0.0.11` on Gluetun). Port `8191` is **not** published to the host by default (internal only).
 
-**No-VPN overlay:** use `http://flaresolverr:8191` in the Prowlarr UI.
+**No-VPN overlay:** same URL; optional host port mapping in `docker-compose.no-vpn.yml` for debugging.
 
 ## Not in Git
 

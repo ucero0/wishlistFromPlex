@@ -16,11 +16,11 @@ Use this before your first `docker compose up`.
 | **gluetun** | VPN tunnel (NordVPN) | — |
 | **deluge** | Torrent client (via VPN) | http://localhost:8112 |
 | **prowlarr** | Indexer search (via VPN) | http://localhost:9696 |
-| **flaresolverr** | Cloudflare bypass (via VPN) | internal |
+| **flaresolverr** | Cloudflare bypass (off VPN, docker-internal) | internal |
 | **plex** | Media server (**optional** — see [Plex: two ways to run](#plex-two-ways-to-run)) | http://localhost:32400 |
 | **antivirus** | ClamAV + scan API | internal |
 
-Default stack: Deluge, Prowlarr, and FlareSolverr share Gluetun’s network (`network_mode: service:gluetun`). FastAPI reaches them using **`DELUGE_HOST`** / **`PROWLARR_HOST`** from `.env` (typically `gluetun` on the VPN stack). FastAPI has no Gluetun-specific code — only generic host/port env vars.
+Default stack: **Deluge** and **Prowlarr** share Gluetun’s network (`network_mode: service:gluetun`). **FlareSolverr** stays on the Docker bridge so it is not exposed as an open HTTP proxy on the VPN namespace. Prowlarr reaches it at `http://flaresolverr:8191` (Gluetun uses `DNS_ADDRESS=127.0.0.11` for Docker name resolution). FastAPI reaches Deluge/Prowlarr using **`DELUGE_HOST`** / **`PROWLARR_HOST`** from `.env` (typically `gluetun` on the VPN stack).
 
 For local work without VPN, use the standalone [docker-compose.no-vpn.yml](../docker-compose.no-vpn.yml).
 

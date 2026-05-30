@@ -37,9 +37,9 @@ Prowlarr is configured on container start by bootstrap scripts — **not** from 
 | `DELUGE_WEB_PORT` | Deluge Web UI port (default `8112`) — used by compose and Prowlarr bootstrap |
 | `PROWLARR_BOOTSTRAP_DELUGE_HOST` | Deluge hostname for bootstrap: `127.0.0.1` (VPN) or `deluge` (no-vpn) |
 | `FLARESOLVERR_URL` | Optional; FlareSolverr URL for bootstrap (compose defaults per stack) |
-| `FLARESOLVERR_PORT` | FlareSolverr port (default `8191`) — gluetun firewall and port mappings |
+| `FLARESOLVERR_PORT` | FlareSolverr port (default `8191`) |
 
-Deluge/FlareSolverr connection defaults are in `docker-compose.yml` (VPN: `127.0.0.1`) or `docker-compose.no-vpn.yml` (`deluge`, `flaresolverr`), driven by the variables above.
+Deluge host for bootstrap: `127.0.0.1` (VPN) or `deluge` (no-vpn). FlareSolverr URL on both stacks: `http://flaresolverr:8191` (compose default).
 
 ## First start
 
