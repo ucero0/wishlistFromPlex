@@ -564,6 +564,7 @@ docker compose down
 | Plex container not listed in `docker compose ps` | Expected for host Plex | Use `--profile plex-docker` only if you want Plex in Docker |
 | Plex paths empty / ingest cannot move files | Library not in Plex or mounts missing on `fastapi` | Add libraries in Plex UI, add matching bind mounts on `fastapi` (and `plex` if Docker Plex), run sync, recreate containers |
 | Antivirus slow start | First-time ClamAV download | Wait 2–5 min, check logs |
+| `gluetun` / `antivirus` exit code 2, logs show `: not found` or `syntax error` in `.sh` files | Windows checked out shell scripts with CRLF line endings | Pull latest (`.gitattributes` enforces LF), then run `git add --renormalize infra/ && git checkout -- infra/` and recreate containers |
 
 ---
 
