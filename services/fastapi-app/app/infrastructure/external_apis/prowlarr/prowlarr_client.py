@@ -130,7 +130,9 @@ class ProwlarrClient:
     async def send_to_download_client(self, guid: str, indexer_id: int) -> bool:
         """Send torrent to download client via Prowlarr."""
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            # Grab can re-fetch from indexer (FlareSolverr) and push to Deluge — allow same budget as search.
+            timeout = httpx.Timeout(120.0, connect=10.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
                     f"{self.base_url}/api/v1/search",
                     headers=self.headers,
