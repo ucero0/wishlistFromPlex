@@ -1,51 +1,40 @@
-# Prowlarr bootstrap
+# Prowlarr config (in Git)
 
-Prowlarr is configured **automatically on first start** from repo seed files and **secrets in `.env`**. Runtime data under `config/` is **not** committed.
+Prowlarr is pre-configured from files committed under `config/`. On `docker compose up`, the container mounts that directory as `/config` — no bootstrap scripts or manual UI setup required for indexers, Deluge, or FlareSolverr.
 
 ## In Git
 
 | Path | Purpose |
 |------|---------|
-| `bootstrap/seed.json` | Indexer list only (names, definitions, FlareSolverr tag flags) |
-| `scripts/bootstrap_prowlarr.sh` | Applies config via Prowlarr API (`curl` + `jq`) |
-| `custom-cont-init.d/99-ensure-api-key.sh` | Writes `PROWLARR_API_KEY` into `config.xml` before start |
-| `custom-services.d/bootstrap` | Runs bootstrap on every container start |
+| `config/config.xml` | API key, port, auth settings |
+| `config/prowlarr.db` | Indexers, download clients, FlareSolverr proxy, apps |
+| `config/Definitions/` | Indexer definition YAMLs (bundled with the DB snapshot) |
 
-## In `.env` (secrets)
+## Not in Git (runtime)
+
+| Path | Why ignored |
+|------|-------------|
+| `config/logs/` | Log output |
+| `config/Backups/` | Scheduled backups |
+| `config/asp/` | ASP.NET data protection keys |
+| `config/Sentry/` | Crash telemetry |
+| `config/*.pid`, `config/logs.db*` | Process / log DB artifacts |
+
+## `.env` (FastAPI only)
 
 | Variable | Purpose |
 |----------|---------|
-| `PROWLARR_API_KEY` | Prowlarr API + FastAPI |
-| `DELUGE_PASSWORD` / `DELUGE_WEB_PASSWORD` | Deluge **Web UI** password for Prowlarr download client |
+| `PROWLARR_HOST` | `gluetun` (FastAPI reaches Prowlarr via Gluetun) |
+| `PROWLARR_PORT` | `9696` |
+| `PROWLARR_API_KEY` | Must match `<ApiKey>` in `config/config.xml` |
 
-## In `docker-compose.yml` (connection defaults)
-
-Prowlarr shares Gluetun’s network with Deluge and FlareSolverr, so host/port differ from FastAPI’s `DELUGE_HOST` / `DELUGE_PORT` (RPC via `gluetun:58846`):
-
-| Compose env (prowlarr service) | Value | Purpose |
-|-------------------------------|-------|---------|
-| `PROWLARR_DELUGE_HOST` | `127.0.0.1` | Deluge Web UI |
-| `PROWLARR_DELUGE_WEB_PORT` | `8112` | Deluge Web UI (not RPC `58846`) |
-| `FLARESOLVERR_URL` | `http://127.0.0.1:8191` | FlareSolverr proxy |
-| `PROWLARR_DELUGE_CATEGORY` | `prowlarr` | Torrent category |
-| `PROWLARR_FLARESOLVERR_TAG` | `flaresolverr` | Indexer tag |
-
-Edit `docker-compose.yml` to override these — they are **not** in `.env` by default.
-
-## Bootstrap behaviour
-
-| Resource | When updated |
-|----------|----------------|
-| FlareSolverr proxy | **Every start** — from compose |
-| Deluge download client | **Every start** — compose host/port + `.env` password |
-| Indexers | **First start only** — from `seed.json` (set `PROWLARR_BOOTSTRAP_FORCE=true` in compose to re-run) |
+Deluge Web UI credentials for the Prowlarr → Deluge client are stored **inside** `prowlarr.db`. Use the same `DELUGE_PASSWORD` / `DELUGE_WEB_PASSWORD` as when the DB was created, or update the Deluge client once in the Prowlarr UI (http://localhost:9696).
 
 ## First start
 
 1. Set in `.env`:
    ```env
-   PROWLARR_API_KEY=your-long-random-key
-   DELUGE_PASSWORD=your-strong-deluge-web-password
+   PROWLARR_API_KEY=<same value as config/config.xml ApiKey>
    ```
 2. Start stack:
    ```powershell
@@ -53,22 +42,21 @@ Edit `docker-compose.yml` to override these — they are **not** in `.env` by de
    ```
 3. Verify:
    ```powershell
-   docker logs prowlarr 2>&1 | Select-String prowlarr-bootstrap
    curl http://localhost:8000/prowlarr/test-connection
+   curl http://localhost:8000/prowlarr/indexers/count
    ```
 
-## After password change
+## Updating the committed config
 
-Update `DELUGE_PASSWORD` in `.env`, then:
+After changing indexers or download clients in the Prowlarr UI:
 
-```powershell
-docker compose restart deluge prowlarr
-```
-
-## Customize indexers
-
-Edit `bootstrap/seed.json`, set `PROWLARR_BOOTSTRAP_FORCE=true` in `docker-compose.yml` for one restart, then set back to `false`.
+1. Stop Prowlarr so the DB is not locked:
+   ```powershell
+   docker compose stop prowlarr
+   ```
+2. Commit updated `config/prowlarr.db` and `config/config.xml` if the API key changed.
+3. Do **not** commit `logs/`, `Backups/`, or `asp/`.
 
 ## Security
 
-Do **not** commit `infra/prowlarr/config/`. Secrets stay in `.env` only.
+This is a private homelab setup. `config.xml` and `prowlarr.db` contain the API key and may contain Deluge credentials. Do not publish the repo publicly without rotating secrets.

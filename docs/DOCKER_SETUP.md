@@ -156,9 +156,9 @@ Without valid VPN credentials, Gluetun stays unhealthy and Deluge/Prowlarr will 
 |----------|-------------|
 | `PROWLARR_HOST` | `gluetun` (FastAPI only) |
 | `PROWLARR_PORT` | `9696` |
-| `PROWLARR_API_KEY` | **Long random value in `.env` before first start** — bootstrap applies it automatically |
+| `PROWLARR_API_KEY` | Must match `<ApiKey>` in `infra/prowlarr/config/config.xml` |
 
-Indexers, Deluge download client, and FlareSolverr are created from `infra/prowlarr/bootstrap/seed.json` on first start. See [infra/prowlarr/README.md](../infra/prowlarr/README.md).
+Indexers, Deluge download client, and FlareSolverr are pre-configured in `infra/prowlarr/config/prowlarr.db` (committed). See [infra/prowlarr/README.md](../infra/prowlarr/README.md).
 
 ### 2.5 Plex (required for library / watchlist)
 
@@ -349,31 +349,23 @@ Details: [infra/deluge/README.md](../infra/deluge/README.md)
 
 ### 5.3 Prowlarr
 
-Bootstrap runs automatically on first start (no manual UI setup required).
+Config is committed under `infra/prowlarr/config/` (including `prowlarr.db`). No manual UI setup required for indexers, Deluge, or FlareSolverr.
 
-1. Set in `.env` **before** first start:
+1. Set in `.env`:
    ```env
-   PROWLARR_API_KEY=your-long-random-key
-   DELUGE_PASSWORD=your-deluge-web-password
+   PROWLARR_API_KEY=<same value as infra/prowlarr/config/config.xml ApiKey>
    ```
 2. Start Prowlarr (and dependencies):
    ```powershell
    docker compose up -d gluetun deluge flaresolverr prowlarr
    ```
-3. Bootstrap applies `infra/prowlarr/bootstrap/seed.json`:
-   - FlareSolverr proxy (`http://127.0.0.1:8191`)
-   - Deluge download client (`127.0.0.1:8112`)
-   - Public indexers (YTS, 1337x, EZTV, TPB, etc.)
-4. Check logs:
-   ```powershell
-   docker logs prowlarr 2>&1 | Select-String prowlarr-bootstrap
-   ```
-5. API check:
+3. API check:
    ```powershell
    curl http://localhost:8000/prowlarr/test-connection
+   curl http://localhost:8000/prowlarr/indexers/count
    ```
 
-Optional UI: http://localhost:9696 (to add private indexers later — stored only in local `config/`).
+Optional UI: http://localhost:9696 (to add private indexers — then stop Prowlarr and commit updated `prowlarr.db`).
 
 Details: [infra/prowlarr/README.md](../infra/prowlarr/README.md)
 

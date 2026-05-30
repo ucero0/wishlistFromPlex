@@ -18,12 +18,12 @@ FlareSolverr has **no config folder** in this project. Runtime settings come fro
 | `FLARESOLVERR_LOG_LEVEL` | `info` | Log verbosity (via `.env`) |
 | `FLARESOLVERR_CAPTCHA_SOLVER` | `none` | External captcha solver (via `.env`) |
 
-**Prowlarr bootstrap** (fixed in compose, not `.env`):
+**Prowlarr connection** (stored in `infra/prowlarr/config/prowlarr.db`, not `.env`):
 
-| Variable | Value |
-|----------|-------|
-| `FLARESOLVERR_URL` | `http://127.0.0.1:8191` |
-| `FLARESOLVERR_REQUEST_TIMEOUT` | `60` |
+| Setting | Value |
+|---------|-------|
+| FlareSolverr URL | `http://127.0.0.1:8191` |
+| Request timeout | `60` s |
 
 Prowlarr shares Gluetun’s network with FlareSolverr, so the URL uses `127.0.0.1:8191`.
 
@@ -32,4 +32,4 @@ Prowlarr shares Gluetun’s network with FlareSolverr, so the URL uses `127.0.0.
 - No `/config` volume — nothing under `infra/flaresolverr/` except this README.
 - Session/state is ephemeral inside the container.
 
-The Prowlarr → FlareSolverr app link is created by bootstrap on first start.
+The Prowlarr → FlareSolverr proxy is pre-configured in the committed `prowlarr.db`.

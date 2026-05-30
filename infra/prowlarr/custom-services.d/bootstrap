@@ -1,9 +1,0 @@
-#!/usr/bin/with-contenv bash
-# Run bootstrap on every start (Deluge/FlareSolverr sync from .env; indexers once).
-set -euo pipefail
-
-/scripts/bootstrap_prowlarr.sh || {
-  echo "[prowlarr-bootstrap] bootstrap failed; will retry on next container start" >&2
-}
-
-exec sleep infinity
