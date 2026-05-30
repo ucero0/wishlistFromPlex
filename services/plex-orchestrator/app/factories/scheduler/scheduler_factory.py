@@ -4,6 +4,7 @@ from app.infrastructure.scheduler.scheduler_service import SchedulerService
 from app.infrastructure.scheduler.tasks import (
     download_watch_list_media_task,
     process_deferred_downloads_task,
+    register_scheduler_manual_runners,
     sync_plex_library_paths_task,
 )
 
@@ -34,5 +35,6 @@ def create_scheduler_service() -> SchedulerService:
         job_id="process_deferred_downloads",
         name="Process Deferred Torrent Downloads",
     )
+    register_scheduler_manual_runners(scheduler_service)
     return scheduler_service
 

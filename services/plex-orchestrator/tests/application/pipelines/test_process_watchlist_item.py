@@ -1,5 +1,8 @@
 """Tests for ProcessWatchlistItemUseCase."""
 import pytest
+from app.application.pipelines.watchlist.models.watchlist_download_run_result import (
+    WatchlistItemProcessOutcome,
+)
 from app.application.pipelines.watchlist.use_cases.process_watchlist_item_use_case import (
     ProcessWatchlistItemUseCase,
 )
@@ -105,12 +108,11 @@ async def test_process_watchlist_item_downloads_first_successful_torrent():
         remove_watchlist_item_use_case=remove_uc,
     )
 
-    ok = await use_case.execute(_entry())
+    outcome = await use_case.execute(_entry())
 
-    assert ok is True
     assert try_download.calls == 1
+    assert outcome == WatchlistItemProcessOutcome.SENT_TO_DELUGE
     assert len(create_uc.created) == 1
-    assert create_uc.created[0].uid == "a" * 40
     assert create_uc.created[0].plex_guid == "plex://movie/1"
     assert remove_uc.removed == [("123", "plex-token")]
 
@@ -133,9 +135,9 @@ async def test_process_watchlist_item_tries_next_result_on_failure():
         remove_watchlist_item_use_case=_FakeRemoveWatchlist(),
     )
 
-    ok = await use_case.execute(_entry())
+    outcome = await use_case.execute(_entry())
 
-    assert ok is True
+    assert outcome == WatchlistItemProcessOutcome.SENT_TO_DELUGE
     assert try_download.calls == 2
 
 
@@ -149,9 +151,9 @@ async def test_process_watchlist_item_returns_true_when_deferred():
         remove_watchlist_item_use_case=_FakeRemoveWatchlist(),
     )
 
-    ok = await use_case.execute(_entry())
+    outcome = await use_case.execute(_entry())
 
-    assert ok is True
+    assert outcome == WatchlistItemProcessOutcome.DEFERRED
 
 
 @pytest.mark.asyncio
@@ -164,6 +166,6 @@ async def test_process_watchlist_item_returns_false_when_no_search_results():
         remove_watchlist_item_use_case=_FakeRemoveWatchlist(),
     )
 
-    ok = await use_case.execute(_entry())
+    outcome = await use_case.execute(_entry())
 
-    assert ok is False
+    assert outcome == WatchlistItemProcessOutcome.NO_TORRENT

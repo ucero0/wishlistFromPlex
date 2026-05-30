@@ -11,6 +11,7 @@ from app.adapters.http.routes.pipelines.pipeline_routes import pipeline_routes
 from app.adapters.http.routes.antivirus.antivirus_routes import antivirus_routes
 from app.adapters.http.routes.blacklist_torrent import blacklist_torrent_routes
 from app.adapters.http.routes.tracking.tracking_routes import tracking_routes
+from app.adapters.http.routes.scheduler.scheduler_routes import scheduler_routes
 
 plexRoutes = APIRouter(prefix="/plex")
 plexRoutes.include_router(plex_connection_routes)

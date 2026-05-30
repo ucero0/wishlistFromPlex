@@ -15,6 +15,9 @@ from app.application.pipelines.ingest.use_cases.scan_torrent_use_case import (
 from app.application.pipelines.watchlist.use_cases.process_plex_watchlist_downloads_use_case import (
     ProcessPlexWatchlistDownloadsUseCase,
 )
+from app.adapters.http.schemas.scheduler.scheduler_schemas import (
+    ProcessPlexWatchlistDownloadsResult,
+)
 from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_with_deluge_use_case import (
     ReconcileActiveDownloadsWithDelugeUseCase,
 )
@@ -87,14 +90,33 @@ async def scan_and_ingest_torrent(
         )
 
 
-@pipeline_routes.post("/watchlist/process-downloads")
+@pipeline_routes.post(
+    "/watchlist/process-downloads",
+    response_model=ProcessPlexWatchlistDownloadsResult,
+    summary="Run watchlist download orchestration",
+)
 async def process_plex_watchlist_downloads(
     use_case: ProcessPlexWatchlistDownloadsUseCase = Depends(
         create_process_plex_watchlist_downloads_use_case
     ),
 ):
-    await use_case.execute()
-    return {"message": "Watchlist downloads processed successfully"}
+    """
+    Manually run the watchlist download pipeline (same as scheduler job
+    ``download_watch_list_media``).
+
+    1. Release deferred torrents when download volume has space
+    2. Fetch watchlists for all active Plex users
+    3. Reconcile active downloads with Deluge
+    4. For each item: skip if already in Plex library or queued; else search
+       Prowlarr and send to Deluge
+    """
+    try:
+        result = await use_case.execute()
+        return ProcessPlexWatchlistDownloadsResult.model_validate(result.model_dump())
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error processing watchlist downloads: {str(e)}"
+        ) from e
 
 
 @pipeline_routes.post("/watchlist/reconcile-deluge")

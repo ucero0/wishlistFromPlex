@@ -15,6 +15,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi_swagger_ui_theme import setup_swagger_ui_theme
 
 from app.core.config import settings
 from app.adapters.http.routes import (
@@ -22,6 +23,7 @@ from app.adapters.http.routes import (
     delugeRoutes,
     prowlarr_routes,
     pipeline_routes,
+    scheduler_routes,
     antivirus_routes,
     blacklist_torrent_routes,
     tracking_routes,
@@ -33,6 +35,7 @@ from app.composition.plex_library_paths import (
     build_sync_plex_library_paths_for_active_users_use_case,
 )
 from app.factories.scheduler.scheduler_factory import create_scheduler_service
+from app.infrastructure.scheduler.access import bind_scheduler
 from app.infrastructure.persistence.database import async_session_scope
 
 # Configure logging
@@ -45,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize scheduler service using factory
 scheduler_service = create_scheduler_service()
+bind_scheduler(scheduler_service)
 
 
 @asynccontextmanager
@@ -114,6 +118,18 @@ app = FastAPI(
     - `GET /deluge/torrents/downloading` - List only downloading torrents
     """,
     version="2.0.0",
+    docs_url=None,
+)
+
+setup_swagger_ui_theme(
+    app,
+    docs_path="/docs",
+    title=f"{app.title} - API Docs",
+    swagger_ui_parameters={
+        "docExpansion": "list",
+        "filter": True,
+        "tryItOutEnabled": True,
+    },
 )
 
 # Request logging middleware for debugging
@@ -155,6 +171,7 @@ app.add_exception_handler(ExternalServiceError, external_service_error_handler)
 
 # Include API routers (microservice structure)
 app.include_router(pipeline_routes)
+app.include_router(scheduler_routes)
 app.include_router(blacklist_torrent_routes)
 app.include_router(tracking_routes)
 app.include_router(plexRoutes)
@@ -182,6 +199,8 @@ async def root():
             "plex": "active",
             "plex_media_hdd_db": "/plex/library-paths/media-devices",
             "deferred_downloads_process": "POST /tracking/deferred-downloads/process",
+            "watchlist_downloads_run": "POST /scheduler/watchlist-downloads/run",
+            "scheduler_jobs": "GET /scheduler/jobs",
             "deluge": "active",
             "antivirus": "active",
             "torrent_search": "active",

@@ -13,6 +13,9 @@ from app.application.active_downloads.use_cases.create_active_download_use_case 
     CreateActiveDownloadUseCase,
 )
 from app.domain.models.active_download import ActiveDownload
+from app.application.pipelines.watchlist.models.watchlist_download_run_result import (
+    WatchlistItemProcessOutcome,
+)
 from app.domain.models.watchlist_item_for_user import WatchlistItemForUser
 
 logger = logging.getLogger(__name__)
@@ -35,7 +38,7 @@ class ProcessWatchlistItemUseCase:
         self._create_active_download_use_case = create_active_download_use_case
         self._remove_watchlist_item_use_case = remove_watchlist_item_use_case
 
-    async def execute(self, entry: WatchlistItemForUser) -> bool:
+    async def execute(self, entry: WatchlistItemForUser) -> WatchlistItemProcessOutcome:
         watchlist = entry.item
         user_token = entry.plex_user_token
         search_query = await self._watchlist_search_query_builder.execute(watchlist)
@@ -44,7 +47,7 @@ class ProcessWatchlistItemUseCase:
         )
         if not torrent_search_results:
             logger.error("No torrent available for %s", search_query)
-            return False
+            return WatchlistItemProcessOutcome.NO_TORRENT
 
         for index, torrent_result in enumerate(torrent_search_results):
             success, new_torrent, deferred = (
@@ -57,7 +60,7 @@ class ProcessWatchlistItemUseCase:
                     "Deferred '%s' — watchlist item kept until download volume has space",
                     watchlist.title,
                 )
-                return True
+                return WatchlistItemProcessOutcome.DEFERRED
             if success and new_torrent is not None:
                 await self._create_active_download_use_case.execute(
                     ActiveDownload(
@@ -75,7 +78,7 @@ class ProcessWatchlistItemUseCase:
                 await self._remove_watchlist_item_use_case.execute(
                     watchlist.rating_key, user_token
                 )
-                return True
+                return WatchlistItemProcessOutcome.SENT_TO_DELUGE
 
             logger.info(
                 "Trying next torrent result for '%s' (attempt %s/%s)",
@@ -89,4 +92,4 @@ class ProcessWatchlistItemUseCase:
             watchlist.title,
             len(torrent_search_results),
         )
-        return False
+        return WatchlistItemProcessOutcome.SEND_FAILED

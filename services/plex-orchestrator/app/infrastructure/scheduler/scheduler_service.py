@@ -1,8 +1,14 @@
 """Scheduler service for managing background tasks."""
 import logging
-from typing import Callable, Awaitable
+from datetime import timezone
+from typing import Any, Callable, Awaitable
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+
+from app.application.pipelines.watchlist.models.watchlist_download_run_result import (
+    SchedulerJobInfo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +18,7 @@ class SchedulerService:
     
     def __init__(self):
         self.scheduler = AsyncIOScheduler()
+        self._manual_runners: dict[str, Callable[[], Awaitable[Any]]] = {}
     
     def register_download_watch_list_media_task(
         self, 
@@ -51,6 +58,42 @@ class SchedulerService:
             replace_existing=True,
         )
         logger.info("Registered %s (interval: %s minutes)", name, interval_minutes)
+
+    def register_manual_runner(
+        self,
+        job_id: str,
+        runner: Callable[[], Awaitable[Any]],
+    ) -> None:
+        """Register a callable for on-demand job execution via the API."""
+        self._manual_runners[job_id] = runner
+
+    def list_jobs(self) -> list[SchedulerJobInfo]:
+        jobs: list[SchedulerJobInfo] = []
+        for job in self.scheduler.get_jobs():
+            interval_minutes = None
+            trigger = job.trigger
+            if isinstance(trigger, IntervalTrigger):
+                interval_minutes = int(trigger.interval.total_seconds() // 60)
+            next_run = job.next_run_time
+            jobs.append(
+                SchedulerJobInfo(
+                    id=job.id,
+                    name=job.name or job.id,
+                    interval_minutes=interval_minutes,
+                    next_run_time=(
+                        next_run.astimezone(timezone.utc).isoformat()
+                        if next_run
+                        else None
+                    ),
+                )
+            )
+        return sorted(jobs, key=lambda item: item.id)
+
+    async def run_job_now(self, job_id: str) -> Any:
+        runner = self._manual_runners.get(job_id)
+        if runner is None:
+            raise KeyError(job_id)
+        return await runner()
 
     def start(self):
         """Start the scheduler."""

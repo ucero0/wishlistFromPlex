@@ -1,4 +1,5 @@
 fastapi==0.136.1
+fastapi-swagger-ui-theme>=0.1.0
 uvicorn[standard]==0.34.2
 sqlalchemy==2.0.23
 alembic==1.14.1
