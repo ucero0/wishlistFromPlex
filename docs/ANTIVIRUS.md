@@ -90,7 +90,7 @@ docker compose up -d --build antivirus
 **Verify quarantine mount:** from the FastAPI container, the completed download path must exist and match what Deluge wrote.
 
 ```powershell
-docker compose exec fastapi ls /downloads
+docker compose exec plex-orchestrator ls /downloads
 ```
 
 ## Security notes

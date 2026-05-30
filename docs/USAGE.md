@@ -1,6 +1,6 @@
 # Using the application
 
-How to operate **Wishlist from Plex** after [Docker setup](DOCKER_SETUP.md) is complete.
+How to operate **automatic_plexMediaSever** after [Docker setup](DOCKER_SETUP.md) is complete.
 
 ## Authentication
 
@@ -28,7 +28,7 @@ Public examples (no key): `GET /health`, some Deluge read-only routes — see ht
      -H "X-API-Key: YOUR_API_KEY" `
      -d '{"name":"me","plex_token":"YOUR_PLEX_USER_TOKEN"}'
    ```
-4. **Library paths** — add libraries in Plex, mount folders on the `fastapi` container, then sync:
+4. **Library paths** — add libraries in Plex, mount folders on the `plex-orchestrator` container, then sync:
    ```powershell
    curl -X POST http://localhost:8000/plex/servers/library/locations-by-media/sync `
      -H "X-API-Key: YOUR_API_KEY"
@@ -182,7 +182,7 @@ Example error body:
 
 ## Common tasks
 
-**Reset database** (destroys all app data):
+**Reset database** (wipes all app data; schema is recreated by Alembic on next start):
 
 ```powershell
 docker compose down
@@ -190,13 +190,20 @@ Remove-Item -Recurse -Force infra/postgres-data
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
-Tables are recreated on FastAPI startup.
+Migrations run automatically (`alembic upgrade head` in the orchestrator entrypoint). Current baseline: revision `0001_initial_schema`.
+
+**Run migrations manually** (if needed):
+
+```powershell
+docker compose exec plex-orchestrator alembic upgrade head
+docker compose exec plex-orchestrator alembic current
+```
 
 **Recreate VPN-side containers** (VPN stack only):
 
 ```powershell
 docker compose up -d --force-recreate gluetun deluge prowlarr flaresolverr
-docker compose restart fastapi
+docker compose restart plex-orchestrator
 ```
 
 **No-VPN stack:** see `docker-compose.no-vpn.yml`.
@@ -204,6 +211,6 @@ docker compose restart fastapi
 **Rebuild FastAPI after code changes (production):**
 
 ```powershell
-docker compose build fastapi
-docker compose up -d fastapi
+docker compose build plex-orchestrator
+docker compose up -d plex-orchestrator
 ```

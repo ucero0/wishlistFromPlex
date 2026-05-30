@@ -12,36 +12,36 @@
 # Prowlarr bootstrap defaults: deluge + flaresolverr hostnames (override PROWLARR_BOOTSTRAP_DELUGE_HOST / FLARESOLVERR_URL in .env).
 
 services:
-  db:
+  postgres:
     image: postgres:15-alpine
-    container_name: fastapi-db
+    container_name: plex-orchestrator-db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-plex_wishlist_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plex_wishlist_pass}
-      POSTGRES_DB: ${POSTGRES_DB:-plex_wishlist}
+      POSTGRES_USER: ${POSTGRES_USER:-plex_orchestrator_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plex_orchestrator_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-plex_orchestrator}
     volumes:
       - ./infra/postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plex_wishlist_user} -d ${POSTGRES_DB:-plex_wishlist}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plex_orchestrator_user} -d ${POSTGRES_DB:-plex_orchestrator}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     restart: unless-stopped
 
-  fastapi:
+  plex-orchestrator:
     build:
-      context: ./services/fastapi-app
+      context: ./services/plex-orchestrator
       target: runtime
-    container_name: fastapi-app
+    container_name: plex-orchestrator
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       antivirus:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-plex_wishlist_user}:${POSTGRES_PASSWORD:-plex_wishlist_pass}@db:5432/${POSTGRES_DB:-plex_wishlist}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-plex_orchestrator_user}:${POSTGRES_PASSWORD:-plex_orchestrator_pass}@postgres:5432/${POSTGRES_DB:-plex_orchestrator}
       API_KEY: ${API_KEY}
       PLEX_SERVER_URL: ${PLEX_SERVER_URL:-http://host.docker.internal:32400}
       PLEX_SERVER_ADMIN_TOKEN: ${PLEX_SERVER_ADMIN_TOKEN:-}
@@ -65,7 +65,7 @@ services:
     volumes:
       - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -74,7 +74,7 @@ services:
     image: linuxserver/deluge:latest
     container_name: deluge
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     ports:
       - "${DELUGE_WEB_PORT:-8112}:${DELUGE_WEB_PORT:-8112}"
       - "${DELUGE_PORT:-58846}:${DELUGE_PORT:-58846}"
@@ -102,7 +102,7 @@ services:
     image: linuxserver/prowlarr:latest
     container_name: prowlarr
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     ports:
       - "${PROWLARR_PORT:-9696}:9696"
     environment:
@@ -132,7 +132,7 @@ services:
     image: flaresolverr/flaresolverr:latest
     container_name: flaresolverr
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     ports:
       - "${FLARESOLVERR_PORT:-8191}:${FLARESOLVERR_PORT:-8191}"
     environment:
@@ -156,7 +156,7 @@ services:
     ports:
       - "32400:32400"
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     restart: unless-stopped
 
   antivirus:
@@ -178,10 +178,10 @@ services:
       retries: 3
       start_period: 120s
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/scan-service/startup.sh"]
 
 networks:
-  fastapi-network:
+  plex-orchestrator-network:
     driver: bridge

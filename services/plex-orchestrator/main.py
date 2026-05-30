@@ -34,7 +34,6 @@ from app.composition.plex_library_paths import (
 )
 from app.factories.scheduler.scheduler_factory import create_scheduler_service
 from app.infrastructure.persistence.database import async_session_scope
-from app.infrastructure.persistence.schema import init_database
 
 # Configure logging
 logging.basicConfig(
@@ -53,12 +52,6 @@ async def lifespan(_app: FastAPI):
     """Startup and shutdown (replaces deprecated on_event hooks)."""
     logger.info("Starting up Media Automation Service")
     async with async_session_scope() as session:
-        try:
-            await init_database()
-            logger.info("Database schema initialized")
-        except Exception as exc:
-            logger.error("Database schema verification failed: %s", exc)
-            raise
         try:
             sync_result = await build_sync_plex_library_paths_for_active_users_use_case(
                 session

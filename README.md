@@ -1,4 +1,4 @@
-# Wishlist from Plex
+# automatic_plexMediaSever
 
 Automated media pipeline: sync Plex watchlists, search torrents (Prowlarr), download via Deluge (VPN through Gluetun by default), scan (ClamAV + YARA), and ingest clean files into your Plex libraries.
 
@@ -8,7 +8,7 @@ Automated media pipeline: sync Plex watchlists, search torrents (Prowlarr), down
 Plex watchlist  →  Prowlarr search  →  Deluge (VPN)  →  quarantine scan  →  Plex library
 ```
 
-The **FastAPI** service orchestrates everything. Scheduled jobs also run watchlist processing, library-path sync, and deferred downloads when disk space is low.
+The **plex-orchestrator** service (FastAPI) orchestrates everything. Scheduled jobs also run watchlist processing, library-path sync, and deferred downloads when disk space is low.
 
 ## Quick start
 
@@ -40,7 +40,8 @@ The **FastAPI** service orchestrates everything. Scheduled jobs also run watchli
 | [docs/USAGE.md](docs/USAGE.md) | How to use the API and workflows |
 | [docs/ANTIVIRUS.md](docs/ANTIVIRUS.md) | Virus scanning and quarantine |
 | [infra/deluge/README.md](infra/deluge/README.md) | Deluge RPC auth and VPN networking |
-| [services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md](services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md) | Code layout (hexagonal architecture) |
+| [services/plex-orchestrator/ARCHITECTURE_FOLDER_GUIDE.md](services/plex-orchestrator/ARCHITECTURE_FOLDER_GUIDE.md) | Code layout (hexagonal architecture) |
+| [services/plex-orchestrator/alembic/MIGRATIONS.md](services/plex-orchestrator/alembic/MIGRATIONS.md) | Alembic migrations (reset, upgrade, new revisions) |
 
 ## Health checks
 

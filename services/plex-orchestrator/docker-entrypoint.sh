@@ -24,5 +24,7 @@ until pg_isready -h "$DB_HOST" -p "$DB_PORT" -q; do
 done
 
 echo "PostgreSQL is ready!"
-echo "=== Starting application (schema created on startup) ==="
+echo "=== Running Alembic migrations ==="
+alembic upgrade head
+echo "=== Starting application ==="
 exec "$@"

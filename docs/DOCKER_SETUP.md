@@ -11,8 +11,8 @@ Use this before your first `docker compose up`.
 
 | Service | Role | Host access |
 |---------|------|-------------|
-| **fastapi** | API, orchestration, Plex sync | http://localhost:8000 |
-| **db** | PostgreSQL | internal only |
+| **plex-orchestrator** | API, orchestration, Plex sync | http://localhost:8000 |
+| **postgres** | PostgreSQL (`plex_orchestrator` DB) | internal only |
 | **gluetun** | VPN tunnel (NordVPN) | — |
 | **deluge** | Torrent client (via VPN) | http://localhost:8112 |
 | **prowlarr** | Indexer search (via VPN) | http://localhost:9696 |
@@ -32,7 +32,7 @@ For local work without VPN, use the standalone [docker-compose.no-vpn.yml](../do
 |------|---------|
 | **`docker-compose.yml`** | Full stack with **Gluetun VPN** + production FastAPI |
 | **`docker-compose.dev.yml`** | Development overlay — hot reload + bind-mount `app/` and `main.py` |
-| **`docker-compose.no-vpn.yml`** | **Standalone** stack without Gluetun (Deluge/Prowlarr on `fastapi-network`) |
+| **`docker-compose.no-vpn.yml`** | **Standalone** stack without Gluetun (Deluge/Prowlarr on `plex-orchestrator-network`) |
 
 | Goal | Command |
 |------|---------|
@@ -45,7 +45,7 @@ For local work without VPN, use the standalone [docker-compose.no-vpn.yml](../do
 
 **Do not** run dev without `-f docker-compose.dev.yml` when you want hot reload. Base alone is production-style FastAPI.
 
-After code changes in **production** mode: `docker compose build fastapi && docker compose up -d fastapi`.
+After code changes in **production** mode: `docker compose build plex-orchestrator && docker compose up -d plex-orchestrator`.
 
 ---
 
@@ -63,7 +63,7 @@ After code changes in **production** mode: `docker compose build fastapi && dock
 From the repository root:
 
 ```powershell
-cd path\to\wishlistFromPlex
+cd path\to\automatic_plexMediaSever
 copy .env.example .env
 ```
 
@@ -84,7 +84,7 @@ The stack always runs **FastAPI in Docker**. Plex can run **on your PC** or **in
 | `PLEX_SERVER_URL` in `.env` | `http://host.docker.internal:32400` | `http://plex:32400` |
 | Start Plex with compose? | **No** | **Yes** (`--profile plex-docker`) |
 | `PLEX_CLAIM` | Not used (claim in desktop app) | One-time token from https://plex.tv/claim (fresh install only) |
-| Library bind mounts | **`fastapi` only** in `docker-compose.yml` | **`plex` + `fastapi`** in `docker-compose.yml` |
+| Library bind mounts | **`plex-orchestrator` only** in `docker-compose.yml` | **`plex` + `plex-orchestrator`** in `docker-compose.yml` |
 
 **Important:** FastAPI never uses `localhost` to reach Plex. Inside the container, `localhost` is FastAPI itself. Use `host.docker.internal` for a PC-installed Plex, or `plex` when the Plex container is running.
 
@@ -130,11 +130,13 @@ Open `.env` and set each section. **No spaces around `=`** (use `KEY=value`, not
 | Variable | What to set | Example |
 |----------|-------------|---------|
 | `API_KEY` | Secret for FastAPI routes that require auth | long random string |
-| `POSTGRES_USER` | DB user | `plex_wishlist_user` |
+| `POSTGRES_USER` | DB user | `plex_orchestrator_user` |
 | `POSTGRES_PASSWORD` | DB password | strong password |
-| `POSTGRES_DB` | DB name | `plex_wishlist` |
+| `POSTGRES_DB` | DB name | `plex_orchestrator` |
 
 `DATABASE_URL` in `.env.example` should match the three `POSTGRES_*` values.
+
+Schema is managed with **Alembic** (`services/plex-orchestrator/alembic/`). On first install or after wiping `infra/postgres-data`, the orchestrator applies revision `0001_initial_schema` automatically.
 
 ### 2.2 NordVPN / Gluetun (required for default `docker-compose.yml`)
 
@@ -197,7 +199,7 @@ Library folders are **not** set in `.env`. Add them in the Plex UI, then bind-mo
 |----------|-------------|
 | `DELUGE_QUARANTINE_VOLUME_PATH` | Host folder for quarantine downloads, e.g. `./infra/deluge/downloads/quarantine` |
 | `TMDB_API_KEY` | Optional; leave empty to disable TMDB |
-| `SCANFORVIRUS_API_URL` | Usually `http://fastapi:8000/...` — see `.env.example` |
+| `SCANFORVIRUS_API_URL` | Usually `http://plex-orchestrator:8000/...` — see `.env.example` |
 | `LOG_LEVEL` | `INFO` or `DEBUG` |
 
 ---
@@ -229,22 +231,22 @@ Paths must exist **inside the FastAPI container** at the same paths Plex uses (f
    ```powershell
    curl http://localhost:8000/plex/servers/library/locations-by-media -H "X-API-Key: YOUR_API_KEY"
    ```
-3. Edit `docker-compose.yml` — mount each host folder on **`fastapi`** so the **container path matches** what Plex reports (often `/movies`, `/tv` if you use those in Docker-style library paths, or map host paths accordingly):
+3. Edit `docker-compose.yml` — mount each host folder on **`plex-orchestrator`** so the **container path matches** what Plex reports (often `/movies`, `/tv` if you use those in Docker-style library paths, or map host paths accordingly):
 
 ```yaml
-  fastapi:
+  plex-orchestrator:
     volumes:
       # ... existing app + quarantine mounts ...
       - D:/Media/Movies:/movies
       - D:/Media/TV:/tv
 ```
 
-4. Recreate FastAPI after changing mounts: `docker compose up -d --force-recreate fastapi`
+4. Recreate FastAPI after changing mounts: `docker compose up -d --force-recreate plex-orchestrator`
 
 #### Docker Plex (`--profile plex-docker`)
 
 1. Open http://localhost:32400, add libraries using **container paths** you will mount (e.g. `/movies`, `/tv`).
-2. Edit `docker-compose.yml` — add the **same** bind mounts under **both** `plex` and `fastapi`:
+2. Edit `docker-compose.yml` — add the **same** bind mounts under **both** `plex` and `plex-orchestrator`:
 
 ```yaml
   plex:
@@ -253,7 +255,7 @@ Paths must exist **inside the FastAPI container** at the same paths Plex uses (f
       - D:/Media/Movies:/movies
       - D:/Media/TV:/tv
 
-  fastapi:
+  plex-orchestrator:
     volumes:
       # ... existing app + quarantine mounts ...
       - D:/Media/Movies:/movies
@@ -289,7 +291,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile plex-do
 Code is copied into the image at build time — rebuild after changes:
 
 ```powershell
-docker compose -f docker-compose.yml build fastapi
+docker compose -f docker-compose.yml build plex-orchestrator
 docker compose -f docker-compose.yml up -d
 ```
 
@@ -461,7 +463,7 @@ Server API calls use the **server admin token** (DB or `PLEX_SERVER_ADMIN_TOKEN`
 
 Media types: `movie`, `tvshow`, `other`.
 
-**Important:** Paths returned by Plex must match bind mounts on the `fastapi` service (Step 3b). There is no `PLEX_MEDIA_*` variable in `.env`.
+**Important:** Paths returned by Plex must match bind mounts on the `plex-orchestrator` service (Step 3b). There is no `PLEX_MEDIA_*` variable in `.env`.
 
 ### 5.5 Antivirus
 
@@ -485,7 +487,7 @@ docker compose logs antivirus --tail 30
 Base compose is production-oriented (`runtime` image, no dev bind mounts). Rebuild FastAPI when code changes:
 
 ```powershell
-docker compose -f docker-compose.yml build fastapi
+docker compose -f docker-compose.yml build plex-orchestrator
 docker compose -f docker-compose.yml up -d
 ```
 
@@ -527,7 +529,7 @@ If you recreate **only** Gluetun, Deluge/Prowlarr/FlareSolverr can lose the shar
 
 ```powershell
 docker compose up -d --force-recreate gluetun deluge prowlarr flaresolverr
-docker compose restart fastapi
+docker compose restart plex-orchestrator
 ```
 
 ### Prowlarr clients on no-vpn overlay
@@ -551,10 +553,10 @@ When using `docker-compose.no-vpn.yml`, set in Prowlarr UI if `prowlarr.db` stil
 
 ```powershell
 # Tests (dev image)
-docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm --no-deps fastapi pytest -q
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm --no-deps plex-orchestrator pytest -q
 
 # Logs
-docker compose logs -f fastapi
+docker compose logs -f plex-orchestrator
 
 # Stop everything
 docker compose down
@@ -573,15 +575,16 @@ docker compose down
 | Prowlarr auth / Deluge grab fails | Wrong `PROWLARR_API_KEY` or Deluge password mismatch | Set `PROWLARR_API_KEY` and `DELUGE_PASSWORD` in `.env`, then `docker compose restart prowlarr` |
 | `/plex/test-connection` unhealthy, `error_type: connection` | Wrong `PLEX_SERVER_URL` vs mode, or Plex not running | Host Plex: app running + `http://host.docker.internal:32400`. Docker Plex: `--profile plex-docker` + `http://plex:32400` |
 | Plex container not listed in `docker compose ps` | Expected for host Plex | Use `--profile plex-docker` only if you want Plex in Docker |
-| Plex paths empty / ingest cannot move files | Library not in Plex or mounts missing on `fastapi` | Add libraries in Plex UI, add matching bind mounts on `fastapi` (and `plex` if Docker Plex), run sync, recreate containers |
+| Plex paths empty / ingest cannot move files | Library not in Plex or mounts missing on `plex-orchestrator` | Add libraries in Plex UI, add matching bind mounts on `plex-orchestrator` (and `plex` if Docker Plex), run sync, recreate containers |
 | Antivirus slow start | First-time ClamAV download | Wait 2–5 min, check logs |
 | `gluetun` / `antivirus` exit code 2, logs show `: not found` or `syntax error` in `.sh` files | Windows checked out shell scripts with CRLF line endings | Pull latest (`.gitattributes` enforces LF), then run `git add --renormalize infra/ && git checkout -- infra/` and recreate containers |
-| `fastapi-app`: `exec /docker-entrypoint.sh: no such file or directory` | CRLF in `docker-entrypoint.sh` baked into image at build time on Windows | Pull latest, run `git add --renormalize services/fastapi-app/docker-entrypoint.sh && git checkout -- services/fastapi-app/docker-entrypoint.sh`, then `docker compose build --no-cache fastapi && docker compose up -d fastapi` |
+| `plex-orchestrator`: `exec /docker-entrypoint.sh: no such file or directory` | CRLF in `docker-entrypoint.sh` baked into image at build time on Windows | Pull latest, run `git add --renormalize services/plex-orchestrator/docker-entrypoint.sh && git checkout -- services/plex-orchestrator/docker-entrypoint.sh`, then `docker compose build --no-cache plex-orchestrator && docker compose up -d plex-orchestrator` |
+| Alembic / DB connection errors after pull | Old Postgres volume vs new schema | `docker compose down`, delete `infra/postgres-data`, `up -d --build` (see [USAGE.md](USAGE.md)) |
 
 ---
 
 ## Related docs
 
 - [infra/deluge/README.md](../infra/deluge/README.md) — Deluge auth & RPC
-- [services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md](../services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md) — FastAPI code layout
+- [services/plex-orchestrator/ARCHITECTURE_FOLDER_GUIDE.md](../services/plex-orchestrator/ARCHITECTURE_FOLDER_GUIDE.md) — FastAPI code layout
 - [docs/README.md](README.md) — Antivirus documentation index

@@ -50,7 +50,7 @@ Deluge/FlareSolverr connection defaults are in `docker-compose.yml` (VPN: `127.0
    ```
 2. Start stack:
    ```powershell
-   docker compose up -d gluetun deluge flaresolverr prowlarr fastapi
+   docker compose up -d gluetun deluge flaresolverr prowlarr plex-orchestrator
    ```
 3. Check bootstrap logs:
    ```powershell

@@ -1,6 +1,6 @@
 # FastAPI Folder Structure Guide (Hexagonal + Scalable)
 
-This guide explains the current folder structure in `services/fastapi-app/app`, what each folder is responsible for, and how to decide where new code should go.
+This guide explains the current folder structure in `services/plex-orchestrator/app`, what each folder is responsible for, and how to decide where new code should go.
 
 The goal is to keep the codebase scalable, testable, and aligned with Hexagonal Architecture (Ports and Adapters).
 
@@ -16,7 +16,7 @@ The **domain** defines business rules and contracts, the **application** orchest
 
 ## 2) Current top-level folders and responsibilities
 
-Inside `services/fastapi-app/app`:
+Inside `services/plex-orchestrator/app`:
 
 - `domain/`
   - Pure business core.
@@ -239,20 +239,25 @@ Operational routes let domain errors propagate; the global handler converts them
 
 ---
 
-## 10) Database schema (no migrations)
+## 10) Database schema (Alembic)
 
-Schema is defined by SQLAlchemy ORM models under `infrastructure/persistence/` and created on startup via `init_database()` in `infrastructure/persistence/schema.py`. There is no Alembic.
+ORM models live under `infrastructure/persistence/`. Migrations are in `alembic/versions/` (baseline: `0001_initial_schema`).
 
 | Table | Purpose |
 |-------|---------|
 | `plex_users` | Plex user tokens |
 | `plex_library_paths` | Library root paths and disk stats |
+| `plex_server_config` | Plex server admin token (singleton) |
 | `active_downloads` | Tracked Deluge downloads |
 | `deferred_downloads` | Queue until download volume has space |
 | `antivirus_items` | Scan results |
 | `blacklist_torrents` | Blocked Prowlarr GUIDs |
 
-All persistent service data lives under `infra/` as bind mounts (Postgres, Deluge quarantine, Plex, Prowlarr, antivirus definitions, etc.). To reset the database: `docker compose down`, delete `infra/postgres-data/`, then start the stack again (tables are created on FastAPI startup).
+`init_database()` in `infrastructure/persistence/schema.py` runs `alembic upgrade head` (also run from `docker-entrypoint.sh` before uvicorn).
+
+**New migration after model changes:** edit ORM → `alembic revision --autogenerate -m "describe change"` → review → `alembic upgrade head`.
+
+**Full reset:** `docker compose down`, delete `infra/postgres-data/`, start stack (Postgres re-inits; Alembic applies `0001_initial_schema`).
 
 ---
 

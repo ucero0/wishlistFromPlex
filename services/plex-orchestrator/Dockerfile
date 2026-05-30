@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements-dev.txt ./
+COPY alembic.ini ./
+COPY alembic ./alembic
 COPY ./app ./app
 COPY main.py .
 COPY docker-entrypoint.sh /docker-entrypoint.sh

@@ -1,35 +1,35 @@
 
 services:
-  db:
+  postgres:
     image: postgres:15-alpine
-    container_name: fastapi-db
+    container_name: plex-orchestrator-db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-plex_wishlist_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plex_wishlist_pass}
-      POSTGRES_DB: ${POSTGRES_DB:-plex_wishlist}
+      POSTGRES_USER: ${POSTGRES_USER:-plex_orchestrator_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plex_orchestrator_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-plex_orchestrator}
     volumes:
       - ./infra/postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plex_wishlist_user} -d ${POSTGRES_DB:-plex_wishlist}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plex_orchestrator_user} -d ${POSTGRES_DB:-plex_orchestrator}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     restart: unless-stopped
 
-  fastapi:
+  plex-orchestrator:
     build:
-      context: ./services/fastapi-app
+      context: ./services/plex-orchestrator
       target: runtime
-    container_name: fastapi-app
+    container_name: plex-orchestrator
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       antivirus:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-plex_wishlist_user}:${POSTGRES_PASSWORD:-plex_wishlist_pass}@db:5432/${POSTGRES_DB:-plex_wishlist}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-plex_orchestrator_user}:${POSTGRES_PASSWORD:-plex_orchestrator_pass}@postgres:5432/${POSTGRES_DB:-plex_orchestrator}
       API_KEY: ${API_KEY}
       PLEX_SERVER_URL: ${PLEX_SERVER_URL:-http://host.docker.internal:32400}
       PLEX_SERVER_ADMIN_TOKEN: ${PLEX_SERVER_ADMIN_TOKEN:-}
@@ -62,7 +62,7 @@ services:
       - ./infra/deluge/downloads/quarantine:${CONTAINER_DELUGE_QUARANTINE_PATH}
       # Plex library roots: add bind mounts here matching paths configured in Plex (see docs/DOCKER_SETUP.md)
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -97,7 +97,7 @@ services:
       - ./infra/gluetun/entrypoint-wrapper.sh:/entrypoint-wrapper.sh:ro
     entrypoint: ["/bin/sh", "/entrypoint-wrapper.sh"]
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     healthcheck:
       # Check VPN connection status by verifying:
       # 1. OpenVPN process is running (process name is openvpn2.6, not openvpn)
@@ -219,7 +219,7 @@ services:
     ports:
       - "32400:32400"
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     restart: unless-stopped
 
   antivirus:
@@ -246,13 +246,13 @@ services:
       retries: 3
       start_period: 120s
     networks:
-      - fastapi-network
+      - plex-orchestrator-network
     restart: unless-stopped
     # Use custom startup script that installs dependencies and starts services
     # The startup script will then call the default /init entrypoint
     entrypoint: ["/bin/sh", "/scan-service/startup.sh"]
 
 networks:
-  fastapi-network:
+  plex-orchestrator-network:
     driver: bridge
 

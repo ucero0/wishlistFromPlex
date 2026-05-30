@@ -1,6 +1,6 @@
 # Documentation
 
-Guides for **Wishlist from Plex** — setup, daily use, and development.
+Guides for **automatic_plexMediaSever** — setup, daily use, and development.
 
 ## Start here
 
@@ -12,14 +12,14 @@ Guides for **Wishlist from Plex** — setup, daily use, and development.
 | Fix Deluge RPC / VPN connectivity | [../infra/deluge/README.md](../infra/deluge/README.md) |
 | Prowlarr indexers & apps (in Git) | [../infra/prowlarr/README.md](../infra/prowlarr/README.md) |
 | FlareSolverr (env-only) | [../infra/flaresolverr/README.md](../infra/flaresolverr/README.md) |
-| Navigate the FastAPI codebase | [../services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md](../services/fastapi-app/ARCHITECTURE_FOLDER_GUIDE.md) |
+| Navigate the orchestrator codebase | [../services/plex-orchestrator/ARCHITECTURE_FOLDER_GUIDE.md](../services/plex-orchestrator/ARCHITECTURE_FOLDER_GUIDE.md) |
 
 ## Stack overview
 
 | Service | Role | URL (host) |
 |---------|------|------------|
-| **fastapi** | API and orchestration | http://localhost:8000 |
-| **db** | PostgreSQL | internal |
+| **plex-orchestrator** | API and orchestration | http://localhost:8000 |
+| **postgres** | PostgreSQL (`plex_orchestrator` DB) | internal |
 | **gluetun** | NordVPN tunnel | — |
 | **deluge** | Torrent client (via VPN) | http://localhost:8112 |
 | **prowlarr** | Indexer search (via VPN) | http://localhost:9696 |

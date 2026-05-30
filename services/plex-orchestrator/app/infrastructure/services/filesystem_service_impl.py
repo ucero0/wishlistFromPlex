@@ -119,7 +119,7 @@ class FilesystemServiceImpl:
             except OSError as exc:
                 return (
                     f"Cannot create destination parent {parent}: {exc}. "
-                    "Check Plex library bind mounts and permissions on the fastapi container."
+                    "Check Plex library bind mounts and permissions on the plex-orchestrator container."
                 )
         usage_root = parent if parent.exists() else source.parent
         try:
