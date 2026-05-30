@@ -80,8 +80,9 @@ infra/clamav/data/*.wdb
 infra/clamav/data/*.idb
 infra/clamav/data/tmp.*/
 
-# Antivirus YARA rules (often symlink or app-managed)
-infra/antivirus/yara-rules
+# Antivirus YARA rules (cloned/updated at runtime; keep mount point in Git)
+infra/antivirus/yara-rules/*
+!infra/antivirus/yara-rules/.gitkeep
 infra/clamav/data/*.dat
 infra/antivirus/data/*.cld
 infra/antivirus/data/*.cvd

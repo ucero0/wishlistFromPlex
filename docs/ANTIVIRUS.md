@@ -53,7 +53,9 @@ curl -X POST http://localhost:8000/pipelines/ingest/scan-and-ingest `
 
 ## YARA rules
 
-Custom rules live under `infra/antivirus/yara-rules/`. They are mounted into the antivirus container and applied alongside ClamAV signatures.
+**Custom rules (in Git):** `infra/antivirus/scan-service/yara-rules-custom/` — mounted into the container and always applied.
+
+**Community rules (runtime):** `infra/antivirus/yara-rules/` — cloned from GitHub on first container start by `init-yara-rules.sh`; not committed (too large). See [infra/antivirus/README.md](../infra/antivirus/README.md).
 
 After editing rules:
 
