@@ -20,7 +20,7 @@ DELUGE_ADD_PAUSED="${PROWLARR_DELUGE_ADD_PAUSED:-false}"
 FORCE="${PROWLARR_BOOTSTRAP_FORCE:-false}"
 SYNC_INDEXERS="false"
 
-log() { echo "[prowlarr-bootstrap] $*"; }
+log() { echo "[prowlarr-bootstrap] $*" >&2; }
 warn() { echo "[prowlarr-bootstrap] WARNING: $*" >&2; }
 
 if [[ -z "$API_KEY" ]]; then
@@ -221,8 +221,11 @@ ensure_indexers() {
       )
     ')"
 
-    api_json POST "${API}/indexer?forceSave=true" "$payload" >/dev/null
-    log "Created indexer '${name}' (${definition})"
+    if api_json POST "${API}/indexer?forceSave=true" "$payload" >/dev/null 2>&1; then
+      log "Created indexer '${name}' (${definition})"
+    else
+      warn "Failed to create indexer '${name}' (${definition}) — connection test or validation failed; continuing"
+    fi
   done
 }
 
@@ -234,6 +237,7 @@ DELUGE_NAME="$(seed_or_env "${PROWLARR_DELUGE_CLIENT_NAME:-}" '.deluge.name')"
 
 TAG_ID="$(ensure_tag "$TAG_LABEL")"
 ensure_flaresolverr "$FLARE_NAME" "$TAG_ID"
+ensure_deluge "$DELUGE_NAME" || true
 
 if [[ "$SYNC_INDEXERS" == "true" ]]; then
   ensure_indexers "$TAG_ID"
@@ -242,7 +246,5 @@ if [[ "$SYNC_INDEXERS" == "true" ]]; then
 else
   log "Indexers skipped (already bootstrapped); Deluge and FlareSolverr synced from docker-compose env"
 fi
-
-ensure_deluge "$DELUGE_NAME" || true
 
 log "Bootstrap completed successfully"

@@ -3,23 +3,16 @@
 set -euo pipefail
 
 python3 <<'PY'
-import hashlib
 import os
-import re
-import secrets
 import sys
 import time
 from pathlib import Path
 
 USERNAME = os.environ.get("DELUGE_USERNAME", "deluge").strip()
 PASSWORD = os.environ.get("DELUGE_PASSWORD", "").strip()
-WEB_PASSWORD = os.environ.get("DELUGE_WEB_PASSWORD", PASSWORD).strip()
 LEVEL = os.environ.get("DELUGE_AUTH_LEVEL", "10").strip()
-FORCE_WEB = os.environ.get("DELUGE_FORCE_WEB_PASSWORD", "").lower() in ("1", "true", "yes")
 
 AUTH_FILE = Path("/config/auth")
-WEB_FILE = Path("/config/web.conf")
-WEB_MARKER = Path("/config/.deluge-web-password-configured")
 KNOWN_WEAK = ("deluge", "")
 
 
@@ -77,26 +70,115 @@ if not user_present:
 
 AUTH_FILE.write_text("\n".join(updated) + "\n", encoding="utf-8")
 print(f"[deluge-init] RPC user '{USERNAME}' configured from .env")
+PY
 
-if WEB_PASSWORD in KNOWN_WEAK:
-    warn("Web UI password not set (DELUGE_WEB_PASSWORD / DELUGE_PASSWORD). Skipping Web UI bootstrap.")
-    raise SystemExit(0)
+WEB_PASSWORD="${DELUGE_WEB_PASSWORD:-${DELUGE_PASSWORD:-}}"
+FORCE_WEB="${DELUGE_FORCE_WEB_PASSWORD:-false}"
+WEB_MARKER="/config/.deluge-web-password-configured"
 
-if WEB_MARKER.exists() and not FORCE_WEB:
-    print("[deluge-init] Web UI password already bootstrapped (set DELUGE_FORCE_WEB_PASSWORD=true to overwrite)")
-    raise SystemExit(0)
+if [[ -z "$WEB_PASSWORD" || "$WEB_PASSWORD" == "deluge" ]]; then
+  echo "[deluge-init] WARNING: Web UI password not set; skipping Web UI bootstrap." >&2
+  exit 0
+fi
 
-if not wait_for(WEB_FILE, attempts=30, delay=2.0):
-    print("[deluge-init] /config/web.conf not ready yet; RPC is configured.")
-    raise SystemExit(1)
+if [[ -f "$WEB_MARKER" && "${FORCE_WEB,,}" != "true" && "$FORCE_WEB" != "1" ]]; then
+  echo "[deluge-init] Web UI password already bootstrapped (set DELUGE_FORCE_WEB_PASSWORD=true to overwrite)"
+  exit 0
+fi
+
+# deluge-web overwrites web.conf on shutdown unless it is stopped first
+if [[ -d /run/service/svc-deluge-web ]]; then
+  s6-svc -d /run/service/svc-deluge-web 2>/dev/null || true
+  sleep 2
+fi
+
+python3 <<'PY'
+import hashlib
+import json
+import os
+import secrets
+from pathlib import Path
+
+WEB_PASSWORD = os.environ.get("DELUGE_WEB_PASSWORD", os.environ.get("DELUGE_PASSWORD", "")).strip()
+WEB_FILE = Path("/config/web.conf")
+HOSTLIST_FILE = Path("/config/hostlist.conf")
+WEB_MARKER = Path("/config/.deluge-web-password-configured")
+WEB_HEADER = {"file": 2, "format": 1}
+WEB_DEFAULTS = {
+    "enabled_plugins": [],
+    "default_daemon": "",
+    "pwd_salt": "",
+    "pwd_sha1": "",
+    "session_timeout": 3600,
+    "sessions": {},
+    "sidebar_show_zero": False,
+    "sidebar_multiple_filters": True,
+    "show_session_speed": False,
+    "show_sidebar": True,
+    "theme": "gray",
+    "first_login": False,
+    "language": "",
+    "base": "/",
+    "interface": "0.0.0.0",
+    "port": 8112,
+    "https": False,
+    "pkey": "ssl/daemon.pkey",
+    "cert": "ssl/daemon.cert",
+}
+
+
+def default_daemon_from_hostlist() -> str:
+    if not HOSTLIST_FILE.is_file():
+        return ""
+    text = HOSTLIST_FILE.read_text(encoding="utf-8", errors="replace")
+    start = text.find('{"hosts"')
+    if start == -1:
+        start = text.find('"hosts"')
+        if start == -1:
+            return ""
+        start = text.rfind("{", 0, start)
+    try:
+        data = json.loads(text[start:])
+        hosts = data.get("hosts") or []
+        if hosts and hosts[0]:
+            return str(hosts[0][0])
+    except json.JSONDecodeError:
+        pass
+    return ""
+
+
+def read_web_config() -> dict:
+    if not WEB_FILE.is_file():
+        config = dict(WEB_DEFAULTS)
+        config["default_daemon"] = default_daemon_from_hostlist()
+        return config
+    text = WEB_FILE.read_text(encoding="utf-8", errors="replace").strip()
+    start = text.find('{"base"')
+    if start == -1:
+        start = text.find("{", text.find("}") + 1 if "}" in text else 0)
+    return json.loads(text[start:])
+
+
+def write_web_config(config: dict) -> None:
+    WEB_FILE.write_text(
+        json.dumps(WEB_HEADER, indent=4) + json.dumps(config, indent=4) + "\n",
+        encoding="utf-8",
+    )
+
+
+config = read_web_config()
+if not config.get("default_daemon"):
+    config["default_daemon"] = default_daemon_from_hostlist()
 
 salt = secrets.token_hex(20)
-pwd_sha1 = hashlib.sha1((salt + WEB_PASSWORD).encode("utf-8")).hexdigest()
-web_text = WEB_FILE.read_text(encoding="utf-8", errors="replace")
-web_text = re.sub(r'"pwd_salt": "[^"]*"', f'"pwd_salt": "{salt}"', web_text, count=1)
-web_text = re.sub(r'"pwd_sha1": "[^"]*"', f'"pwd_sha1": "{pwd_sha1}"', web_text, count=1)
-web_text = re.sub(r'"first_login": true', '"first_login": false', web_text, count=1)
-WEB_FILE.write_text(web_text, encoding="utf-8")
+config["pwd_salt"] = salt
+config["pwd_sha1"] = hashlib.sha1((salt + WEB_PASSWORD).encode("utf-8")).hexdigest()
+config["first_login"] = False
+write_web_config(config)
 WEB_MARKER.write_text("bootstrapped-from-env\n", encoding="utf-8")
-print("[deluge-init] Web UI password configured from .env (login: admin)")
+print("[deluge-init] Web UI password configured from .env (login user: admin, not DELUGE_USERNAME)")
 PY
+
+if [[ -d /run/service/svc-deluge-web ]]; then
+  s6-svc -u /run/service/svc-deluge-web 2>/dev/null || true
+fi

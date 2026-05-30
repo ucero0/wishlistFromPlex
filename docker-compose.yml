@@ -111,6 +111,22 @@ services:
       retries: 2
       start_period: 10s
     restart: unless-stopped
+    labels:
+      - autoheal=true
+
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: autoheal
+    restart: always
+    environment:
+      # Only restart containers labeled autoheal=true (gluetun)
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      # Poll interval; gluetun healthcheck runs every 10s
+      - AUTOHEAL_INTERVAL=10
+      # Grace period after container start before autoheal may restart it (VPN connect can be slow)
+      - AUTOHEAL_START_PERIOD=120
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   deluge:
     image: linuxserver/deluge:latest

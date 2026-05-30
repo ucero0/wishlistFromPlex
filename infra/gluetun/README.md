@@ -7,8 +7,10 @@ Gluetun routes Deluge, Prowlarr, and FlareSolverr through NordVPN on the default
 | File | Purpose |
 |------|---------|
 | `entrypoint-wrapper.sh` | Starts health monitor, then runs Gluetun's default entrypoint |
-| `health-monitor-wrapper.sh` | Exits the container after repeated VPN health failures (triggers Docker restart) |
+| `health-monitor-wrapper.sh` | In-container monitor; exits gluetun after repeated VPN failures (Docker `restart: unless-stopped`) |
 | `monitor-health.sh` | Optional host-side monitor (uses `docker inspect`; not mounted in compose) |
+
+**Autoheal:** `docker-compose.yml` includes a [willfarrell/autoheal](https://hub.docker.com/r/willfarrell/autoheal) service. Gluetun is labeled `autoheal=true` so Docker restarts it when the healthcheck reports `unhealthy` (in addition to the in-container monitor).
 
 ## Not in Git (runtime)
 
