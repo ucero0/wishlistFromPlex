@@ -82,17 +82,27 @@ class ProcessPlexWatchlistDownloadsUseCase:
             )
 
         for entry in watchlist_entries:
-            should_skip, skip_reason = (
-                await self._should_skip_watchlist_item_query.execute(entry)
-            )
-            if should_skip:
-                if skip_reason == "already_in_library":
-                    result.skipped_already_in_library += 1
-                else:
-                    result.skipped_already_queued += 1
+            title = entry.item.title
+            try:
+                should_skip, skip_reason = (
+                    await self._should_skip_watchlist_item_query.execute(entry)
+                )
+                if should_skip:
+                    if skip_reason == "already_in_library":
+                        result.skipped_already_in_library += 1
+                    else:
+                        result.skipped_already_queued += 1
+                    continue
+
+                outcome = await self._process_watchlist_item_use_case.execute(entry)
+            except Exception:
+                logger.exception(
+                    "Watchlist item '%s' failed; continuing with remaining items",
+                    title,
+                )
+                result.send_failed += 1
                 continue
 
-            outcome = await self._process_watchlist_item_use_case.execute(entry)
             if outcome == WatchlistItemProcessOutcome.SENT_TO_DELUGE:
                 result.sent_to_deluge += 1
             elif outcome == WatchlistItemProcessOutcome.DEFERRED:

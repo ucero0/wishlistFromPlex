@@ -20,6 +20,12 @@ from app.infrastructure.http_errors import raise_mapped_httpx_error
 logger = logging.getLogger(__name__)
 
 
+def is_deluge_torrent_already_in_session(response_body: str) -> bool:
+    """True when Prowlarr/Deluge reject a duplicate add (HTTP 500, torrent already present)."""
+    lower = response_body.lower()
+    return "torrent already in session" in lower or "addtorrenterror" in lower
+
+
 class ProwlarrClient:
     """Client for interacting with Prowlarr API."""
 
@@ -140,9 +146,16 @@ class ProwlarrClient:
                 )
                 if response.status_code == 200:
                     return True
+                body = response.text
+                if is_deluge_torrent_already_in_session(body):
+                    logger.info(
+                        "Torrent already in Deluge session (idempotent grab for guid=%s)",
+                        guid,
+                    )
+                    return True
                 raise ProwlarrDownloadError(
                     f"Send to download client failed: HTTP {response.status_code} "
-                    f"{response.text[:200]}"
+                    f"{body[:200]}"
                 )
         except (ProwlarrDownloadError, ProwlarrConnectionError, ProwlarrOperationError):
             raise

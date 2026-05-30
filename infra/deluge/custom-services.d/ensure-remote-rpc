@@ -1,0 +1,10 @@
+#!/usr/bin/with-contenv bash
+# Apply allow_remote after the Deluge daemon has started (cont-init scripts must be executable too).
+set -euo pipefail
+
+until /scripts/ensure-deluge-remote-rpc.sh; do
+  echo "[deluge-init] Waiting for Deluge daemon before enabling remote RPC..." >&2
+  sleep 5
+done
+
+exec sleep infinity

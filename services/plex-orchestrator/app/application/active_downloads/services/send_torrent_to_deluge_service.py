@@ -35,6 +35,11 @@ class SendTorrentToDelugeService:
             torrent_result.title,
             time_added_threshold=time_added_threshold,
         )
+        if torrent is None and time_added_threshold is not None:
+            torrent = await self._get_torrent_by_name.execute(
+                torrent_result.title,
+                time_added_threshold=None,
+            )
         if torrent is None:
             logger.warning(
                 "Torrent not found in Deluge after send: %s",

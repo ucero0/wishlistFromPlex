@@ -78,9 +78,11 @@ Default password: `deluge`
 ## Troubleshooting
 
 ### Connection Refused
-- Init script sets `allow_remote: true` in `core.conf` on start
-- VPN stack: check Gluetun is healthy (`docker compose ps gluetun`)
-- No-VPN: check Deluge is running (`docker compose ps deluge`)
+- Init scripts in `custom-cont-init.d/` must be **executable** (`chmod +x`); they set `allow_remote: true` in `core.conf`
+- `custom-services.d/ensure-remote-rpc` restarts the daemon if RPC is still bound to `127.0.0.1` only
+- VPN stack: `DELUGE_HOST=gluetun`, port `58846` published on Gluetun; check `docker compose ps gluetun`
+- No-VPN: `DELUGE_HOST=deluge`, check Deluge is running (`docker compose ps deluge`)
+- From orchestrator: `docker exec plex-orchestrator python3 -c "from deluge_client import DelugeRPCClient; ..."` should connect
 
 ### VPN Not Working
 - Check Gluetun logs: `docker logs gluetun`

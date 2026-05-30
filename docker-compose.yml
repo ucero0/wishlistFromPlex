@@ -93,6 +93,7 @@ services:
       - FIREWALL_IPV6=off
     ports:
       - "${DELUGE_WEB_PORT:-8112}:${DELUGE_WEB_PORT:-8112}"
+      - "${DELUGE_PORT:-58846}:${DELUGE_PORT:-58846}"
       - "${PROWLARR_PORT:-9696}:${PROWLARR_PORT:-9696}"
     volumes:
       - ./infra/gluetun:/gluetun
