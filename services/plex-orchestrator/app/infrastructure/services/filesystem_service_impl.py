@@ -66,10 +66,21 @@ class FilesystemServiceImpl:
             "See docs/DOCKER_SETUP.md."
         )
 
+    def _resolve_move_destination(self, path: str) -> Path:
+        """Resolve a move target; the final path may not exist yet (only its parent must)."""
+        dest = Path(path).expanduser()
+        if dest.exists():
+            return self._resolve_path(path)
+        parent = dest.parent
+        if not parent or parent == dest:
+            return self._resolve_path(path)
+        resolved_parent = self._resolve_path(str(parent))
+        return resolved_parent / dest.name
+
     def move_file(self, source_path: str, destination_path: str) -> bool:
         try:
             source = self._resolve_path(source_path)
-            destination = self._resolve_path(destination_path)
+            destination = self._resolve_move_destination(destination_path)
             if not source.exists() or not source.is_file():
                 return False
             if not destination.parent.exists():
@@ -82,7 +93,7 @@ class FilesystemServiceImpl:
     def move_directory(self, source_path: str, destination_path: str) -> bool:
         try:
             source = self._resolve_path(source_path)
-            destination = self._resolve_path(destination_path)
+            destination = self._resolve_move_destination(destination_path)
             if not source.exists() or not source.is_dir():
                 return False
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -152,7 +163,7 @@ class FilesystemServiceImpl:
     def move(self, source_path: str, destination_path: str) -> bool:
         try:
             source = self._resolve_path(source_path)
-            destination = self._resolve_path(destination_path)
+            destination = self._resolve_move_destination(destination_path)
             if not source.exists():
                 return False
             if not destination.parent.exists():
@@ -166,7 +177,7 @@ class FilesystemServiceImpl:
         """Human-readable reason why ``move`` would fail (does not move files)."""
         try:
             source = self._resolve_path(source_path)
-            destination = self._resolve_path(destination_path)
+            destination = self._resolve_move_destination(destination_path)
         except ValueError as exc:
             return str(exc)
         if not source.exists():

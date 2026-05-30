@@ -58,3 +58,13 @@ def test_to_plex_path_strips_host_prefix():
     assert fs._to_plex_path("/host/mnt/media") == "/mnt/media"
     assert fs._to_plex_path("/host") == "/"
     assert fs._to_plex_path("/other/path") == "/other/path"
+
+
+def test_resolve_move_destination_allows_nonexistent_target(tmp_path):
+    host_root = tmp_path / "host"
+    library = host_root / "plex2" / "movies"
+    library.mkdir(parents=True)
+    fs = FilesystemServiceImpl("/tmp/quarantine", host_fs_prefix=str(host_root))
+    resolved = fs._resolve_move_destination("/plex2/movies/New Movie (2026)")
+    assert resolved == library / "New Movie (2026)"
+    assert not resolved.exists()
