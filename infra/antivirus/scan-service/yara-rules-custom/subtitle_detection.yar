@@ -35,7 +35,8 @@ rule Suspicious_Subtitle_Content
         $null_bytes = { 00 00 }
         
     condition:
-        // Match if file has subtitle extension and contains suspicious patterns
+        // Only subtitle sidecar files — never video containers (.mkv/.mp4 contain null bytes)
+        filepath matches /\.(srt|vtt|ass|ssa|sub)$/i and
         (
             // Script injection attempts
             (2 of ($script_tag*)) or
