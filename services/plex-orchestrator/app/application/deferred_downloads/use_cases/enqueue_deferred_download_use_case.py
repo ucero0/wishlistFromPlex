@@ -29,6 +29,9 @@ class EnqueueDeferredDownloadUseCase:
         entry: WatchlistItemForUser,
         torrent_result: TorrentSearchResult,
         search_query: str,
+        season: int | None = None,
+        episode: int | None = None,
+        episode_name: str | None = None,
     ) -> DeferredDownload:
         watchlist = entry.item
         reason = self._space_checker.defer_reason_for_torrent(torrent_result.size)
@@ -41,6 +44,9 @@ class EnqueueDeferredDownloadUseCase:
             size_bytes=torrent_result.size,
             magnet_url=torrent_result.magnetUrl,
             defer_reason=reason or "deferred",
+            season=season,
+            episode=episode,
+            episode_name=episode_name,
         )
         saved = await self._deferred_repo.upsert_pending(item)
         logger.info(

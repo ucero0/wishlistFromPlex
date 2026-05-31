@@ -25,6 +25,7 @@ class TMDBWatchlistResponse(BaseModel):
 
 class TMDBSeasonEpisode(BaseModel):
     episode_number: int
+    name: Optional[str] = None
 
 
 class TMDBSeasonDetailsResponse(BaseModel):

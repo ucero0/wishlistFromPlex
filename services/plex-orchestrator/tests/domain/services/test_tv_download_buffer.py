@@ -24,6 +24,22 @@ def test_filter_missing_starts_from_beginning_when_unwatched():
     assert filter_missing_for_ahead_buffer(catalog, missing, None, ahead_episodes=10) == missing
 
 
+def test_filter_missing_unwatched_uses_fixed_catalog_window():
+    catalog = [TvEpisode(season=1, episode=i) for i in range(1, 21)]
+    missing = catalog[10:]  # only E11+
+    assert filter_missing_for_ahead_buffer(
+        catalog, missing, None, ahead_episodes=10
+    ) == []
+
+
+def test_filter_missing_unwatched_keeps_gaps_inside_first_ten():
+    catalog = [TvEpisode(season=1, episode=i) for i in range(1, 21)]
+    missing = [catalog[2], catalog[9], catalog[15]]  # E03, E10, E16
+    assert filter_missing_for_ahead_buffer(
+        catalog, missing, None, ahead_episodes=10
+    ) == [catalog[2], catalog[9]]
+
+
 def test_filter_missing_caps_at_ahead_when_unwatched():
     catalog = [TvEpisode(season=1, episode=i) for i in range(1, 21)]
     missing = catalog.copy()

@@ -59,22 +59,31 @@ class ReconcileActiveDownloadsWithDelugeUseCase:
                 "reason": "deluge_unavailable",
             }
 
-        if not deluge_torrents_list:
-            logger.warning(
-                "Deluge returned no torrents while DB has entries; "
-                "skipping destructive sync to avoid accidental DB cleanup"
-            )
-            return {
-                "removed_count": 0,
-                "updated_count": 0,
-                "total_checked": len(db_torrents),
-                "skipped": True,
-                "reason": "deluge_empty_response",
-            }
-
         deluge_torrents_dict = {torrent.hash: torrent for torrent in deluge_torrents_list}
         deluge_hashes = set(deluge_torrents_dict.keys())
         logger.info("Found %s torrents in Deluge", len(deluge_hashes))
+
+        if not deluge_hashes:
+            removed_count = 0
+            for db_torrent in db_torrents:
+                logger.info(
+                    "Deluge has no torrents; removing stale DB row %s (hash: %s...)",
+                    db_torrent.title,
+                    db_torrent.uid[:8],
+                )
+                await self._delete_active_download_use_case.execute(db_torrent)
+                removed_count += 1
+            logger.info(
+                "Sync completed: %s removed, 0 updated out of %s checked",
+                removed_count,
+                len(db_torrents),
+            )
+            return {
+                "removed_count": removed_count,
+                "updated_count": 0,
+                "total_checked": len(db_torrents),
+                "skipped": False,
+            }
 
         removed_count = 0
         updated_count = 0

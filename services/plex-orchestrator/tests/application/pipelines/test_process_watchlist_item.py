@@ -15,21 +15,29 @@ from app.domain.models.tv_episode import TvEpisode
 
 
 class _FakeFindBestTorrent:
-    def __init__(self, results):
-        self._results = results
+    def __init__(self, results=None, results_by_query=None):
+        self._results_by_query = results_by_query or {}
+        self._default = results if results is not None else []
         self.calls: list[tuple] = []
 
     async def execute(self, search_query, media_type="movie"):
         self.calls.append((search_query, media_type))
-        return self._results
+        if search_query in self._results_by_query:
+            return self._results_by_query[search_query]
+        return self._default
 
 
 class _FakeBuildSearchQuery:
     async def execute(self, watchlist):
         return f"{watchlist.title} {watchlist.year}"
 
-    def build_tv_episode_search_query(self, watchlist, season, episode):
-        return f"{watchlist.title} S{season:02d}E{episode:02d}"
+    def build_tv_episode_search_queries(self, watchlist, episode):
+        if episode.name:
+            return [
+                f"{watchlist.title} S{episode.season:02d}E{episode.episode:02d} {episode.name}",
+                f"{watchlist.title} S{episode.season:02d}E{episode.episode:02d}",
+            ]
+        return [f"{watchlist.title} S{episode.season:02d}E{episode.episode:02d}"]
 
 
 class _FakeGetMissingTvEpisodes:
@@ -227,6 +235,39 @@ async def test_process_show_watchlist_downloads_first_missing_episode():
     assert create_uc.created[0].season == 1
     assert create_uc.created[0].episode == 2
     assert remove_uc.removed == []
+
+
+@pytest.mark.asyncio
+async def test_process_show_tries_episode_name_before_sxxexx():
+    create_uc = _FakeCreateActiveDownload()
+    find_best = _FakeFindBestTorrent(
+        results_by_query={
+            "Scrubs S01E01 My First Day": [],
+            "Scrubs S01E01": [_torrent_result()],
+        }
+    )
+    use_case = ProcessWatchlistItemUseCase(
+        watchlist_search_query_builder=_FakeBuildSearchQuery(),
+        find_best_torrent_query=find_best,
+        try_send_torrent_use_case=_FakeTryDownload(
+            [(True, Torrent(hash="a" * 40, file_name="Show.mkv", state="Downloading"), False)]
+        ),
+        create_active_download_use_case=create_uc,
+        remove_watchlist_entry_use_case=_FakeRemoveWatchlist(),
+        get_missing_tv_episodes_query=_FakeGetMissingTvEpisodes(
+            [TvEpisode(season=1, episode=1, name="My First Day")]
+        ),
+    )
+
+    outcome = await use_case.execute(
+        _entry(title="Scrubs", guid="plex://show/1", type=MediaType.SHOW, year=2001)
+    )
+
+    assert outcome == WatchlistItemProcessOutcome.SENT_TO_DELUGE
+    assert find_best.calls == [
+        ("Scrubs S01E01 My First Day", "tv"),
+        ("Scrubs S01E01", "tv"),
+    ]
 
 
 @pytest.mark.asyncio

@@ -62,6 +62,7 @@ class TrySendTorrentForWatchlistItemUseCase:
         *,
         season: int | None = None,
         episode: int | None = None,
+        episode_name: str | None = None,
     ) -> Tuple[bool, Optional[Torrent], bool]:
         watchlist = entry.item
         user_token = entry.user_token()
@@ -115,6 +116,9 @@ class TrySendTorrentForWatchlistItemUseCase:
                 entry=entry,
                 torrent_result=torrent_result,
                 search_query=search_query,
+                season=season,
+                episode=episode,
+                episode_name=episode_name,
             )
             return False, None, True
 

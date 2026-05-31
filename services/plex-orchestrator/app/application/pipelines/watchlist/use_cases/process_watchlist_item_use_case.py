@@ -103,17 +103,32 @@ class ProcessWatchlistItemUseCase:
 
         last_outcome = WatchlistItemProcessOutcome.NO_TORRENT
         for episode in missing:
-            search_query = (
-                self._watchlist_search_query_builder.build_tv_episode_search_query(
-                    watchlist, episode.season, episode.episode
+            search_queries = (
+                self._watchlist_search_query_builder.build_tv_episode_search_queries(
+                    watchlist, episode
                 )
             )
-            torrent_search_results = await self._find_best_torrent_query.execute(
-                search_query, media_type="tv"
-            )
+            torrent_search_results = []
+            search_query = ""
+            for query in search_queries:
+                torrent_search_results = await self._find_best_torrent_query.execute(
+                    query,
+                    media_type="tv",
+                    show_year=watchlist.year,
+                )
+                if torrent_search_results:
+                    search_query = query
+                    logger.info(
+                        "Found torrents for '%s' using query '%s'",
+                        watchlist.title,
+                        query,
+                    )
+                    break
             if not torrent_search_results:
                 logger.warning(
-                    "No torrent for %s (%s)", watchlist.title, search_query
+                    "No torrent for %s (tried: %s)",
+                    watchlist.title,
+                    search_queries,
                 )
                 continue
 
@@ -124,6 +139,7 @@ class ProcessWatchlistItemUseCase:
                 remove_watchlist_on_success=False,
                 season=episode.season,
                 episode=episode.episode,
+                episode_name=episode.name,
             )
             if outcome in (
                 WatchlistItemProcessOutcome.SENT_TO_DELUGE,
@@ -143,6 +159,7 @@ class ProcessWatchlistItemUseCase:
         remove_watchlist_on_success: bool,
         season: int | None = None,
         episode: int | None = None,
+        episode_name: str | None = None,
     ) -> WatchlistItemProcessOutcome:
         watchlist = entry.item
         user_token = entry.user_token()
@@ -155,6 +172,7 @@ class ProcessWatchlistItemUseCase:
                     search_query,
                     season=season,
                     episode=episode,
+                    episode_name=episode_name,
                 )
             )
             if deferred:
@@ -172,6 +190,7 @@ class ProcessWatchlistItemUseCase:
                         file_name=new_torrent.file_name,
                         season=season,
                         episode=episode,
+                        episode_name=episode_name,
                     )
                 )
                 return WatchlistItemProcessOutcome.SENT_TO_DELUGE

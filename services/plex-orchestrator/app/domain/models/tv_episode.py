@@ -7,3 +7,4 @@ class TvEpisode(BaseModel):
 
     season: int
     episode: int
+    name: str | None = None

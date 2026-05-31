@@ -64,6 +64,7 @@ class TmdbWatchlistAdapter(TmdbWatchlistProvider, TmdbShowCatalogProvider):
                     TvEpisode(
                         season=season.season_number,
                         episode=episode.episode_number,
+                        name=episode.name.strip() if episode.name else None,
                     )
                 )
         return sorted(episodes, key=lambda ep: (ep.season, ep.episode))

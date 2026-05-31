@@ -24,31 +24,30 @@ def filter_missing_for_ahead_buffer(
     ahead_episodes: int,
 ) -> list[TvEpisode]:
     """
-    When nobody has watched the show, download missing episodes from the start.
+    When nobody has watched the show, only missing episodes from the first
+    ``ahead_episodes`` catalog entries (fixed window from episode 1).
 
-    When any user has progress, only download missing episodes in the window
+    When any user has progress, only missing episodes in the window
     immediately after the furthest watched episode (up to ``ahead_episodes``).
     """
-    if not missing:
+    if not missing or not catalog:
         return []
 
     if latest_watched is None:
-        return missing[:ahead_episodes]
+        window = set(catalog[:ahead_episodes])
+        return [ep for ep in missing if ep in window]
 
-    catalog_keys = [ep for ep in catalog]
     try:
         latest_index = next(
             i
-            for i, ep in enumerate(catalog_keys)
+            for i, ep in enumerate(catalog)
             if ep.season == latest_watched.season
             and ep.episode == latest_watched.episode
         )
     except StopIteration:
-        return missing
+        return []
 
-    window = set(
-        catalog_keys[latest_index + 1 : latest_index + 1 + ahead_episodes]
-    )
+    window = set(catalog[latest_index + 1 : latest_index + 1 + ahead_episodes])
     if not window:
         return []
 

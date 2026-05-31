@@ -56,7 +56,29 @@ def test_show_file_uses_show_season_and_episode_filename():
     )
     normalized = path.replace("\\", "/")
     assert normalized == (
-        "/media/tv/Breaking Bad/Season 01/Breaking Bad - S01E02.mkv"
+        "/media/tv/Breaking Bad (2008)/Season 01/Breaking Bad - s01e02.mkv"
+    )
+
+
+def test_show_file_includes_episode_title_when_available():
+    resolver = IngestDestinationResolver()
+    path = resolver.resolve(
+        "/media/tv",
+        _movie_torrent(
+            title="Scrubs",
+            file_name="Scrubs.S01E01.mkv",
+            type="show",
+            season=1,
+            episode=1,
+            year=2001,
+            episode_name="My First Day",
+        ),
+        "/quarantine/Scrubs.S01E01.mkv",
+        is_file=True,
+    )
+    normalized = path.replace("\\", "/")
+    assert normalized == (
+        "/media/tv/Scrubs (2001)/Season 01/Scrubs - s01e01 - My First Day.mkv"
     )
 
 
@@ -75,11 +97,11 @@ def test_show_parses_season_episode_from_release_name_when_db_missing():
         is_file=True,
     )
     normalized = path.replace("\\", "/")
-    assert normalized.endswith("The Last of Us - S01E01.mkv")
+    assert normalized.endswith("The Last of Us - s01e01.mkv")
     assert "/The Last of Us/Season 01/" in normalized
 
 
-def test_show_folder_has_no_year_in_path():
+def test_show_folder_includes_year_when_available():
     resolver = IngestDestinationResolver()
     path = resolver.resolve(
         "/media/tv",
@@ -89,6 +111,23 @@ def test_show_folder_has_no_year_in_path():
             type="show",
             season=1,
             year=2008,
+        ),
+        "/quarantine/Breaking.Bad.S01E01",
+        is_file=False,
+    )
+    assert path.replace("\\", "/") == "/media/tv/Breaking Bad (2008)/Season 01"
+
+
+def test_show_folder_omits_year_when_unknown():
+    resolver = IngestDestinationResolver()
+    path = resolver.resolve(
+        "/media/tv",
+        _movie_torrent(
+            title="Breaking Bad",
+            file_name="Breaking.Bad.S01E01",
+            type="show",
+            season=1,
+            year=None,
         ),
         "/quarantine/Breaking.Bad.S01E01",
         is_file=False,

@@ -45,6 +45,7 @@ class ActiveDownloadItem(BaseModel):
     type: str
     season: Optional[int] = None
     episode: Optional[int] = None
+    episode_name: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -67,6 +68,9 @@ class DeferredDownloadItem(BaseModel):
     media_title: str
     year: Optional[int] = None
     media_type: str
+    season: Optional[int] = None
+    episode: Optional[int] = None
+    episode_name: Optional[str] = None
     search_query: Optional[str] = None
     size: Optional[str] = None
     status: str

@@ -76,7 +76,9 @@ def test_resolve_move_destination_allows_nested_new_show_folders(tmp_path):
     library.mkdir(parents=True)
     fs = FilesystemServiceImpl("/tmp/quarantine", host_fs_prefix=str(host_root))
     resolved = fs._resolve_move_destination(
-        "/plex2/tvshows/Scrubs/Season 01/Scrubs - S01E05.mkv"
+        "/plex2/tvshows/Scrubs (2001)/Season 01/Scrubs - s01e05 - My ABC's.mkv"
     )
-    assert resolved == library / "Scrubs" / "Season 01" / "Scrubs - S01E05.mkv"
+    assert resolved == (
+        library / "Scrubs (2001)" / "Season 01" / "Scrubs - s01e05 - My ABC's.mkv"
+    )
     assert not resolved.exists()

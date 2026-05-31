@@ -3,6 +3,18 @@ from app.domain.models.tv_episode import TvEpisode
 from app.domain.services.tv_download_buffer import is_episode_watched
 
 
+def _episode_from_metadata(ep: dict, season_num: int) -> TvEpisode | None:
+    ep_num = ep.get("index")
+    if ep_num is None:
+        return None
+    name = ep.get("title")
+    return TvEpisode(
+        season=int(season_num),
+        episode=int(ep_num),
+        name=str(name).strip() if name else None,
+    )
+
+
 def metadata_children_to_episodes(
     response_json: dict,
     *,
@@ -19,18 +31,18 @@ def metadata_children_to_episodes(
             for ep in item.get("Metadata") or []:
                 if ep.get("type") != "episode":
                     continue
-                ep_num = ep.get("index")
-                if ep_num is None:
-                    continue
-                episodes.append(TvEpisode(season=int(season_num), episode=int(ep_num)))
+                parsed = _episode_from_metadata(ep, int(season_num))
+                if parsed is not None:
+                    episodes.append(parsed)
         elif item.get("type") == "episode":
             season_num = item.get("parentIndex")
-            ep_num = item.get("index")
-            if season_num is None or ep_num is None:
+            if season_num is None:
                 continue
             if not include_specials and int(season_num) <= 0:
                 continue
-            episodes.append(TvEpisode(season=int(season_num), episode=int(ep_num)))
+            parsed = _episode_from_metadata(item, int(season_num))
+            if parsed is not None:
+                episodes.append(parsed)
     return episodes
 
 
@@ -58,10 +70,9 @@ async def crawl_show_episodes_from_discover(
         for ep in eps_json.get("MediaContainer", {}).get("Metadata") or []:
             if ep.get("type") != "episode":
                 continue
-            ep_num = ep.get("index")
-            if ep_num is None:
-                continue
-            episodes.append(TvEpisode(season=int(season_num), episode=int(ep_num)))
+            parsed = _episode_from_metadata(ep, int(season_num))
+            if parsed is not None:
+                episodes.append(parsed)
     return episodes
 
 
@@ -93,10 +104,9 @@ async def crawl_show_episodes_from_server(
         for ep in eps_json.get("MediaContainer", {}).get("Metadata") or []:
             if ep.get("type") != "episode":
                 continue
-            ep_num = ep.get("index")
-            if ep_num is None:
-                continue
-            episodes.append(TvEpisode(season=int(season_num), episode=int(ep_num)))
+            parsed = _episode_from_metadata(ep, int(season_num))
+            if parsed is not None:
+                episodes.append(parsed)
     return episodes
 
 
@@ -153,8 +163,7 @@ async def crawl_watched_show_episodes_from_server(
                 continue
             if not is_episode_watched(ep):
                 continue
-            ep_num = ep.get("index")
-            if ep_num is None:
-                continue
-            episodes.append(TvEpisode(season=int(season_num), episode=int(ep_num)))
+            parsed = _episode_from_metadata(ep, int(season_num))
+            if parsed is not None:
+                episodes.append(parsed)
     return episodes

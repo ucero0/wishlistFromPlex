@@ -84,8 +84,10 @@ class GetMissingTvEpisodesQuery:
         )
         if latest_watched is None:
             logger.info(
-                "No watch progress for '%s'; downloading from first missing episodes",
+                "No watch progress for '%s'; %s episode(s) in first-%s catalog buffer",
                 watchlist.title,
+                len(buffered),
+                settings.tv_watchlist_ahead_episodes,
             )
         else:
             logger.info(

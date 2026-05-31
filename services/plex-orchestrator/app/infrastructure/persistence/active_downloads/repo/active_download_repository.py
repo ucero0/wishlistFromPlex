@@ -154,6 +154,7 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
         orm.type = torrent.type
         orm.season = torrent.season
         orm.episode = torrent.episode
+        orm.episodeName = torrent.episode_name
         
         await self.session.flush()
         await self.session.refresh(orm)
@@ -196,6 +197,7 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
             type=orm.type,
             season=orm.season,
             episode=orm.episode,
+            episode_name=orm.episodeName,
             created_at=orm.created_at,
             updated_at=orm.updated_at,
         )
@@ -219,5 +221,6 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
             type=domain.type,
             season=domain.season,
             episode=domain.episode,
+            episodeName=domain.episode_name,
         )
 

@@ -16,6 +16,7 @@ _VIDEO_EXTENSIONS = {
 }
 
 _SEASON_EPISODE_RE = re.compile(r"[Ss](?P<season>\d{1,2})[Ee](?P<episode>\d{1,3})")
+_INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*]')
 
 
 class IngestDestinationResolver:
@@ -128,11 +129,22 @@ class IngestDestinationResolver:
 
     @staticmethod
     def _show_folder_name(torrent_download: ActiveDownload) -> str:
+        if torrent_download.year:
+            return f"{torrent_download.title} ({torrent_download.year})"
+        return torrent_download.title
+
+    @staticmethod
+    def _show_file_base_name(torrent_download: ActiveDownload) -> str:
+        """Episode filenames use the show title without the disambiguation year."""
         return torrent_download.title
 
     @staticmethod
     def _season_folder_name(season_num: int) -> str:
         return f"Season {season_num:02d}"
+
+    @staticmethod
+    def _sanitize_filename_part(value: str) -> str:
+        return _INVALID_FILENAME_CHARS.sub("", value).strip()
 
     def _movie_file_name(self, torrent_download: ActiveDownload, ext: str) -> str:
         base = self._movie_folder_name(torrent_download)
@@ -147,7 +159,13 @@ class IngestDestinationResolver:
         season, episode = self._resolve_season_episode(
             torrent_download, release_filename
         )
-        return f"{torrent_download.title} - S{season:02d}E{episode:02d}{ext}"
+        base = self._show_file_base_name(torrent_download)
+        episode_token = f"s{season:02d}e{episode:02d}"
+        if torrent_download.episode_name:
+            episode_title = self._sanitize_filename_part(torrent_download.episode_name)
+            if episode_title:
+                return f"{base} - {episode_token} - {episode_title}{ext}"
+        return f"{base} - {episode_token}{ext}"
 
     def _resolve_season_episode(
         self, torrent_download: ActiveDownload, release_filename: str

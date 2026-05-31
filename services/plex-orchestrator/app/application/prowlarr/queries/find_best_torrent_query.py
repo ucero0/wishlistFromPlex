@@ -1,8 +1,11 @@
 """Query for getting torrents from search results, ordered by score."""
 import logging
-from typing import Optional, List
+from typing import List
 from app.domain.ports.external.prowlarr.torrent_search_provider import TorrentSearchProvider
 from app.domain.services.torrent_quality_service import TorrentQualityService, MIN_SEEDERS
+from app.domain.services.tv_show_torrent_title_filter import (
+    torrent_title_conflicts_with_show_year,
+)
 from app.domain.models.torrent_search import TorrentSearchResult
 
 logger = logging.getLogger(__name__)
@@ -23,6 +26,8 @@ class GetBestTorrentsQuery:
         self,
         query: str,
         media_type: str = "movie",
+        *,
+        show_year: int | None = None,
     ) -> List[TorrentSearchResult]:
         """
         Search for torrents, process, score, and return all results ordered by score.
@@ -35,33 +40,48 @@ class GetBestTorrentsQuery:
             List of TorrentSearchResult objects ordered by quality score (highest first),
             or empty list if no results found
         """
-        # 1. Search via adapter
         results = await self.search_provider.search_torrents(query, media_type)
         if not results:
             return []
-        
-        # 2. Process and score (orchestration) - results are already sorted by score
-        processed_results = self._process_search_results(results)
-        return processed_results
-    
-    def _process_search_results(self, results: List[TorrentSearchResult]) -> List[TorrentSearchResult]:
+        return self._process_search_results(
+            results, media_type=media_type, show_year=show_year
+        )
+
+    def _process_search_results(
+        self,
+        results: List[TorrentSearchResult],
+        *,
+        media_type: str = "movie",
+        show_year: int | None = None,
+    ) -> List[TorrentSearchResult]:
         """Process and score TorrentSearchResult objects with quality information."""
         processed_results = []
         skipped_no_seeders = 0
-        
+        skipped_year_mismatch = 0
+
         logger.info(f"Processing {len(results)} validated search results")
-        
+
         for result in results:
             try:
                 title = result.title
                 seeders = result.seeders or 0
-                
+
+                if media_type == "tv" and torrent_title_conflicts_with_show_year(
+                    title, show_year
+                ):
+                    skipped_year_mismatch += 1
+                    logger.debug(
+                        "Skipping '%s' — title year does not match show year %s",
+                        title[:80],
+                        show_year,
+                    )
+                    continue
+
                 if seeders < MIN_SEEDERS:
                     skipped_no_seeders += 1
                     logger.debug(f"Skipping '{title[:50]}...' - seeders: {seeders}")
                     continue
                 
-                # Use domain service for quality parsing/scoring
                 quality_info = self.quality_service.parse_quality_from_title(title)
                 quality_score = self.quality_service.calculate_quality_score(
                     title, 
@@ -76,12 +96,16 @@ class GetBestTorrentsQuery:
                 logger.warning(f"Error processing search result: {e}")
                 continue
         
-        # Sort by quality score (highest first)
         processed_results.sort(key=lambda x: x.quality_score, reverse=True)
-        
+
+        if skipped_year_mismatch > 0:
+            logger.info(
+                "Skipped %s TV result(s) whose title year does not match show year %s",
+                skipped_year_mismatch,
+                show_year,
+            )
         if skipped_no_seeders > 0:
             logger.info(f"Skipped {skipped_no_seeders} results with seeders < {MIN_SEEDERS}")
         logger.info(f"Processed {len(processed_results)} valid results after filtering")
         
         return processed_results
-

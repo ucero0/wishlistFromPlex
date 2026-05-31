@@ -41,6 +41,7 @@ def to_active_download_item(row: ActiveDownload) -> ActiveDownloadItem:
         type=row.type,
         season=row.season,
         episode=row.episode,
+        episode_name=row.episode_name,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )

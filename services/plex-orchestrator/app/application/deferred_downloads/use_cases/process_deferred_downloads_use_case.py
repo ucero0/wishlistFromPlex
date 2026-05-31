@@ -77,13 +77,13 @@ class ProcessDeferredDownloadsUseCase:
             )
             return False
 
-        season = None
-        episode = None
-        if item.media_type == "show" and item.search_query:
+        season = item.season
+        episode = item.episode
+        if (season is None or episode is None) and item.search_query:
             parsed = parse_season_episode(item.search_query)
             if parsed:
-                season = parsed.season
-                episode = parsed.episode
+                season = season if season is not None else parsed.season
+                episode = episode if episode is not None else parsed.episode
 
         await self._create_active_download.execute(
             ActiveDownload(
@@ -102,6 +102,7 @@ class ProcessDeferredDownloadsUseCase:
                 type=item.media_type,
                 season=season,
                 episode=episode,
+                episode_name=item.episode_name,
             )
         )
         if item.id:

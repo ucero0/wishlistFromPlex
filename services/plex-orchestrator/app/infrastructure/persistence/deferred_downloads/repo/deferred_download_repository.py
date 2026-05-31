@@ -117,6 +117,9 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
             orm.media_title = item.media_title
             orm.year = item.year
             orm.media_type = item.media_type
+            orm.season = item.season
+            orm.episode = item.episode
+            orm.episodeName = item.episode_name
             orm.search_query = item.search_query
             orm.size_bytes = item.size_bytes
             orm.magnet_url = item.magnet_url
@@ -143,6 +146,9 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
                 media_title=item.media_title,
                 year=item.year,
                 media_type=item.media_type,
+                season=item.season,
+                episode=item.episode,
+                episodeName=item.episode_name,
                 search_query=item.search_query,
                 size_bytes=item.size_bytes,
                 magnet_url=item.magnet_url,
@@ -224,6 +230,9 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
             media_title=orm.media_title,
             year=orm.year,
             media_type=orm.media_type,
+            season=orm.season,
+            episode=orm.episode,
+            episode_name=orm.episodeName,
             search_query=orm.search_query,
             size_bytes=orm.size_bytes,
             magnet_url=orm.magnet_url,

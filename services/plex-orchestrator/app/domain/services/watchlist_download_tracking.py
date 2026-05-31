@@ -26,6 +26,7 @@ def active_download_from_watchlist_entry(
     file_name: str | None,
     season: int | None = None,
     episode: int | None = None,
+    episode_name: str | None = None,
 ) -> ActiveDownload:
     watchlist = entry.item
     return ActiveDownload(
@@ -46,6 +47,7 @@ def active_download_from_watchlist_entry(
         type=str(watchlist.type.value if hasattr(watchlist.type, "value") else watchlist.type),
         season=season,
         episode=episode,
+        episode_name=episode_name,
     )
 
 
@@ -59,6 +61,9 @@ def deferred_download_from_watchlist(
     size_bytes: int | None,
     magnet_url: str | None,
     defer_reason: str,
+    season: int | None = None,
+    episode: int | None = None,
+    episode_name: str | None = None,
 ) -> DeferredDownload:
     watchlist = entry.item
     media_type = str(
@@ -80,6 +85,9 @@ def deferred_download_from_watchlist(
         media_title=watchlist.title or "",
         year=watchlist.year,
         media_type=media_type,
+        season=season,
+        episode=episode,
+        episode_name=episode_name,
         search_query=search_query,
         size_bytes=size_bytes,
         magnet_url=magnet_url,

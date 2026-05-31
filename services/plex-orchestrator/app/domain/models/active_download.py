@@ -26,5 +26,6 @@ class ActiveDownload(BaseModel):
     type: str  # "movie" or "show"
     season: Optional[int] = None
     episode: Optional[int] = None
+    episode_name: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
