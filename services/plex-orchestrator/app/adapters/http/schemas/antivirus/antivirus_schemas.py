@@ -10,8 +10,12 @@ class ScanPathRequest(BaseModel):
 
 
 class ScanTorrentRequest(BaseModel):
-    """Request model for scanning a torrent."""
+    """Request model for scanning a torrent by Deluge hash."""
+
     torrent_hash: str
+    media_type: Optional[str] = None  # movie | show — hints for manual Deluge torrents
+    title: Optional[str] = None
+    year: Optional[int] = None
 
 
 # Response Schemas

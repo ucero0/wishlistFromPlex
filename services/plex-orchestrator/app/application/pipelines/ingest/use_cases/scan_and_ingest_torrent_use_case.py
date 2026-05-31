@@ -13,8 +13,8 @@ from app.application.pipelines.ingest.use_cases.ingest_clean_torrent_use_case im
 from app.application.pipelines.ingest.use_cases.scan_torrent_use_case import (
     ScanTorrentUseCase,
 )
-from app.application.active_downloads.queries.get_active_download_queries import (
-    GetActiveDownloadByUidQuery,
+from app.application.pipelines.ingest.queries.resolve_torrent_for_ingest_query import (
+    ResolveTorrentForIngestQuery,
 )
 from app.domain.models.antivirus_scan_status import (
     is_file_scan,
@@ -31,29 +31,44 @@ class ScanAndIngestTorrentUseCase:
 
     def __init__(
         self,
-        get_active_download_query: GetActiveDownloadByUidQuery,
+        resolve_torrent_for_ingest_query: ResolveTorrentForIngestQuery,
         scan_torrent_use_case: ScanTorrentUseCase,
         filesystem_service: FilesystemService,
         antivirus_repo: AntivirusRepoPort,
         handle_infected_torrent_use_case: HandleInfectedTorrentUseCase,
         ingest_clean_torrent_use_case: IngestCleanTorrentUseCase,
     ):
-        self._get_active_download_query = get_active_download_query
+        self._resolve_torrent = resolve_torrent_for_ingest_query
         self._scan_torrent_use_case = scan_torrent_use_case
         self._filesystem_service = filesystem_service
         self._antivirus_repo = antivirus_repo
         self._handle_infected_torrent_use_case = handle_infected_torrent_use_case
         self._ingest_clean_torrent_use_case = ingest_clean_torrent_use_case
 
-    async def execute(self, torrent_hash: str) -> ScanAndIngestTorrentResult:
-        torrent_download = await self._get_active_download_query.execute(torrent_hash)
-        if not torrent_download:
+    async def execute(
+        self,
+        torrent_hash: str,
+        *,
+        media_type: str | None = None,
+        title: str | None = None,
+        year: int | None = None,
+    ) -> ScanAndIngestTorrentResult:
+        resolved = await self._resolve_torrent.execute(
+            torrent_hash,
+            media_type=media_type,
+            title=title,
+            year=year,
+        )
+        if resolved is None:
             return ScanAndIngestTorrentResult(
                 status="error",
-                message=f"Could not find torrent download with hash {torrent_hash}",
+                message=(
+                    f"Could not find torrent {torrent_hash} in active downloads or Deluge"
+                ),
                 infected=False,
                 moved=False,
             )
+        torrent_download = resolved.active_download
 
         quarantine_root = self._filesystem_service.get_quarantine_path()
         pending = await self._antivirus_repo.get_clean_pending_ingest_by_guid_prowlarr(
@@ -87,7 +102,12 @@ class ScanAndIngestTorrentUseCase:
                     scan_skipped=True,
                 )
 
-        scan_result = await self._scan_torrent_use_case.execute(torrent_hash)
+        scan_result = await self._scan_torrent_use_case.execute(
+            torrent_hash,
+            media_type=media_type,
+            title=title,
+            year=year,
+        )
 
         if scan_result.status == "error":
             return ScanAndIngestTorrentResult(

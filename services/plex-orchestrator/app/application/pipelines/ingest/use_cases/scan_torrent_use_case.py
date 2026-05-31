@@ -9,8 +9,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from app.application.active_downloads.queries.get_active_download_queries import (
-    GetActiveDownloadByUidQuery,
+from app.application.pipelines.ingest.queries.resolve_torrent_for_ingest_query import (
+    ResolveTorrentForIngestQuery,
 )
 from app.domain.models.antivirus_scan import AntivirusScan
 from app.domain.models.scan_result import ScanResult
@@ -33,6 +33,7 @@ class ScanTorrentResult(BaseModel):
     scan_path: Optional[str] = None
     is_file: Optional[bool] = None
     torrent_download: Optional[ActiveDownload] = None
+    is_manual: bool = False
 
     class Config:
         frozen = False
@@ -43,24 +44,39 @@ class ScanTorrentUseCase:
 
     def __init__(
         self,
-        get_active_download_query: GetActiveDownloadByUidQuery,
+        resolve_torrent_for_ingest_query: ResolveTorrentForIngestQuery,
         filesystem_service: FilesystemService,
         antivirus_provider: AntivirusProvider,
         antivirus_repo: AntivirusRepoPort,
     ):
-        self._get_active_download_query = get_active_download_query
+        self._resolve_torrent = resolve_torrent_for_ingest_query
         self._filesystem_service = filesystem_service
         self._antivirus_provider = antivirus_provider
         self._antivirus_repo = antivirus_repo
 
-    async def execute(self, torrent_hash: str) -> ScanTorrentResult:
-        torrent_download = await self._get_active_download_query.execute(torrent_hash)
-        if not torrent_download:
+    async def execute(
+        self,
+        torrent_hash: str,
+        *,
+        media_type: str | None = None,
+        title: str | None = None,
+        year: int | None = None,
+    ) -> ScanTorrentResult:
+        resolved = await self._resolve_torrent.execute(
+            torrent_hash,
+            media_type=media_type,
+            title=title,
+            year=year,
+        )
+        if resolved is None:
             return ScanTorrentResult(
                 status="error",
-                message=f"Could not find torrent download with hash {torrent_hash}",
+                message=(
+                    f"Could not find torrent {torrent_hash} in active downloads or Deluge"
+                ),
                 infected=False,
             )
+        torrent_download = resolved.active_download
 
         scan_path = self._filesystem_service.get_quarantine_file_path(
             torrent_download.file_name
@@ -90,6 +106,7 @@ class ScanTorrentUseCase:
             scan_path=scan_path,
             is_file=is_file,
             torrent_download=torrent_download,
+            is_manual=resolved.is_manual,
         )
 
     def _remove_non_media_files_from(self, scan_path: str) -> None:

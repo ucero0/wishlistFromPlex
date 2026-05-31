@@ -43,7 +43,10 @@ async def scan_torrent(
     """
     Antivirus scan of a torrent's files only. Does NOT move files or touch Plex/Deluge.
 
-    1. Gets the torrent download by hash from the database
+    Resolves the torrent by hash from active downloads, or from Deluge when added manually.
+    Optional ``media_type``, ``title``, and ``year`` help classify manual torrents for ingest.
+
+    1. Resolves torrent context (DB row or Deluge)
     2. Scans files from the quarantine path with antivirus
     3. Persists the scan record
     4. Returns clean/infected/error
@@ -51,7 +54,12 @@ async def scan_torrent(
     Use **POST /pipelines/ingest/scan-and-ingest** to scan and then move to Plex library.
     """
     try:
-        result = await use_case.execute(request.torrent_hash)
+        result = await use_case.execute(
+            request.torrent_hash,
+            media_type=request.media_type,
+            title=request.title,
+            year=request.year,
+        )
         return ScanTorrentResponse(
             status=result.status,
             message=result.message,
@@ -74,17 +82,24 @@ async def scan_and_ingest_torrent(
 ):
     """
     Antivirus scan a torrent; if clean move to Plex library and trigger partial scan.
-    If infected, remove the torrent and re-add the item to the user's watchlist.
+
+    Resolves by hash from active downloads or Deluge (manual torrents). Optional
+    ``media_type``, ``title``, and ``year`` improve Plex library placement for manual adds.
 
     1. Scans the torrent (antivirus) unless a clean scan is already in the DB (pending move)
     2. If clean: moves to media path, removes from Deluge, triggers Plex partial scan,
-       then reconciles active-download tracking with Deluge (removes DB rows only when gone from Deluge)
-    3. If move fails or no disk space: status ``pending_move`` — torrent stays in Deluge and tracking is unchanged
-    4. If infected: blacklists release, removes torrent (with data), re-adds to watchlist,
-       then reconciles active-download tracking with Deluge
+       then reconciles active-download tracking with Deluge (tracked torrents only)
+    3. If move fails or no disk space: status ``pending_move`` — torrent stays in Deluge
+    4. If infected: blacklists release, removes torrent (with data); tracked downloads are
+       retried via Prowlarr, manual Deluge torrents are removed only
     """
     try:
-        result = await use_case.execute(request.torrent_hash)
+        result = await use_case.execute(
+            request.torrent_hash,
+            media_type=request.media_type,
+            title=request.title,
+            year=request.year,
+        )
         return ScanTorrentAndIngestResponse(**result.model_dump())
     except Exception as e:
         raise HTTPException(

@@ -17,6 +17,7 @@ from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_wi
 from app.domain.models.scan_result import ScanResult
 from app.domain.models.active_download import ActiveDownload
 from app.domain.ports.external.deluge.deluge_provider import DelugeProvider
+from app.domain.services.manual_torrent_tracking import is_manual_active_download
 
 logger = logging.getLogger(__name__)
 
@@ -51,26 +52,32 @@ class HandleInfectedTorrentUseCase:
         deleted = await self._deluge_provider.remove_torrent(
             torrent_hash, remove_data=True
         )
-        outcome = await self._retry_active_download.execute(
-            torrent_download, blacklist_reason="infected"
-        )
-        if outcome == RetryActiveDownloadOutcome.SUCCESS:
+        if is_manual_active_download(torrent_download):
             logger.info(
-                "Queued replacement torrent for infected download '%s'",
-                torrent_download.title,
-            )
-        elif outcome == RetryActiveDownloadOutcome.DEFERRED:
-            logger.info(
-                "Deferred replacement torrent for infected download '%s'",
+                "Manual Deluge torrent '%s' infected — blacklisted and removed, no retry",
                 torrent_download.title,
             )
         else:
-            logger.warning(
-                "No replacement torrent queued for infected download '%s' (%s)",
-                torrent_download.title,
-                outcome.value,
+            outcome = await self._retry_active_download.execute(
+                torrent_download, blacklist_reason="infected"
             )
-        await self._reconcile_active_downloads()
+            if outcome == RetryActiveDownloadOutcome.SUCCESS:
+                logger.info(
+                    "Queued replacement torrent for infected download '%s'",
+                    torrent_download.title,
+                )
+            elif outcome == RetryActiveDownloadOutcome.DEFERRED:
+                logger.info(
+                    "Deferred replacement torrent for infected download '%s'",
+                    torrent_download.title,
+                )
+            else:
+                logger.warning(
+                    "No replacement torrent queued for infected download '%s' (%s)",
+                    torrent_download.title,
+                    outcome.value,
+                )
+            await self._reconcile_active_downloads()
         return ScanAndIngestTorrentResult(
             status="infected",
             message=f"Found {len(scan_result.infected_files)} infected files",

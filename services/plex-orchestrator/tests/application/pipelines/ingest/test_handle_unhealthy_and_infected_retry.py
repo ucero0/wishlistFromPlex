@@ -120,3 +120,37 @@ async def test_handle_infected_blacklists_removes_and_retries():
     deluge.remove_torrent.assert_awaited_once_with("a" * 40, remove_data=True)
     retry.execute.assert_awaited_once()
     reconcile.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_infected_manual_skips_retry_and_reconcile():
+    deluge = AsyncMock()
+    deluge.remove_torrent = AsyncMock(return_value=True)
+    blacklist = AsyncMock()
+    blacklist.execute = AsyncMock()
+    retry = AsyncMock()
+    reconcile = AsyncMock()
+    use_case = HandleInfectedTorrentUseCase(
+        deluge, blacklist, retry, reconcile
+    )
+    manual = ActiveDownload(
+        plex_guid="manual://torrent/abc",
+        prowlarr_guid="manual:abc",
+        uid="abc",
+        title="Manual Movie",
+        type="movie",
+    )
+    scan = ScanResult(
+        is_infected=True,
+        infected_files=["/quarantine/bad.exe"],
+        virus_name="EICAR",
+        scanned_files=["/quarantine/bad.exe"],
+    )
+
+    result = await use_case.execute("abc", manual, scan)
+
+    assert result.status == "infected"
+    blacklist.execute.assert_awaited_once()
+    deluge.remove_torrent.assert_awaited_once_with("abc", remove_data=True)
+    retry.execute.assert_not_called()
+    reconcile.execute.assert_not_called()

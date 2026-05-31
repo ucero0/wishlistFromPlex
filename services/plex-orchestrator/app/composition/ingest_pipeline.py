@@ -19,6 +19,9 @@ from app.application.pipelines.ingest.use_cases.retry_active_download_use_case i
 from app.application.pipelines.ingest.use_cases.scan_and_ingest_torrent_use_case import (
     ScanAndIngestTorrentUseCase,
 )
+from app.application.pipelines.ingest.queries.resolve_torrent_for_ingest_query import (
+    ResolveTorrentForIngestQuery,
+)
 from app.application.pipelines.ingest.use_cases.scan_torrent_use_case import (
     ScanTorrentUseCase,
 )
@@ -36,7 +39,7 @@ from app.composition.active_downloads import (
     build_reconcile_active_downloads_with_deluge_use_case,
     build_update_active_download_use_case,
 )
-from app.composition.deluge import build_deluge_adapter, build_get_torrents_status_query
+from app.composition.deluge import build_deluge_adapter, build_get_torrents_status_query, build_get_torrent_status_query
 from app.composition.deferred_downloads import (
     build_enqueue_deferred_download_use_case,
     build_send_torrent_to_deluge_service,
@@ -95,9 +98,18 @@ def build_retry_active_download_use_case(
     )
 
 
+def build_resolve_torrent_for_ingest_query(
+    session: AsyncSession,
+) -> ResolveTorrentForIngestQuery:
+    return ResolveTorrentForIngestQuery(
+        get_active_download_by_uid_query=build_get_active_download_by_uid_query(session),
+        get_torrent_status_query=build_get_torrent_status_query(),
+    )
+
+
 def build_scan_torrent_use_case(session: AsyncSession) -> ScanTorrentUseCase:
     return ScanTorrentUseCase(
-        get_active_download_query=build_get_active_download_by_uid_query(session),
+        resolve_torrent_for_ingest_query=build_resolve_torrent_for_ingest_query(session),
         filesystem_service=build_filesystem_service(),
         antivirus_provider=build_antivirus_provider(),
         antivirus_repo=build_antivirus_repository(session),
@@ -142,7 +154,7 @@ def build_scan_and_ingest_torrent_use_case(
     session: AsyncSession,
 ) -> ScanAndIngestTorrentUseCase:
     return ScanAndIngestTorrentUseCase(
-        get_active_download_query=build_get_active_download_by_uid_query(session),
+        resolve_torrent_for_ingest_query=build_resolve_torrent_for_ingest_query(session),
         scan_torrent_use_case=build_scan_torrent_use_case(session),
         filesystem_service=build_filesystem_service(),
         antivirus_repo=build_antivirus_repository(session),
