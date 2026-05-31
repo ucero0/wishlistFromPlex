@@ -107,7 +107,7 @@ async def process_plex_watchlist_downloads(
     ``download_watch_list_media``).
 
     1. Release deferred torrents when download volume has space
-    2. Fetch watchlists for all active Plex users
+    2. Fetch watchlists for all active Plex and TMDB users
     3. Reconcile active downloads with Deluge
     4. For each item: skip if already in Plex library or queued; else search
        Prowlarr and send to Deluge

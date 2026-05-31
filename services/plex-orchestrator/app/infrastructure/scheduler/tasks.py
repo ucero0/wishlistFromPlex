@@ -2,6 +2,7 @@
 import asyncio
 import logging
 
+from app.composition.ingest_pipeline import build_process_deluge_torrents_use_case
 from app.composition.deferred_downloads import (
     build_process_deferred_downloads_use_case,
 )
@@ -56,6 +57,12 @@ async def run_sync_plex_library_paths_now():
         return await use_case.execute()
 
 
+async def run_deluge_torrent_maintenance_now():
+    async with async_session_scope() as session:
+        use_case = build_process_deluge_torrents_use_case(session)
+        return await use_case.execute()
+
+
 async def process_deferred_downloads_task():
     """Try to send queued torrents to Prowlarr when download volume has space."""
     try:
@@ -74,6 +81,32 @@ async def process_deferred_downloads_task():
         raise
     except Exception as e:
         logger.error("Error processing deferred torrents: %s", e, exc_info=True)
+        raise
+
+
+async def process_deluge_torrents_task():
+    """Ingest completed torrents, sync tracking, then remove unhealthy torrents."""
+    try:
+        logger.info("Running scheduled task: Deluge torrent maintenance (ingest + health)")
+        result = await run_deluge_torrent_maintenance_now()
+        logger.info(
+            "Deluge maintenance: completed=%s ingested=%s errors=%s "
+            "disk_stats_refreshed=%s tracking_updated=%s tracking_removed=%s unhealthy_removed=%s skipped_no_db=%s",
+            result.completed_checked,
+            result.ingested,
+            result.ingest_errors,
+            result.disk_stats_refreshed,
+            result.tracking_updated,
+            result.tracking_removed,
+            result.unhealthy_removed,
+            result.skipped_no_active_download,
+        )
+        return result
+    except asyncio.CancelledError:
+        logger.warning("Deluge torrent maintenance task was cancelled")
+        raise
+    except Exception as e:
+        logger.error("Error in Deluge torrent maintenance: %s", e, exc_info=True)
         raise
 
 
@@ -115,4 +148,8 @@ def register_scheduler_manual_runners(scheduler_service) -> None:
     scheduler_service.register_manual_runner(
         "process_deferred_downloads",
         run_deferred_downloads_now,
+    )
+    scheduler_service.register_manual_runner(
+        "process_deluge_torrents",
+        run_deluge_torrent_maintenance_now,
     )

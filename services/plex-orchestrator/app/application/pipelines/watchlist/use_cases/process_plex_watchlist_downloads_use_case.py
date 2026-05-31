@@ -8,6 +8,9 @@ from app.application.pipelines.watchlist.models.watchlist_download_run_result im
     ProcessPlexWatchlistDownloadsResult,
     WatchlistItemProcessOutcome,
 )
+from app.application.plex.queries.enrich_watchlist_with_plex_identity_query import (
+    EnrichWatchlistWithPlexIdentityQuery,
+)
 from app.application.pipelines.watchlist.queries.get_watchlists_for_active_users_query import (
     GetWatchlistsForActiveUsersQuery,
 )
@@ -22,6 +25,8 @@ from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_wi
 )
 from app.application.plex.queries.get_plex_users_query import GetPlexUserQuery
 from app.application.plex.queries.get_watchlist_query import GetWatchlistQuery
+from app.application.tmdb.queries.get_tmdb_users_query import GetTmdbUserQuery
+from app.application.tmdb.queries.get_tmdb_watchlist_query import GetTmdbWatchlistQuery
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +36,22 @@ class ProcessPlexWatchlistDownloadsUseCase:
         self,
         get_plex_user_query: GetPlexUserQuery,
         get_watchlist_query: GetWatchlistQuery,
+        get_tmdb_user_query: GetTmdbUserQuery,
+        get_tmdb_watchlist_query: GetTmdbWatchlistQuery,
         reconcile_active_downloads_use_case: ReconcileActiveDownloadsWithDelugeUseCase,
         process_deferred_downloads_use_case: ProcessDeferredDownloadsUseCase,
+        enrich_watchlist_with_plex_identity_query: EnrichWatchlistWithPlexIdentityQuery,
         should_skip_watchlist_item_query: ShouldSkipWatchlistItemQuery,
         process_watchlist_item_use_case: ProcessWatchlistItemUseCase,
     ):
         self._get_watchlists_for_active_users = GetWatchlistsForActiveUsersQuery(
-            get_plex_user_query, get_watchlist_query
+            get_plex_user_query,
+            get_watchlist_query,
+            get_tmdb_user_query,
+            get_tmdb_watchlist_query,
+        )
+        self._enrich_watchlist_with_plex_identity = (
+            enrich_watchlist_with_plex_identity_query
         )
         self._reconcile_active_downloads_use_case = reconcile_active_downloads_use_case
         self._process_deferred_downloads_use_case = (
@@ -60,6 +74,9 @@ class ProcessPlexWatchlistDownloadsUseCase:
             )
 
         watchlist_entries = await self._get_watchlists_for_active_users.execute()
+        watchlist_entries = await self._enrich_watchlist_with_plex_identity.execute(
+            watchlist_entries
+        )
         result.watchlist_entries = len(watchlist_entries)
 
         sync_result = await self._reconcile_active_downloads_use_case.execute()

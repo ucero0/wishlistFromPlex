@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from app.application.plex.use_cases.remove_watchlist_item_use_case import RemoveWatchlistItemUseCase
 from app.application.active_downloads.services.send_torrent_to_deluge_service import (
     SendTorrentToDelugeService,
 )
@@ -17,6 +16,7 @@ from app.domain.ports.repositories.deferred_downloads.deferred_download_reposito
     DeferredDownloadRepositoryPort,
 )
 from app.domain.services.download_volume_space_checker import DownloadVolumeSpaceChecker
+from app.domain.services.tv_episode_search_query import parse_season_episode
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +36,11 @@ class ProcessDeferredDownloadsUseCase:
         space_checker: DownloadVolumeSpaceChecker,
         send_to_deluge: SendTorrentToDelugeService,
         create_active_download: CreateActiveDownloadUseCase,
-        remove_watchlist_item: RemoveWatchlistItemUseCase,
     ):
         self._deferred_repo = deferred_repo
         self._space_checker = space_checker
         self._send_to_deluge = send_to_deluge
         self._create_active_download = create_active_download
-        self._remove_watchlist = remove_watchlist_item
 
     async def execute(self, *, limit: int = 20) -> ProcessDeferredDownloadsResult:
         pending = await self._deferred_repo.list_pending(limit=limit)
@@ -79,24 +77,34 @@ class ProcessDeferredDownloadsUseCase:
             )
             return False
 
+        season = None
+        episode = None
+        if item.media_type == "show" and item.search_query:
+            parsed = parse_season_episode(item.search_query)
+            if parsed:
+                season = parsed.season
+                episode = parsed.episode
+
         await self._create_active_download.execute(
             ActiveDownload(
                 plex_guid=item.guid_plex,
+                plex_library_guid=item.plex_library_guid,
                 watchlist_item_id=item.rating_key,
                 plex_user_token=item.plex_user_token,
+                watchlist_source=item.watchlist_source,
+                tmdb_media_id=item.tmdb_media_id,
+                tmdb_account_id=item.tmdb_account_id,
                 prowlarr_guid=item.guid_prowlarr,
                 uid=new_torrent.hash,
                 title=item.media_title,
                 file_name=new_torrent.file_name,
                 year=item.year,
                 type=item.media_type,
+                season=season,
+                episode=episode,
             )
         )
         if item.id:
             await self._deferred_repo.mark_sent(item.id)
-        if item.rating_key and item.plex_user_token:
-            await self._remove_watchlist.execute(
-                item.rating_key, item.plex_user_token
-            )
         logger.info("Released deferred torrent for '%s'", item.media_title)
         return True

@@ -34,6 +34,7 @@ from app.domain.errors.external import ExternalServiceError
 from app.composition.plex_library_paths import (
     build_sync_plex_library_paths_for_active_users_use_case,
 )
+from app.composition.tmdb_users import build_ensure_tmdb_user_from_env_use_case
 from app.factories.scheduler.scheduler_factory import create_scheduler_service
 from app.infrastructure.scheduler.access import bind_scheduler
 from app.infrastructure.persistence.database import async_session_scope
@@ -67,6 +68,16 @@ async def lifespan(_app: FastAPI):
             )
         except Exception as exc:
             logger.warning("Startup Plex library path sync failed: %s", exc)
+        try:
+            tmdb_user = await build_ensure_tmdb_user_from_env_use_case(session).execute()
+            if tmdb_user:
+                logger.info(
+                    "Startup TMDB user ready: name=%s account_id=%s",
+                    tmdb_user.name,
+                    tmdb_user.account_id,
+                )
+        except Exception as exc:
+            logger.warning("Startup TMDB user bootstrap from env failed: %s", exc)
     scheduler_service.start()
     logger.info("Startup complete")
     yield
@@ -200,6 +211,7 @@ async def root():
             "plex_media_hdd_db": "/plex/library-paths/media-devices",
             "deferred_downloads_process": "POST /tracking/deferred-downloads/process",
             "watchlist_downloads_run": "POST /scheduler/watchlist-downloads/run",
+            "deluge_maintenance_run": "POST /scheduler/jobs/process_deluge_torrents/run",
             "scheduler_jobs": "GET /scheduler/jobs",
             "deluge": "active",
             "antivirus": "active",

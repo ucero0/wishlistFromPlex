@@ -2,13 +2,15 @@
 import logging
 
 from app.application.blacklist_torrent.use_cases import AddTorrentToBlacklistUseCase
-from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_with_deluge_use_case import (
-    ReconcileActiveDownloadsWithDelugeUseCase,
-)
 from app.application.pipelines.ingest.models.scan_and_ingest_torrent_result import (
     ScanAndIngestTorrentResult,
 )
-from app.application.plex.use_cases.add_watchlist_item_use_case import AddWatchlistItemUseCase
+from app.application.pipelines.watchlist.use_cases.readd_watchlist_after_failure_use_case import (
+    ReaddWatchlistAfterFailureUseCase,
+)
+from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_with_deluge_use_case import (
+    ReconcileActiveDownloadsWithDelugeUseCase,
+)
 from app.domain.models.scan_result import ScanResult
 from app.domain.models.active_download import ActiveDownload
 from app.domain.ports.external.deluge.deluge_provider import DelugeProvider
@@ -21,12 +23,12 @@ class HandleInfectedTorrentUseCase:
         self,
         deluge_provider: DelugeProvider,
         add_torrent_to_blacklist_use_case: AddTorrentToBlacklistUseCase,
-        add_watchlist_item_use_case: AddWatchlistItemUseCase,
+        readd_watchlist_after_failure_use_case: ReaddWatchlistAfterFailureUseCase,
         reconcile_active_downloads_use_case: ReconcileActiveDownloadsWithDelugeUseCase,
     ):
         self._deluge_provider = deluge_provider
         self._add_torrent_to_blacklist_use_case = add_torrent_to_blacklist_use_case
-        self._add_watchlist_item_use_case = add_watchlist_item_use_case
+        self._readd_watchlist = readd_watchlist_after_failure_use_case
         self._reconcile_active_downloads_use_case = reconcile_active_downloads_use_case
 
     async def execute(
@@ -46,7 +48,10 @@ class HandleInfectedTorrentUseCase:
         deleted = await self._deluge_provider.remove_torrent(
             torrent_hash, remove_data=True
         )
-        await self._try_readd_to_watchlist(torrent_download)
+        try:
+            await self._readd_watchlist.execute(torrent_download)
+        except Exception as exc:
+            logger.error("Error adding item back to watchlist: %s", exc, exc_info=True)
         await self._reconcile_active_downloads()
         return ScanAndIngestTorrentResult(
             status="infected",
@@ -58,32 +63,6 @@ class HandleInfectedTorrentUseCase:
             scanned_files=scan_result.scanned_files,
             deleted=deleted,
         )
-
-    async def _try_readd_to_watchlist(self, torrent_download: ActiveDownload) -> None:
-        if not torrent_download.watchlist_item_id:
-            logger.warning(
-                "RatingKey not available for %s (plex_guid: %s). Cannot add back to watchlist.",
-                torrent_download.title,
-                torrent_download.plex_guid,
-            )
-            return
-        if not torrent_download.plex_user_token:
-            logger.warning(
-                "Plex user token not available for %s (plex_guid: %s). Cannot add back to watchlist.",
-                torrent_download.title,
-                torrent_download.plex_guid,
-            )
-            return
-        try:
-            await self._add_watchlist_item_use_case.execute(
-                torrent_download.watchlist_item_id,
-                torrent_download.plex_user_token,
-            )
-            logger.info(
-                "Added %s back to watchlist for re-download", torrent_download.title
-            )
-        except Exception as exc:
-            logger.error("Error adding item back to watchlist: %s", exc, exc_info=True)
 
     async def _reconcile_active_downloads(self) -> None:
         try:

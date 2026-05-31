@@ -12,8 +12,12 @@ DeferredDownloadStatus = Literal["pending", "sent", "cancelled", "failed"]
 class DeferredDownload(BaseModel):
     id: Optional[int] = None
     guid_plex: str
+    plex_library_guid: Optional[str] = None
     rating_key: Optional[str] = None
     plex_user_token: Optional[str] = None
+    watchlist_source: Optional[str] = None
+    tmdb_media_id: Optional[int] = None
+    tmdb_account_id: Optional[int] = None
     guid_prowlarr: str
     indexer_id: int
     torrent_title: str

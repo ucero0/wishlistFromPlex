@@ -18,9 +18,12 @@ from app.infrastructure.external_apis.tmdb.schemas import (
 )
 from app.infrastructure.http_errors import raise_mapped_httpx_error
 
+from app.infrastructure.external_apis.tmdb.jwt_utils import account_object_id_from_access_token
+
 logger = logging.getLogger(__name__)
 
 TMDB_API_BASE = "https://api.themoviedb.org/3"
+TMDB_V4_API_BASE = "https://api.themoviedb.org/4"
 
 
 class TMDBClient:
@@ -147,4 +150,172 @@ class TMDBClient:
                 operation_error_type=TMDBOperationError,
                 target=self._target(),
                 operation=f"search {media_type}",
+            )
+
+    def _auth_headers(self, access_token: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {access_token}"}
+
+    async def get_account(self, access_token: str) -> "TMDBAccountResponse":
+        from app.infrastructure.external_apis.tmdb.schemas import TMDBAccountResponse
+
+        self._ensure_api_key()
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/account",
+                    params={"api_key": self.api_key},
+                    headers=self._auth_headers(access_token),
+                )
+                response.raise_for_status()
+                return TMDBAccountResponse(**response.json())
+        except (TMDBConfigurationError, TMDBConnectionError, TMDBOperationError):
+            raise
+        except Exception as exc:
+            raise_mapped_httpx_error(
+                exc,
+                connection_error_type=TMDBConnectionError,
+                operation_error_type=TMDBOperationError,
+                target=self._target(),
+                operation="get account",
+            )
+
+    def _account_object_id(self, access_token: str) -> str:
+        account_object_id = account_object_id_from_access_token(access_token)
+        if not account_object_id:
+            raise TMDBOperationError(
+                "TMDB access token is missing a valid account object id (sub claim)"
+            )
+        return account_object_id
+
+    async def get_watchlist(
+        self, account_id: int, access_token: str
+    ) -> list["TMDBWatchlistItem"]:
+        from app.infrastructure.external_apis.tmdb.schemas import (
+            TMDBWatchlistItem,
+            TMDBWatchlistResponse,
+        )
+
+        self._ensure_api_key()
+        account_object_id = self._account_object_id(access_token)
+        items: list[TMDBWatchlistItem] = []
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                for media_type, path in (
+                    ("movie", "movie/watchlist"),
+                    ("tv", "tv/watchlist"),
+                ):
+                    page = 1
+                    total_pages = 1
+                    while page <= total_pages:
+                        response = await client.get(
+                            f"{TMDB_V4_API_BASE}/account/{account_object_id}/{path}",
+                            params={"api_key": self.api_key, "page": page},
+                            headers=self._auth_headers(access_token),
+                        )
+                        response.raise_for_status()
+                        payload = TMDBWatchlistResponse(**response.json())
+                        for raw in payload.results:
+                            item = raw.model_copy(update={"media_type": media_type})
+                            items.append(item)
+                        total_pages = max(payload.total_pages, 1)
+                        page += 1
+                return items
+        except (TMDBConfigurationError, TMDBConnectionError, TMDBOperationError):
+            raise
+        except Exception as exc:
+            raise_mapped_httpx_error(
+                exc,
+                connection_error_type=TMDBConnectionError,
+                operation_error_type=TMDBOperationError,
+                target=self._target(),
+                operation=f"get watchlist for account {account_id}",
+            )
+
+    async def remove_from_watchlist(
+        self,
+        account_id: int,
+        access_token: str,
+        media_type: str,
+        media_id: int,
+    ) -> None:
+        self._ensure_api_key()
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"{self.base_url}/account/{account_id}/watchlist",
+                    params={"api_key": self.api_key},
+                    headers=self._auth_headers(access_token),
+                    json={
+                        "media_type": media_type,
+                        "media_id": media_id,
+                        "watchlist": False,
+                    },
+                )
+                response.raise_for_status()
+        except (TMDBConfigurationError, TMDBConnectionError, TMDBOperationError):
+            raise
+        except Exception as exc:
+            raise_mapped_httpx_error(
+                exc,
+                connection_error_type=TMDBConnectionError,
+                operation_error_type=TMDBOperationError,
+                target=self._target(),
+                operation=f"remove {media_type}/{media_id} from watchlist",
+            )
+
+    async def add_to_watchlist(
+        self,
+        account_id: int,
+        access_token: str,
+        media_type: str,
+        media_id: int,
+    ) -> None:
+        self._ensure_api_key()
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"{self.base_url}/account/{account_id}/watchlist",
+                    params={"api_key": self.api_key},
+                    headers=self._auth_headers(access_token),
+                    json={
+                        "media_type": media_type,
+                        "media_id": media_id,
+                        "watchlist": True,
+                    },
+                )
+                response.raise_for_status()
+        except (TMDBConfigurationError, TMDBConnectionError, TMDBOperationError):
+            raise
+        except Exception as exc:
+            raise_mapped_httpx_error(
+                exc,
+                connection_error_type=TMDBConnectionError,
+                operation_error_type=TMDBOperationError,
+                target=self._target(),
+                operation=f"add {media_type}/{media_id} to watchlist",
+            )
+
+    async def get_tv_season(
+        self, tv_id: int, season_number: int
+    ) -> "TMDBSeasonDetailsResponse":
+        from app.infrastructure.external_apis.tmdb.schemas import TMDBSeasonDetailsResponse
+
+        self._ensure_api_key()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/tv/{tv_id}/season/{season_number}",
+                    params={"api_key": self.api_key},
+                )
+                response.raise_for_status()
+                return TMDBSeasonDetailsResponse(**response.json())
+        except (TMDBConfigurationError, TMDBConnectionError, TMDBOperationError):
+            raise
+        except Exception as exc:
+            raise_mapped_httpx_error(
+                exc,
+                connection_error_type=TMDBConnectionError,
+                operation_error_type=TMDBOperationError,
+                target=self._target(),
+                operation=f"get tv/{tv_id}/season/{season_number}",
             )

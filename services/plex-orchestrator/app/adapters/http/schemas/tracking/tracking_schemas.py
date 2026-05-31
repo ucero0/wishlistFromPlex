@@ -35,6 +35,7 @@ class ActiveDownloadItem(BaseModel):
 
     id: int
     guid_plex: str
+    plex_library_guid: Optional[str] = None
     rating_key: Optional[str] = None
     guid_prowlarr: str
     uid: str
@@ -58,6 +59,7 @@ class DeferredDownloadItem(BaseModel):
 
     id: int
     guid_plex: str
+    plex_library_guid: Optional[str] = None
     rating_key: Optional[str] = None
     guid_prowlarr: str
     indexer_id: int

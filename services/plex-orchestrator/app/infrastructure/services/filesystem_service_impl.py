@@ -67,15 +67,19 @@ class FilesystemServiceImpl:
         )
 
     def _resolve_move_destination(self, path: str) -> Path:
-        """Resolve a move target; the final path may not exist yet (only its parent must)."""
+        """Resolve a move target; the final path may not exist yet (an ancestor must)."""
         dest = Path(path).expanduser()
         if dest.exists():
             return self._resolve_path(path)
-        parent = dest.parent
-        if not parent or parent == dest:
-            return self._resolve_path(path)
-        resolved_parent = self._resolve_path(str(parent))
-        return resolved_parent / dest.name
+        parts = dest.parts
+        for i in range(len(parts) - 1, 0, -1):
+            ancestor = str(Path(*parts[:i]))
+            try:
+                resolved = self._resolve_path(ancestor)
+            except ValueError:
+                continue
+            return resolved / Path(*parts[i:])
+        return self._resolve_path(path)
 
     def move_file(self, source_path: str, destination_path: str) -> bool:
         try:

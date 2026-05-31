@@ -61,6 +61,8 @@ services:
       PROWLARR_PORT: ${PROWLARR_PORT:-9696}
       PROWLARR_API_KEY: ${PROWLARR_API_KEY}
       TMDB_API_KEY: ${TMDB_API_KEY}
+      TMDB_ACCESS_TOKEN: ${TMDB_ACCESS_TOKEN:-}
+      TMDB_USER_NAME: ${TMDB_USER_NAME:-default}
     ports:
       - "8000:8000"
     volumes:

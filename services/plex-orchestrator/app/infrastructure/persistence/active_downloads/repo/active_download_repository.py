@@ -1,7 +1,7 @@
 """Repository for torrent persistence operations."""
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, or_, select
 from app.domain.models.active_download import ActiveDownload
 from app.domain.services.media_identity import (
     normalize_media_type_for_queue_match,
@@ -39,9 +39,14 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
         return [self._to_domain(orm) for orm in orms]
     
     async def is_guid_plex_downloading(self, guid_plex: str) -> bool:
-        """Check if a Plex GUID has any active downloads."""
+        """Check if a watchlist or Plex library GUID has any active downloads."""
         stmt = select(
-            exists().where(ActiveDownloadOrm.guidPlex == guid_plex)
+            exists().where(
+                or_(
+                    ActiveDownloadOrm.guidPlex == guid_plex,
+                    ActiveDownloadOrm.plexGuid == guid_plex,
+                )
+            )
         )
         result = await self.session.execute(stmt)
         return bool(result.scalar())
@@ -81,6 +86,31 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
         result = await self.session.execute(stmt.limit(1))
         return result.scalar_one_or_none() is not None
 
+    async def has_episode_queued(
+        self,
+        plex_guid: str,
+        title: str,
+        season: int,
+        episode: int,
+    ) -> bool:
+        norm_title = normalize_title(title)
+        type_values = {"show", "tvshow"}
+        identity_clauses = [
+            ActiveDownloadOrm.guidPlex == plex_guid,
+            ActiveDownloadOrm.plexGuid == plex_guid,
+        ]
+        if norm_title:
+            identity_clauses.append(func.lower(ActiveDownloadOrm.title) == norm_title)
+
+        stmt = select(ActiveDownloadOrm).where(
+            ActiveDownloadOrm.season == season,
+            ActiveDownloadOrm.episode == episode,
+            ActiveDownloadOrm.type.in_(type_values),
+            or_(*identity_clauses),
+        )
+        result = await self.session.execute(stmt.limit(1))
+        return result.scalar_one_or_none() is not None
+
     async def get_by_type(self, media_type: str) -> List[ActiveDownload]:
         """Get all torrent downloads by media type (movie or show)."""
         result = await self.session.execute(
@@ -110,8 +140,12 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
             raise ValueError(f"Torrent download with id {torrent.id} not found")
         
         orm.guidPlex = torrent.plex_guid
+        orm.plexGuid = torrent.plex_library_guid
         orm.ratingKey = torrent.watchlist_item_id
         orm.plexUserToken = torrent.plex_user_token
+        orm.watchlistSource = torrent.watchlist_source
+        orm.tmdbMediaId = torrent.tmdb_media_id
+        orm.tmdbAccountId = torrent.tmdb_account_id
         orm.guidProwlarr = torrent.prowlarr_guid
         orm.uid = torrent.uid
         orm.title = torrent.title
@@ -148,8 +182,12 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
         return ActiveDownload(
             id=orm.id,
             plex_guid=orm.guidPlex,
+            plex_library_guid=orm.plexGuid,
             watchlist_item_id=orm.ratingKey,
             plex_user_token=orm.plexUserToken,
+            watchlist_source=orm.watchlistSource,
+            tmdb_media_id=orm.tmdbMediaId,
+            tmdb_account_id=orm.tmdbAccountId,
             prowlarr_guid=orm.guidProwlarr,
             uid=orm.uid,
             title=orm.title,
@@ -167,8 +205,12 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
         return ActiveDownloadOrm(
             id=domain.id,
             guidPlex=domain.plex_guid,
+            plexGuid=domain.plex_library_guid,
             ratingKey=domain.watchlist_item_id,
             plexUserToken=domain.plex_user_token,
+            watchlistSource=domain.watchlist_source,
+            tmdbMediaId=domain.tmdb_media_id,
+            tmdbAccountId=domain.tmdb_account_id,
             guidProwlarr=domain.prowlarr_guid,
             uid=domain.uid,
             title=domain.title,

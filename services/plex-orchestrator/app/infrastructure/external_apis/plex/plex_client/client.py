@@ -76,3 +76,31 @@ class PlexWatchlistClient:
                 response.raise_for_status()
         except Exception as exc:
             self._raise_plex_http_error(exc, "remove watchlist item")
+
+    async def get_metadata_raw(
+        self, rating_key: str, user_token: str
+    ) -> Dict[str, Any]:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{PLEX_DISCOVER_API}/library/metadata/{rating_key}",
+                    headers=self._headers(user_token),
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as exc:
+            self._raise_plex_http_error(exc, "get discover metadata")
+
+    async def get_metadata_children_raw(
+        self, rating_key: str, user_token: str
+    ) -> Dict[str, Any]:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{PLEX_DISCOVER_API}/library/metadata/{rating_key}/children",
+                    headers=self._headers(user_token),
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as exc:
+            self._raise_plex_http_error(exc, "get discover metadata children")

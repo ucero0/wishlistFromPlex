@@ -55,6 +55,8 @@ services:
       PROWLARR_API_KEY: ${PROWLARR_API_KEY}
       # TMDB configuration
       TMDB_API_KEY: ${TMDB_API_KEY}
+      TMDB_ACCESS_TOKEN: ${TMDB_ACCESS_TOKEN:-}
+      TMDB_USER_NAME: ${TMDB_USER_NAME:-default}
 
 
     ports:

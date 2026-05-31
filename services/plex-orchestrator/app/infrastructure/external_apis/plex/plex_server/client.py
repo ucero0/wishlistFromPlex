@@ -57,10 +57,15 @@ class PlexServerLibraryApiClient:
         media_type: Optional[int] = None,
         *,
         admin_token: str | None = None,
+        user_token: str | None = None,
     ) -> Dict[str, Any]:
+        if user_token:
+            token = user_token.strip()
+        else:
+            token = await self._admin_token(admin_token)
         params = {
             "guid": guid,
-            "X-Plex-Token": await self._admin_token(admin_token),
+            "X-Plex-Token": token,
         }
         if media_type is not None:
             params["type"] = media_type
@@ -107,14 +112,74 @@ class PlexServerLibraryApiClient:
         """Probe library/sections with a candidate token before persisting it."""
         await self.get_library_locations_by_media_raw(admin_token=admin_token)
 
+    async def search_library_by_title_raw(
+        self,
+        title: str,
+        media_type: int,
+        *,
+        year: int | None = None,
+        admin_token: str | None = None,
+        user_token: str | None = None,
+    ) -> PlexLibraryAllResponse:
+        if user_token:
+            token = user_token.strip()
+        else:
+            token = await self._admin_token(admin_token)
+        params: Dict[str, Any] = {
+            "title": title,
+            "type": media_type,
+            "X-Plex-Token": token,
+        }
+        if year is not None:
+            params["year"] = year
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    self.url_library_search,
+                    headers=self.plex_api_headers,
+                    params=params,
+                )
+                response.raise_for_status()
+                response_json = response.json()
+                return PlexLibraryAllResponse(
+                    MediaContainer=response_json.get("MediaContainer", {})
+                )
+        except Exception as exc:
+            self._raise_plex_http_error(exc, "library title search")
+
+    async def get_metadata_raw(
+        self,
+        rating_key: str,
+        *,
+        admin_token: str | None = None,
+        user_token: str | None = None,
+    ) -> dict[str, Any]:
+        url = f"{self.plex_server_url}/library/metadata/{rating_key}"
+        token = user_token if user_token else await self._admin_token(admin_token)
+        params = {"X-Plex-Token": token}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self.plex_api_headers,
+                    params=params,
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as exc:
+            self._raise_plex_http_error(exc, "get library metadata")
+
     async def get_library_items_raw(
         self,
         guid: str,
         media_type: Optional[int] = None,
         *,
         admin_token: str | None = None,
+        user_token: str | None = None,
     ) -> PlexLibraryAllResponse:
-        params = await self._build_params(guid, media_type, admin_token=admin_token)
+        params = await self._build_params(
+            guid, media_type, admin_token=admin_token, user_token=user_token
+        )
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
@@ -170,6 +235,28 @@ class PlexServerLibraryApiClient:
                 return PlexLibraryLocationsByMediaResponse(items=items)
         except Exception as exc:
             self._raise_plex_http_error(exc, "list library sections")
+
+    async def get_metadata_children_raw(
+        self,
+        rating_key: str,
+        *,
+        admin_token: str | None = None,
+        user_token: str | None = None,
+    ) -> dict[str, Any]:
+        url = f"{self.plex_server_url}/library/metadata/{rating_key}/children"
+        token = user_token if user_token else await self._admin_token(admin_token)
+        params = {"X-Plex-Token": token}
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self.plex_api_headers,
+                    params=params,
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as exc:
+            self._raise_plex_http_error(exc, "get library metadata children")
 
     async def partial_scan_library_raw(
         self,

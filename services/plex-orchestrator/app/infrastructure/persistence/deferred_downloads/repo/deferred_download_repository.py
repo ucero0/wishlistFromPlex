@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from app.domain.services.media_identity import (
     normalize_media_type_for_queue_match,
     normalize_title,
@@ -28,7 +28,12 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
     ) -> DeferredDownload | None:
         result = await self.session.execute(
             select(DeferredDownloadOrm)
-            .where(DeferredDownloadOrm.guid_plex == guid_plex)
+            .where(
+                or_(
+                    DeferredDownloadOrm.guid_plex == guid_plex,
+                    DeferredDownloadOrm.plex_guid == guid_plex,
+                )
+            )
             .where(DeferredDownloadOrm.status == "pending")
         )
         row = result.scalar_one_or_none()
@@ -82,8 +87,23 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
         )
         return [self._to_domain(r) for r in result.scalars().all()]
 
+    async def list_pending_by_guid_plex(
+        self, guid_plex: str
+    ) -> list[DeferredDownload]:
+        result = await self.session.execute(
+            select(DeferredDownloadOrm)
+            .where(
+                or_(
+                    DeferredDownloadOrm.guid_plex == guid_plex,
+                    DeferredDownloadOrm.plex_guid == guid_plex,
+                )
+            )
+            .where(DeferredDownloadOrm.status == "pending")
+        )
+        return [self._to_domain(r) for r in result.scalars().all()]
+
     async def upsert_pending(self, item: DeferredDownload) -> DeferredDownload:
-        existing = await self.get_pending_by_guid_plex(item.guid_plex)
+        existing = await self._find_existing_pending(item)
         if existing and existing.id:
             result = await self.session.execute(
                 select(DeferredDownloadOrm).where(
@@ -101,14 +121,22 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
             orm.size_bytes = item.size_bytes
             orm.magnet_url = item.magnet_url
             orm.defer_reason = item.defer_reason
+            orm.plex_guid = item.plex_library_guid
             orm.rating_key = item.rating_key
             orm.plex_user_token = item.plex_user_token
+            orm.watchlist_source = item.watchlist_source
+            orm.tmdb_media_id = item.tmdb_media_id
+            orm.tmdb_account_id = item.tmdb_account_id
             orm.status = "pending"
         else:
             orm = DeferredDownloadOrm(
                 guid_plex=item.guid_plex,
+                plex_guid=item.plex_library_guid,
                 rating_key=item.rating_key,
                 plex_user_token=item.plex_user_token,
+                watchlist_source=item.watchlist_source,
+                tmdb_media_id=item.tmdb_media_id,
+                tmdb_account_id=item.tmdb_account_id,
                 guid_prowlarr=item.guid_prowlarr,
                 indexer_id=item.indexer_id,
                 torrent_title=item.torrent_title,
@@ -125,6 +153,20 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
         await self.session.flush()
         await self.session.refresh(orm)
         return self._to_domain(orm)
+
+    async def _find_existing_pending(
+        self, item: DeferredDownload
+    ) -> DeferredDownload | None:
+        if item.media_type == "show" and item.search_query:
+            result = await self.session.execute(
+                select(DeferredDownloadOrm)
+                .where(DeferredDownloadOrm.status == "pending")
+                .where(DeferredDownloadOrm.guid_plex == item.guid_plex)
+                .where(DeferredDownloadOrm.search_query == item.search_query)
+            )
+            row = result.scalar_one_or_none()
+            return self._to_domain(row) if row else None
+        return await self.get_pending_by_guid_plex(item.guid_plex)
 
     async def mark_sent(self, item_id: int) -> None:
         result = await self.session.execute(
@@ -170,8 +212,12 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
         return DeferredDownload(
             id=orm.id,
             guid_plex=orm.guid_plex,
+            plex_library_guid=orm.plex_guid,
             rating_key=orm.rating_key,
             plex_user_token=orm.plex_user_token,
+            watchlist_source=orm.watchlist_source,
+            tmdb_media_id=orm.tmdb_media_id,
+            tmdb_account_id=orm.tmdb_account_id,
             guid_prowlarr=orm.guid_prowlarr,
             indexer_id=orm.indexer_id,
             torrent_title=orm.torrent_title,

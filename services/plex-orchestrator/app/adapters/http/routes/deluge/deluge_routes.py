@@ -3,12 +3,9 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.adapters.http.routes.deluge.helpers import (
-    DETAIL_NO_COMPLETED_TORRENTS,
-    DETAIL_NO_DOWNLOADING_TORRENTS,
     DETAIL_TORRENT_NAME_NOT_FOUND,
     DETAIL_TORRENT_NOT_FOUND,
     ensure_torrent_found,
-    ensure_torrents_found,
     to_torrent_response,
     to_torrent_responses,
 )
@@ -43,8 +40,7 @@ async def get_torrents(
 ):
     """Get all torrents from Deluge."""
     torrents = await query.execute()
-    found = ensure_torrents_found(torrents)
-    return to_torrent_responses(found)
+    return to_torrent_responses(torrents)
 
 
 @torrents_routes.get("/completed", response_model=List[DelugeTorrentStatusResponse])
@@ -53,9 +49,7 @@ async def get_completed_torrents(
 ):
     """Get only completed torrents from Deluge."""
     torrents = await query.execute()
-    return to_torrent_responses(
-        ensure_torrents_found(torrents, detail=DETAIL_NO_COMPLETED_TORRENTS)
-    )
+    return to_torrent_responses(torrents)
 
 
 @torrents_routes.get("/downloading", response_model=List[DelugeTorrentStatusResponse])
@@ -64,9 +58,7 @@ async def get_downloading_torrents(
 ):
     """Get only downloading torrents from Deluge."""
     torrents = await query.execute()
-    return to_torrent_responses(
-        ensure_torrents_found(torrents, detail=DETAIL_NO_DOWNLOADING_TORRENTS)
-    )
+    return to_torrent_responses(torrents)
 
 
 @torrents_routes.get("/by-hash/{hash}", response_model=DelugeTorrentStatusResponse)

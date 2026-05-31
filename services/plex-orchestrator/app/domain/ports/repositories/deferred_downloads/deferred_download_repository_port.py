@@ -26,6 +26,11 @@ class DeferredDownloadRepositoryPort(Protocol):
     async def list_pending(self, *, limit: int = 50) -> List[DeferredDownload]:
         ...
 
+    async def list_pending_by_guid_plex(
+        self, guid_plex: str
+    ) -> List[DeferredDownload]:
+        ...
+
     async def upsert_pending(self, item: DeferredDownload) -> DeferredDownload:
         """Create or replace the pending row for this Plex guid."""
         ...

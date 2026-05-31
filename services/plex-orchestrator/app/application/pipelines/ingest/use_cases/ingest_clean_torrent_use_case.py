@@ -8,7 +8,13 @@ from app.application.pipelines.ingest.models.scan_and_ingest_torrent_result impo
 from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_with_deluge_use_case import (
     ReconcileActiveDownloadsWithDelugeUseCase,
 )
+from app.application.pipelines.watchlist.use_cases.remove_watchlist_entry_use_case import (
+    RemoveWatchlistEntryUseCase,
+)
 from app.application.plex.use_cases.partial_scan_library_use_case import PartialScanLibraryUseCase
+from app.application.plex.use_cases.refresh_plex_library_disk_stats_use_case import (
+    RefreshPlexLibraryDiskStatsUseCase,
+)
 from app.application.plex.use_cases.sync_plex_library_paths_use_case import (
     SyncPlexLibraryPathsFromServerUseCase,
 )
@@ -39,7 +45,9 @@ class IngestCleanTorrentUseCase:
         destination_resolver: IngestDestinationResolver,
         partial_scan_library_use_case: PartialScanLibraryUseCase,
         sync_library_paths_use_case: SyncPlexLibraryPathsFromServerUseCase,
+        refresh_disk_stats_use_case: RefreshPlexLibraryDiskStatsUseCase,
         reconcile_active_downloads_use_case: ReconcileActiveDownloadsWithDelugeUseCase,
+        remove_watchlist_entry_use_case: RemoveWatchlistEntryUseCase,
     ):
         self._filesystem_service = filesystem_service
         self._antivirus_repo = antivirus_repo
@@ -48,7 +56,9 @@ class IngestCleanTorrentUseCase:
         self._destination_resolver = destination_resolver
         self._partial_scan_library_use_case = partial_scan_library_use_case
         self._sync_library_paths = sync_library_paths_use_case
+        self._refresh_disk_stats = refresh_disk_stats_use_case
         self._reconcile_active_downloads_use_case = reconcile_active_downloads_use_case
+        self._remove_watchlist_entry_use_case = remove_watchlist_entry_use_case
 
     async def execute(
         self,
@@ -63,6 +73,13 @@ class IngestCleanTorrentUseCase:
     ) -> ScanAndIngestTorrentResult:
         destination_path: str | None = None
         section_id: int | None = None
+        ingest_scan_path = scan_path
+        ingest_is_file = is_file
+        if not is_file:
+            video_files = self._filesystem_service.list_video_files(scan_path)
+            if len(video_files) == 1:
+                ingest_scan_path = video_files[0]
+                ingest_is_file = True
         try:
             try:
                 await self._sync_library_paths.execute()
@@ -70,8 +87,14 @@ class IngestCleanTorrentUseCase:
                 logger.warning(
                     "Could not refresh Plex library paths before ingest: %s", exc
                 )
+            try:
+                await self._refresh_disk_stats.execute()
+            except Exception as exc:
+                logger.warning(
+                    "Could not refresh library disk free space before ingest: %s", exc
+                )
             destination_path, section_id = await self._resolve_destination(
-                torrent_download, scan_path, is_file
+                torrent_download, ingest_scan_path, ingest_is_file
             )
         except (PlexLibraryPathNotConfiguredError, PlexLibraryPathNoSpaceError) as exc:
             error_detail = str(exc.message)
@@ -88,8 +111,8 @@ class IngestCleanTorrentUseCase:
                 planned_destination=destination_path,
             )
 
-        moved = self._filesystem_service.move(scan_path, destination_path)
-        if moved and not is_file:
+        moved = self._filesystem_service.move(ingest_scan_path, destination_path)
+        if moved and not ingest_is_file:
             renamed = self._destination_resolver.apply_plex_media_names(
                 destination_path,
                 torrent_download,
@@ -103,14 +126,15 @@ class IngestCleanTorrentUseCase:
                     destination_path,
                 )
         if moved:
+            await self._maybe_remove_watchlist_after_move(torrent_download)
             await self._deluge_provider.remove_torrent(torrent_hash, remove_data=False)
             await self._update_scan_with_destination(
-                scan_record, destination_path, is_file, clear_ingest_error=True
+                scan_record, destination_path, ingest_is_file, clear_ingest_error=True
             )
             await self._trigger_partial_scan(
                 section_id,
                 destination_path,
-                is_file,
+                ingest_is_file,
             )
             await self._reconcile_active_downloads()
 
@@ -125,7 +149,7 @@ class IngestCleanTorrentUseCase:
             planned_destination = None
         else:
             move_error = self._filesystem_service.explain_move_failure(
-                scan_path, destination_path
+                ingest_scan_path, destination_path
             )
             await self._record_ingest_failure(
                 scan_record, move_error, destination_path
@@ -222,6 +246,23 @@ class IngestCleanTorrentUseCase:
             )
         except Exception as exc:
             logger.error("Error triggering partial scan: %s", exc, exc_info=True)
+
+    async def _maybe_remove_watchlist_after_move(
+        self, torrent_download: ActiveDownload
+    ) -> None:
+        if torrent_download.type in ("show", "tvshow"):
+            return
+        try:
+            await self._remove_watchlist_entry_use_case.execute_from_active_download(
+                torrent_download
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to remove watchlist entry for '%s' after ingest: %s",
+                torrent_download.title,
+                exc,
+                exc_info=True,
+            )
 
     async def _reconcile_active_downloads(self) -> None:
         """Drop DB rows for torrents no longer in Deluge (e.g. after successful ingest)."""

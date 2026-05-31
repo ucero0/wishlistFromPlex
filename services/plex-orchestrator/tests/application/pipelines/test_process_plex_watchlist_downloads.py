@@ -65,14 +65,22 @@ class _FakeProcessItem:
         return self._outcomes.get(title, WatchlistItemProcessOutcome.SENT_TO_DELUGE)
 
 
+class _FakeEnrich:
+    async def execute(self, entries):
+        return entries
+
+
 @pytest.mark.asyncio
 async def test_continues_processing_after_item_raises():
     entries = [_entry("Fails", "1"), _entry("Works", "2")]
     use_case = ProcessPlexWatchlistDownloadsUseCase(
         get_plex_user_query=MagicMock(),
         get_watchlist_query=MagicMock(),
+        get_tmdb_user_query=MagicMock(),
+        get_tmdb_watchlist_query=MagicMock(),
         reconcile_active_downloads_use_case=_FakeReconcile(),
         process_deferred_downloads_use_case=_FakeDeferred(),
+        enrich_watchlist_with_plex_identity_query=_FakeEnrich(),
         should_skip_watchlist_item_query=_FakeShouldSkip(),
         process_watchlist_item_use_case=_FakeProcessItem(
             {"Fails": RuntimeError("Prowlarr down"), "Works": WatchlistItemProcessOutcome.SENT_TO_DELUGE}

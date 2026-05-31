@@ -3,11 +3,13 @@ import logging
 
 from app.domain.models.deferred_download import DeferredDownload
 from app.domain.models.torrent_search import TorrentSearchResult
+from app.domain.models.watchlist_item_for_user import WatchlistItemForUser
 from app.domain.ports.repositories.deferred_downloads.deferred_download_repository_port import (
     DeferredDownloadRepositoryPort,
 )
 from app.domain.services.download_volume_space_checker import DownloadVolumeSpaceChecker
 from app.domain.services.media_identity import normalize_media_type_for_queue_match
+from app.domain.services.watchlist_download_tracking import deferred_download_from_watchlist
 
 logger = logging.getLogger(__name__)
 
@@ -24,25 +26,17 @@ class EnqueueDeferredDownloadUseCase:
     async def execute(
         self,
         *,
-        watchlist,
-        user_token: str,
+        entry: WatchlistItemForUser,
         torrent_result: TorrentSearchResult,
         search_query: str,
     ) -> DeferredDownload:
+        watchlist = entry.item
         reason = self._space_checker.defer_reason_for_torrent(torrent_result.size)
-        item = DeferredDownload(
-            guid_plex=watchlist.guid,
-            rating_key=watchlist.rating_key,
-            plex_user_token=user_token,
+        item = deferred_download_from_watchlist(
+            entry,
             guid_prowlarr=torrent_result.guid or "",
             indexer_id=torrent_result.indexerId or 0,
             torrent_title=torrent_result.title,
-            media_title=watchlist.title,
-            year=watchlist.year,
-            media_type=normalize_media_type_for_queue_match(
-                str(watchlist.type.value if hasattr(watchlist.type, "value") else watchlist.type)
-            )
-            or "movie",
             search_query=search_query,
             size_bytes=torrent_result.size,
             magnet_url=torrent_result.magnetUrl,
@@ -50,9 +44,10 @@ class EnqueueDeferredDownloadUseCase:
         )
         saved = await self._deferred_repo.upsert_pending(item)
         logger.info(
-            "Deferred torrent for '%s' (plex=%s, prowlarr=%s): %s",
+            "Deferred torrent for '%s' (guid=%s, source=%s, prowlarr=%s): %s",
             watchlist.title,
             watchlist.guid,
+            entry.source.value,
             torrent_result.guid,
             saved.defer_reason,
         )

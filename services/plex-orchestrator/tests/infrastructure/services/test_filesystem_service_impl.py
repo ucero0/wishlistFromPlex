@@ -68,3 +68,15 @@ def test_resolve_move_destination_allows_nonexistent_target(tmp_path):
     resolved = fs._resolve_move_destination("/plex2/movies/New Movie (2026)")
     assert resolved == library / "New Movie (2026)"
     assert not resolved.exists()
+
+
+def test_resolve_move_destination_allows_nested_new_show_folders(tmp_path):
+    host_root = tmp_path / "host"
+    library = host_root / "plex2" / "tvshows"
+    library.mkdir(parents=True)
+    fs = FilesystemServiceImpl("/tmp/quarantine", host_fs_prefix=str(host_root))
+    resolved = fs._resolve_move_destination(
+        "/plex2/tvshows/Scrubs/Season 01/Scrubs - S01E05.mkv"
+    )
+    assert resolved == library / "Scrubs" / "Season 01" / "Scrubs - S01E05.mkv"
+    assert not resolved.exists()

@@ -98,13 +98,38 @@ def ensure_execute_hook() -> None:
             warn(f"Could not parse {EXECUTE_FILE}: {exc}; recreating execute hook config")
 
     commands = body.setdefault("commands", [])
+    hook_enabled = os.environ.get("DELUGE_EXECUTE_INGEST_HOOK", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     hook = ["", "complete", HOOK_COMMAND]
-    if not any(cmd[1:3] == hook[1:3] for cmd in commands if len(cmd) >= 3):
-        commands.append(hook)
+    filtered = [
+        cmd
+        for cmd in commands
+        if not (len(cmd) >= 3 and cmd[1:3] == hook[1:3])
+    ]
 
-    write_deluge_json(EXECUTE_FILE, header, body)
-    EXECUTE_MARKER.write_text("bootstrapped-from-repo\n", encoding="utf-8")
-    print(f"[deluge-init] Execute hook configured: complete -> {HOOK_COMMAND}")
+    if hook_enabled:
+        if not any(cmd[1:3] == hook[1:3] for cmd in filtered if len(cmd) >= 3):
+            filtered.append(hook)
+        write_deluge_json(EXECUTE_FILE, header, {**body, "commands": filtered})
+        EXECUTE_MARKER.write_text("bootstrapped-from-repo\n", encoding="utf-8")
+        print(f"[deluge-init] Execute hook configured: complete -> {HOOK_COMMAND}")
+        return
+
+    if len(filtered) != len(commands):
+        write_deluge_json(EXECUTE_FILE, header, {**body, "commands": filtered})
+        print(
+            "[deluge-init] Removed legacy Execute ingest hook "
+            "(orchestrator scheduler handles ingest)"
+        )
+        return
+
+    print(
+        "[deluge-init] Execute ingest hook disabled "
+        "(orchestrator scheduler handles ingest); set DELUGE_EXECUTE_INGEST_HOOK=true to enable"
+    )
 
 
 if not wait_for(CORE_FILE):

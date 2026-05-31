@@ -18,6 +18,9 @@ class ExternalDelugeTorrentStatusResponse(BaseModel):
     num_seeds: int
     save_path: Optional[str] = None
     time_added: Optional[float] = None  # Unix timestamp when torrent was added
+    distributed_copies: Optional[float] = None
+    time_since_download: Optional[float] = None
+    time_since_upload: Optional[float] = None
 
     @classmethod
     def fields(cls) -> list[str]:

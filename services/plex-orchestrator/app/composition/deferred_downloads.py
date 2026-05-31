@@ -17,7 +17,6 @@ from app.composition.infrastructure_services import build_download_volume_space_
 from app.composition.persistence import build_deferred_download_repository
 from app.composition.active_downloads import build_create_active_download_use_case
 from app.composition.deluge import build_get_torrent_by_name_query
-from app.composition.plex_external import build_remove_watchlist_item_use_case
 from app.composition.prowlarr import build_download_torrent_use_case
 
 
@@ -51,5 +50,4 @@ def build_process_deferred_downloads_use_case(
         build_download_volume_space_checker(),
         build_send_torrent_to_deluge_service(),
         build_create_active_download_use_case(session),
-        build_remove_watchlist_item_use_case(),
     )

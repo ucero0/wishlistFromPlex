@@ -34,6 +34,16 @@ class ActiveDownloadRepositoryPort(Protocol):
     ) -> bool:
         """True if any torrent row matches normalized title/year/type (another Plex user)."""
         ...
+
+    async def has_episode_queued(
+        self,
+        plex_guid: str,
+        title: str,
+        season: int,
+        episode: int,
+    ) -> bool:
+        """True if this show episode is already tracked in active_downloads."""
+        ...
     
     async def get_by_type(self, media_type: str) -> List[ActiveDownload]:
         """Get all torrent downloads by media type (movie or show)."""

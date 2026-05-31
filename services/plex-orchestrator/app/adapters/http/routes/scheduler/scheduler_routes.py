@@ -73,6 +73,9 @@ async def run_scheduler_job(
     elif hasattr(payload, "__dataclass_fields__"):
         if job_id == "process_deferred_downloads":
             response.deferred = asdict(payload)
+    elif hasattr(payload, "model_dump"):
+        if job_id == "process_deluge_torrents":
+            response.deluge_maintenance = payload.model_dump()
     elif isinstance(payload, dict):
         response.library_paths = payload
     return response

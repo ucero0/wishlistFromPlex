@@ -46,8 +46,9 @@ Public examples (no key): `GET /health`, some Deluge read-only routes — see ht
 **Automatic (scheduler):**
 
 - Watchlist → search → Deluge: runs on an interval (see scheduler in app startup logs).
-- Library path sync: every `PLEX_LIBRARY_PATHS_SYNC_INTERVAL_HOURS` (default 6).
+- Library path sync: every `PLEX_LIBRARY_PATHS_SYNC_INTERVAL_HOURS` (default 6). Also refreshes HDD free space into the database.
 - Deferred downloads: every `DEFERRED_DOWNLOAD_PROCESS_INTERVAL_MINUTES` (default 15).
+- Deluge ingest + health: every `INGEST_POLL_INTERVAL_MINUTES` (default 5). **Refreshes HDD free space before ingest**, then: ingest completed torrents → sync active-download tracking → remove unhealthy torrents (availability below `TORRENT_UNHEALTHY_MIN_AVAILABILITY`, default 1, or `time_since_download` greater than `TORRENT_UNHEALTHY_NO_TRANSFER_DAYS`, default 5). Each individual ingest move also refreshes free space again right before picking a destination folder.
 
 **Manual triggers:**
 
@@ -72,7 +73,14 @@ curl -X POST http://localhost:8000/prowlarr/search/by-query `
 
 ### 4. Scan and ingest
 
-After a torrent completes (files in quarantine):
+Completed torrents are picked up automatically by the **Deluge Ingest and Torrent Health** scheduler job. You can also trigger it manually:
+
+```powershell
+curl -X POST http://localhost:8000/scheduler/jobs/process_deluge_torrents/run `
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+Or ingest a single torrent by hash:
 
 ```powershell
 # Scan only

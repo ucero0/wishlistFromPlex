@@ -25,3 +25,4 @@ class MediaItem(BaseModel):
     title: Optional[str] = None
     year: Optional[int] = None
     type: Optional[MediaType] = None
+    plex_library_guid: Optional[str] = None

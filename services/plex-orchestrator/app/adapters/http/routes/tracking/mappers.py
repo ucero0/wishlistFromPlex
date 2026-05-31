@@ -31,6 +31,7 @@ def to_active_download_item(row: ActiveDownload) -> ActiveDownloadItem:
     return ActiveDownloadItem(
         id=row.id or 0,
         guid_plex=row.plex_guid,
+        plex_library_guid=row.plex_library_guid,
         rating_key=row.watchlist_item_id,
         guid_prowlarr=row.prowlarr_guid,
         uid=row.uid,

@@ -1,14 +1,16 @@
-"""TMDB connectivity routes."""
+"""TMDB connectivity and user routes."""
 from fastapi import APIRouter, Depends
 
 from app.adapters.http.mappers.external_service_http_mapper import (
     external_connection_to_json_response,
 )
+from app.adapters.http.routes.tmdb.tmdb_user_routes import tmdb_user_routes
 from app.adapters.http.schemas.tmdb.tmdb_schemas import TmdbConnectionResponse
 from app.application.tmdb.queries.test_tmdb_connection_query import TestTmdbConnectionQuery
 from app.factories.tmdb.tmdb_factory import create_test_tmdb_connection_query
 
 tmdbRoutes = APIRouter(prefix="/tmdb", tags=["tmdb"])
+tmdbRoutes.include_router(tmdb_user_routes)
 
 
 @tmdbRoutes.get("/test-connection", response_model=TmdbConnectionResponse)

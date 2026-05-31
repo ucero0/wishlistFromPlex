@@ -8,6 +8,9 @@ from app.application.plex.queries.get_plex_library_paths_disk_usage_from_db_quer
     GetPlexLibraryPathsDiskUsageFromDbQuery,
 )
 from app.application.plex.queries.list_plex_library_paths_flat_query import ListPlexLibraryPathsFlatQuery
+from app.application.plex.use_cases.refresh_plex_library_disk_stats_use_case import (
+    RefreshPlexLibraryDiskStatsUseCase,
+)
 from app.application.plex.use_cases.refresh_plex_library_paths_before_serve_use_case import (
     RefreshPlexLibraryPathsBeforeServeUseCase,
 )
@@ -43,6 +46,15 @@ def build_get_plex_library_media_devices_from_db_query(
 ) -> GetPlexLibraryMediaDevicesFromDbQuery:
     return GetPlexLibraryMediaDevicesFromDbQuery(
         build_plex_library_path_repository(session)
+    )
+
+
+def build_refresh_plex_library_disk_stats_use_case(
+    session: AsyncSession,
+) -> RefreshPlexLibraryDiskStatsUseCase:
+    return RefreshPlexLibraryDiskStatsUseCase(
+        build_plex_library_path_repository(session),
+        build_filesystem_service(),
     )
 
 

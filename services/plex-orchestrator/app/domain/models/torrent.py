@@ -32,6 +32,9 @@ class Torrent(BaseModel):
     download_speed: int = 0
     eta: Optional[int] = None
     time_added: Optional[float] = None  # Unix timestamp when torrent was added
+    availability: Optional[float] = None  # Deluge distributed_copies
+    time_since_download: Optional[float] = None  # Seconds since last download; -1 if active
+    time_since_upload: Optional[float] = None  # Seconds since last upload; -1 if active
 
     @property
     def is_finished(self) -> bool:

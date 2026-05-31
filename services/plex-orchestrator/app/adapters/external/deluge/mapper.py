@@ -14,6 +14,9 @@ def to_domain_torrent(rawTorrent: ExternalDelugeTorrentStatusResponse) -> Torren
             download_speed=rawTorrent.download_payload_rate,
             eta=rawTorrent.eta,
             time_added=rawTorrent.time_added,
+            availability=rawTorrent.distributed_copies,
+            time_since_download=rawTorrent.time_since_download,
+            time_since_upload=rawTorrent.time_since_upload,
         )
 
 def to_domain_list_torrents(rawTorrentsStatus: List[ExternalDelugeTorrentStatusResponse]) -> ListTorrents:

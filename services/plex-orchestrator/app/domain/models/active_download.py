@@ -12,8 +12,12 @@ class ActiveDownload(BaseModel):
 
     id: Optional[int] = None
     plex_guid: str
+    plex_library_guid: Optional[str] = None
     watchlist_item_id: Optional[str] = None
     plex_user_token: Optional[str] = None
+    watchlist_source: Optional[str] = None
+    tmdb_media_id: Optional[int] = None
+    tmdb_account_id: Optional[int] = None
     prowlarr_guid: str
     uid: str
     title: str

@@ -12,8 +12,12 @@ class ActiveDownloadOrm(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     guidPlex = Column(String, nullable=False, index=True)
+    plexGuid = Column(String, nullable=True, index=True)
     ratingKey = Column(String, nullable=True)
     plexUserToken = Column(String, nullable=True)
+    watchlistSource = Column(String, nullable=True)
+    tmdbMediaId = Column(Integer, nullable=True)
+    tmdbAccountId = Column(Integer, nullable=True)
     guidProwlarr = Column(String, nullable=False, index=True)
     uid = Column(String(40), unique=True, nullable=False, index=True)
     title = Column(String, nullable=False)
@@ -35,6 +39,7 @@ class ActiveDownloadOrm(Base):
         Index("idx_active_downloads_guid_prowlarr", "guidProwlarr"),
         Index("idx_active_downloads_uid", "uid"),
         Index("idx_active_downloads_type", "type"),
+        Index("idx_active_downloads_plex_guid", "plexGuid"),
     )
 
     def __repr__(self) -> str:

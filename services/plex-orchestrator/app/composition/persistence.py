@@ -14,6 +14,7 @@ from app.infrastructure.persistence.plex.repo.plex_library_path_repository impor
     PlexLibraryPathRepository,
 )
 from app.infrastructure.persistence.plex.repo.plex_user_repository import PlexUserRepository
+from app.infrastructure.persistence.tmdb.repo.tmdb_user_repository import TmdbUserRepository
 from app.infrastructure.persistence.plex.repo.plex_server_config_repository import (
     PlexServerConfigRepository,
 )
@@ -40,6 +41,10 @@ def build_deferred_download_repository(session: AsyncSession) -> DeferredDownloa
 
 def build_plex_user_repository(session: AsyncSession) -> PlexUserRepository:
     return PlexUserRepository(session)
+
+
+def build_tmdb_user_repository(session: AsyncSession) -> TmdbUserRepository:
+    return TmdbUserRepository(session)
 
 
 def build_plex_library_path_repository(session: AsyncSession) -> PlexLibraryPathRepository:

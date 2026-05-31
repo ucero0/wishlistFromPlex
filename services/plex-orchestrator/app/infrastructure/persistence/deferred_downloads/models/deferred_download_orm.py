@@ -10,8 +10,12 @@ class DeferredDownloadOrm(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     guid_plex = Column(String, nullable=False, index=True)
+    plex_guid = Column(String, nullable=True, index=True)
     rating_key = Column(String, nullable=True)
     plex_user_token = Column(String, nullable=True)
+    watchlist_source = Column(String, nullable=True)
+    tmdb_media_id = Column(Integer, nullable=True)
+    tmdb_account_id = Column(Integer, nullable=True)
     guid_prowlarr = Column(String, nullable=False)
     indexer_id = Column(Integer, nullable=False)
     torrent_title = Column(String, nullable=False)

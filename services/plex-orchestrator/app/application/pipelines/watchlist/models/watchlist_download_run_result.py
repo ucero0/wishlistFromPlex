@@ -54,3 +54,4 @@ class RunSchedulerJobResponse(BaseModel):
     watchlist_downloads: ProcessPlexWatchlistDownloadsResult | None = None
     deferred: dict | None = None
     library_paths: dict | None = None
+    deluge_maintenance: dict | None = None

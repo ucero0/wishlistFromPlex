@@ -4,6 +4,7 @@ from app.infrastructure.scheduler.scheduler_service import SchedulerService
 from app.infrastructure.scheduler.tasks import (
     download_watch_list_media_task,
     process_deferred_downloads_task,
+    process_deluge_torrents_task,
     register_scheduler_manual_runners,
     sync_plex_library_paths_task,
 )
@@ -34,6 +35,13 @@ def create_scheduler_service() -> SchedulerService:
         interval_minutes=deferred_interval,
         job_id="process_deferred_downloads",
         name="Process Deferred Torrent Downloads",
+    )
+    ingest_interval = max(1, settings.ingest_poll_interval_minutes)
+    scheduler_service.register_interval_task(
+        process_deluge_torrents_task,
+        interval_minutes=ingest_interval,
+        job_id="process_deluge_torrents",
+        name="Deluge Ingest and Torrent Health",
     )
     register_scheduler_manual_runners(scheduler_service)
     return scheduler_service

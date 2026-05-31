@@ -194,6 +194,7 @@ async def list_deferred_downloads(
         DeferredDownloadItem(
             id=r.id or 0,
             guid_plex=r.guid_plex,
+            plex_library_guid=r.plex_library_guid,
             rating_key=r.rating_key,
             guid_prowlarr=r.guid_prowlarr,
             indexer_id=r.indexer_id,
