@@ -6,6 +6,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.domain.models.watchlist_subscriber import WatchlistSubscriber
+
 DeferredDownloadStatus = Literal["pending", "sent", "cancelled", "failed"]
 
 
@@ -18,6 +20,7 @@ class DeferredDownload(BaseModel):
     watchlist_source: Optional[str] = None
     tmdb_media_id: Optional[int] = None
     tmdb_account_id: Optional[int] = None
+    watchlist_subscribers: list[WatchlistSubscriber] = Field(default_factory=list)
     guid_prowlarr: str
     indexer_id: int
     torrent_title: str

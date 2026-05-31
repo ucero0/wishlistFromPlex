@@ -55,12 +55,12 @@ class _FakeQueued:
 
 
     async def execute(self, guid_plex, **kwargs):
-
         if self._queued:
-
             return True, self._reason
-
         return False, None
+
+    async def execute_for_watchlist(self, watchlist, **kwargs):
+        return await self.execute(watchlist.guid or "", **kwargs)
 
 
 
@@ -70,7 +70,9 @@ class _FakeGetMissingTvEpisodes:
     def __init__(self, missing=None):
         self._missing = missing if missing is not None else [TvEpisode(season=1, episode=1)]
 
-    async def execute(self, watchlist, user_token, *, for_download=False):
+    async def execute(
+        self, watchlist, user_token, *, plex_user_token=None, for_download=False
+    ):
         return list(self._missing)
 
 
@@ -80,7 +82,7 @@ class _FakeRemove:
 
         self.removed: list[WatchlistItemForUser] = []
 
-    async def execute(self, entry: WatchlistItemForUser):
+    async def execute(self, entry: WatchlistItemForUser, **kwargs):
 
         self.removed.append(entry)
 

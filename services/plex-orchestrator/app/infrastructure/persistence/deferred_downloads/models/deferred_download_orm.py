@@ -1,5 +1,5 @@
 """ORM for torrents deferred until download volume has space."""
-from sqlalchemy import BigInteger, Column, DateTime, Integer, String
+from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Text
 from sqlalchemy.sql import func
 
 from app.infrastructure.persistence.base import Base
@@ -16,6 +16,7 @@ class DeferredDownloadOrm(Base):
     watchlist_source = Column(String, nullable=True)
     tmdb_media_id = Column(Integer, nullable=True)
     tmdb_account_id = Column(Integer, nullable=True)
+    watchlistSubscribers = Column(Text, nullable=True)
     guid_prowlarr = Column(String, nullable=False)
     indexer_id = Column(Integer, nullable=False)
     torrent_title = Column(String, nullable=False)

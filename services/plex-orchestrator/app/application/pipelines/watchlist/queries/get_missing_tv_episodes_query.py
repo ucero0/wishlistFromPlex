@@ -42,7 +42,7 @@ class GetMissingTvEpisodesQuery:
         *,
         plex_user_token: str | None = None,
         for_download: bool = False,
-    ) -> list[TvEpisode]:
+    ) -> list[TvEpisode] | None:
         catalog = await self._get_catalog_episodes_query.execute(
             watchlist, user_token, plex_user_token=plex_user_token
         )
@@ -50,7 +50,7 @@ class GetMissingTvEpisodesQuery:
             logger.warning(
                 "No episode catalog found for show '%s'", watchlist.title
             )
-            return []
+            return None
 
         owned = {
             (ep.season, ep.episode)
@@ -64,7 +64,7 @@ class GetMissingTvEpisodesQuery:
             key = (episode.season, episode.episode)
             if key in owned:
                 continue
-            if await self._is_episode_already_queued_query.execute_for_watchlist(
+            if for_download and await self._is_episode_already_queued_query.execute_for_watchlist(
                 watchlist, episode
             ):
                 continue

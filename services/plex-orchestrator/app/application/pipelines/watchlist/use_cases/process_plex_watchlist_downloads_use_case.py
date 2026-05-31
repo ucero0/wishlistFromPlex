@@ -27,6 +27,7 @@ from app.application.plex.queries.get_plex_users_query import GetPlexUserQuery
 from app.application.plex.queries.get_watchlist_query import GetWatchlistQuery
 from app.application.tmdb.queries.get_tmdb_users_query import GetTmdbUserQuery
 from app.application.tmdb.queries.get_tmdb_watchlist_query import GetTmdbWatchlistQuery
+from app.domain.services.group_watchlist_entries import group_watchlist_entries
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,7 @@ class ProcessPlexWatchlistDownloadsUseCase:
         watchlist_entries = await self._enrich_watchlist_with_plex_identity.execute(
             watchlist_entries
         )
+        watchlist_entries = group_watchlist_entries(watchlist_entries)
         result.watchlist_entries = len(watchlist_entries)
 
         sync_result = await self._reconcile_active_downloads_use_case.execute()

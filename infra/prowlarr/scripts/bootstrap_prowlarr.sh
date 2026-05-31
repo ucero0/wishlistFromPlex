@@ -10,7 +10,7 @@ DELUGE_PASS="${DELUGE_WEB_PASSWORD:-${DELUGE_PASSWORD:-}}"
 
 # Connection settings: docker-compose prowlarr service env (not seed.json)
 FLARE_URL="${FLARESOLVERR_URL:-${PROWLARR_BOOTSTRAP_FLARESOLVERR_URL:-http://127.0.0.1:8191}}"
-FLARE_TIMEOUT="${FLARESOLVERR_REQUEST_TIMEOUT:-${PROWLARR_BOOTSTRAP_FLARESOLVERR_TIMEOUT:-60}}"
+FLARE_TIMEOUT="${FLARESOLVERR_REQUEST_TIMEOUT:-${PROWLARR_BOOTSTRAP_FLARESOLVERR_TIMEOUT:-120}}"
 DELUGE_HOST="${PROWLARR_DELUGE_HOST:-${PROWLARR_BOOTSTRAP_DELUGE_HOST:-127.0.0.1}}"
 DELUGE_PORT="${PROWLARR_DELUGE_WEB_PORT:-${DELUGE_WEB_PORT:-${PROWLARR_BOOTSTRAP_DELUGE_PORT:-8112}}}"
 DELUGE_CATEGORY="${PROWLARR_DELUGE_CATEGORY:-prowlarr}"
@@ -229,6 +229,41 @@ ensure_indexers() {
   done
 }
 
+sync_indexer_flaresolverr_tags() {
+  local tag_id="$1"
+  local count i
+  count="$(jq '.indexers | length' "$SEED")"
+  for ((i = 0; i < count; i++)); do
+    local spec name use_flare existing_id want_tags current_tags payload
+    spec="$(jq -c ".indexers[$i]" "$SEED")"
+    name="$(echo "$spec" | jq -r '.name')"
+    use_flare="$(echo "$spec" | jq -r '.flaresolverr // false')"
+
+    existing_id="$(api "${API}/indexer" | jq -r --arg n "$name" 'first(.[] | select(.name == $n) | .id) // empty')"
+    if [[ -z "$existing_id" || "$existing_id" == "null" ]]; then
+      continue
+    fi
+
+    if [[ "$use_flare" == "true" ]]; then
+      want_tags="[$tag_id]"
+    else
+      want_tags="[]"
+    fi
+
+    current_tags="$(api "${API}/indexer/${existing_id}" | jq -c '.tags | sort')"
+    if [[ "$(echo "$want_tags" | jq -c 'sort')" == "$current_tags" ]]; then
+      continue
+    fi
+
+    payload="$(api "${API}/indexer/${existing_id}" | jq --argjson tags "$want_tags" '.tags = $tags')"
+    if api_json PUT "${API}/indexer/${existing_id}?forceSave=true" "$payload" >/dev/null 2>&1; then
+      log "Synced FlareSolverr tag for indexer '${name}'"
+    else
+      warn "Failed to sync FlareSolverr tag for indexer '${name}'"
+    fi
+  done
+}
+
 wait_for_api
 
 TAG_LABEL="$(seed_or_env "${PROWLARR_FLARESOLVERR_TAG:-}" '.tag.label')"
@@ -238,6 +273,7 @@ DELUGE_NAME="$(seed_or_env "${PROWLARR_DELUGE_CLIENT_NAME:-}" '.deluge.name')"
 TAG_ID="$(ensure_tag "$TAG_LABEL")"
 ensure_flaresolverr "$FLARE_NAME" "$TAG_ID"
 ensure_deluge "$DELUGE_NAME" || true
+sync_indexer_flaresolverr_tags "$TAG_ID"
 
 if [[ "$SYNC_INDEXERS" == "true" ]]; then
   ensure_indexers "$TAG_ID"

@@ -36,6 +36,7 @@ SOURCE_SCORES = {
 }
 
 MIN_SEEDERS = 2
+MIN_SEEDERS_RELAXED = 1
 
 
 class TorrentQualityService:

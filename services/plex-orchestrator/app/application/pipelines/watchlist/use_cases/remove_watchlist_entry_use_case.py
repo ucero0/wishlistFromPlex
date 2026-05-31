@@ -11,8 +11,13 @@ from app.domain.models.active_download import ActiveDownload
 from app.domain.models.deferred_download import DeferredDownload
 from app.domain.models.watchlist_item_for_user import WatchlistItemForUser
 from app.domain.models.watchlist_source import WatchlistSource
+from app.application.pipelines.watchlist.services.watchlist_search_builder import (
+    is_show_watchlist,
+)
+from app.domain.models.watchlist_subscriber import WatchlistSubscriber
 from app.domain.ports.external.tmdb.tmdb_watchlist_provider import TmdbWatchlistProvider
 from app.domain.services.tmdb_guid import parse_tmdb_guid
+from app.domain.services.watchlist_download_tracking import tmdb_media_id_from_item
 
 logger = logging.getLogger(__name__)
 
@@ -40,43 +45,73 @@ class RemoveWatchlistEntryUseCase:
         """Do not remove another platform's watchlist when only title/year matched."""
         return queue_reason not in _IDENTITY_QUEUE_REASONS
 
-    async def execute(self, entry: WatchlistItemForUser) -> None:
-        if entry.source == WatchlistSource.TMDB:
-            media_id = self._tmdb_media_id_from_entry(entry)
-            if (
-                media_id is None
-                or entry.tmdb_account_id is None
-                or not entry.tmdb_access_token
-            ):
+    async def execute(
+        self, entry: WatchlistItemForUser, *, removal_reason: str | None = None
+    ) -> None:
+        if is_show_watchlist(entry.item) and removal_reason != "show_complete":
+            logger.info(
+                "Not removing show '%s' from watchlist (reason=%s); "
+                "shows are only cleared when every catalog episode is owned in Plex",
+                entry.item.title,
+                removal_reason,
+            )
+            return
+
+        media_type = self._media_type_from_item(entry)
+        for subscriber in entry.all_subscribers():
+            await self._remove_subscriber(
+                entry.item.title or "",
+                media_type,
+                subscriber,
+            )
+
+    async def _remove_subscriber(
+        self,
+        title: str,
+        media_type: str,
+        subscriber: WatchlistSubscriber,
+    ) -> None:
+        if subscriber.source == WatchlistSource.TMDB:
+            media_id = subscriber.tmdb_media_id
+            if media_id is None:
                 return
-            media_type = self._media_type_from_item(entry)
+            if subscriber.tmdb_account_id is None or not subscriber.tmdb_access_token:
+                return
             await self._remove_tmdb.execute(
-                entry.tmdb_account_id,
-                entry.tmdb_access_token,
+                subscriber.tmdb_account_id,
+                subscriber.tmdb_access_token,
                 media_type,
                 media_id,
             )
             logger.info(
                 "Removed TMDB watchlist item %s (%s/%s) for account %s",
-                entry.item.title,
+                title,
                 media_type,
                 media_id,
-                entry.tmdb_account_id,
+                subscriber.tmdb_account_id,
             )
             return
 
-        if entry.item.rating_key and entry.plex_user_token:
-            await self._remove_plex.execute(
-                entry.item.rating_key, entry.plex_user_token
-            )
+        rating_key = subscriber.plex_watchlist_rating_key
+        if rating_key and subscriber.plex_user_token:
+            await self._remove_plex.execute(rating_key, subscriber.plex_user_token)
             logger.info(
-                "Removed Plex watchlist item %s (guid=%s, ratingKey=%s)",
-                entry.item.title,
-                entry.item.guid,
-                entry.item.rating_key,
+                "Removed Plex watchlist item %s (ratingKey=%s)",
+                title,
+                rating_key,
             )
 
     async def execute_from_active_download(self, download: ActiveDownload) -> None:
+        if download.watchlist_subscribers:
+            media_type = "tv" if download.type in ("show", "tvshow") else "movie"
+            for subscriber in download.watchlist_subscribers:
+                await self._remove_subscriber(
+                    download.title,
+                    media_type,
+                    subscriber,
+                )
+            return
+
         source = (download.watchlist_source or "").lower()
         if source == WatchlistSource.TMDB.value:
             await self._remove_tmdb_download(download)
@@ -99,6 +134,7 @@ class RemoveWatchlistEntryUseCase:
             watchlist_source=item.watchlist_source,
             tmdb_media_id=item.tmdb_media_id,
             tmdb_account_id=item.tmdb_account_id,
+            watchlist_subscribers=item.watchlist_subscribers,
             prowlarr_guid=item.guid_prowlarr,
             uid="",
             title=item.media_title,
@@ -163,10 +199,7 @@ class RemoveWatchlistEntryUseCase:
 
     @staticmethod
     def _tmdb_media_id_from_entry(entry: WatchlistItemForUser) -> int | None:
-        if entry.item.rating_key and entry.item.rating_key.isdigit():
-            return int(entry.item.rating_key)
-        parsed = parse_tmdb_guid(entry.item.guid or "")
-        return parsed[1] if parsed else None
+        return tmdb_media_id_from_item(entry)
 
     @staticmethod
     def _media_type_from_item(entry: WatchlistItemForUser) -> str:

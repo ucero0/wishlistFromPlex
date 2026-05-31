@@ -55,4 +55,14 @@ def test_filter_missing_only_in_ahead_window():
     result = filter_missing_for_ahead_buffer(
         catalog, missing, latest, ahead_episodes=10
     )
-    assert result == catalog[5:15]
+    assert result == catalog[:15]
+
+
+def test_filter_missing_includes_gaps_before_watch_progress():
+    catalog = [TvEpisode(season=1, episode=i) for i in range(1, 21)]
+    missing = [catalog[0], catalog[1], catalog[3], catalog[4], catalog[5]]
+    latest = TvEpisode(season=1, episode=3)
+    result = filter_missing_for_ahead_buffer(
+        catalog, missing, latest, ahead_episodes=10
+    )
+    assert result == [catalog[0], catalog[1], catalog[3], catalog[4], catalog[5]]

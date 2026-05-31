@@ -2,7 +2,11 @@
 import logging
 from typing import List
 from app.domain.ports.external.prowlarr.torrent_search_provider import TorrentSearchProvider
-from app.domain.services.torrent_quality_service import TorrentQualityService, MIN_SEEDERS
+from app.domain.services.torrent_quality_service import (
+    TorrentQualityService,
+    MIN_SEEDERS,
+    MIN_SEEDERS_RELAXED,
+)
 from app.domain.services.tv_show_torrent_title_filter import (
     torrent_title_conflicts_with_show_year,
 )
@@ -47,19 +51,17 @@ class GetBestTorrentsQuery:
             results, media_type=media_type, show_year=show_year
         )
 
-    def _process_search_results(
+    def _score_filtered_results(
         self,
         results: List[TorrentSearchResult],
         *,
-        media_type: str = "movie",
-        show_year: int | None = None,
-    ) -> List[TorrentSearchResult]:
-        """Process and score TorrentSearchResult objects with quality information."""
-        processed_results = []
+        media_type: str,
+        show_year: int | None,
+        min_seeders: int,
+    ) -> tuple[list[TorrentSearchResult], int, int]:
+        processed_results: list[TorrentSearchResult] = []
         skipped_no_seeders = 0
         skipped_year_mismatch = 0
-
-        logger.info(f"Processing {len(results)} validated search results")
 
         for result in results:
             try:
@@ -77,26 +79,68 @@ class GetBestTorrentsQuery:
                     )
                     continue
 
-                if seeders < MIN_SEEDERS:
+                if seeders < min_seeders:
                     skipped_no_seeders += 1
-                    logger.debug(f"Skipping '{title[:50]}...' - seeders: {seeders}")
+                    logger.debug(
+                        "Skipping '%s...' - seeders: %s (min %s)",
+                        title[:50],
+                        seeders,
+                        min_seeders,
+                    )
                     continue
-                
+
                 quality_info = self.quality_service.parse_quality_from_title(title)
                 quality_score = self.quality_service.calculate_quality_score(
-                    title, 
-                    quality_info, 
-                    seeders
+                    title,
+                    quality_info,
+                    seeders,
                 )
-                
+
                 result.quality_info = quality_info
                 result.quality_score = quality_score
                 processed_results.append(result)
             except Exception as e:
                 logger.warning(f"Error processing search result: {e}")
                 continue
-        
+
         processed_results.sort(key=lambda x: x.quality_score, reverse=True)
+        return processed_results, skipped_no_seeders, skipped_year_mismatch
+
+    def _process_search_results(
+        self,
+        results: List[TorrentSearchResult],
+        *,
+        media_type: str = "movie",
+        show_year: int | None = None,
+    ) -> List[TorrentSearchResult]:
+        """Process and score TorrentSearchResult objects with quality information."""
+        logger.info(f"Processing {len(results)} validated search results")
+
+        processed_results, skipped_no_seeders, skipped_year_mismatch = (
+            self._score_filtered_results(
+                results,
+                media_type=media_type,
+                show_year=show_year,
+                min_seeders=MIN_SEEDERS,
+            )
+        )
+
+        if not processed_results and results:
+            relaxed_results, relaxed_skipped_seeders, _ = self._score_filtered_results(
+                results,
+                media_type=media_type,
+                show_year=show_year,
+                min_seeders=MIN_SEEDERS_RELAXED,
+            )
+            if relaxed_results:
+                logger.info(
+                    "No results with seeders >= %s; relaxed to seeders >= %s (%s result(s))",
+                    MIN_SEEDERS,
+                    MIN_SEEDERS_RELAXED,
+                    len(relaxed_results),
+                )
+                processed_results = relaxed_results
+                skipped_no_seeders = relaxed_skipped_seeders
 
         if skipped_year_mismatch > 0:
             logger.info(
@@ -105,7 +149,11 @@ class GetBestTorrentsQuery:
                 show_year,
             )
         if skipped_no_seeders > 0:
-            logger.info(f"Skipped {skipped_no_seeders} results with seeders < {MIN_SEEDERS}")
+            logger.info(
+                "Skipped %s results with seeders below minimum (%s)",
+                skipped_no_seeders,
+                MIN_SEEDERS if processed_results else MIN_SEEDERS_RELAXED,
+            )
         logger.info(f"Processed {len(processed_results)} valid results after filtering")
-        
+
         return processed_results

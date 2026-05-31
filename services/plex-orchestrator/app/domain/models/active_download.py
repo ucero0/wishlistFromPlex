@@ -2,7 +2,9 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.domain.models.watchlist_subscriber import WatchlistSubscriber
 
 
 class ActiveDownload(BaseModel):
@@ -18,6 +20,7 @@ class ActiveDownload(BaseModel):
     watchlist_source: Optional[str] = None
     tmdb_media_id: Optional[int] = None
     tmdb_account_id: Optional[int] = None
+    watchlist_subscribers: list[WatchlistSubscriber] = Field(default_factory=list)
     prowlarr_guid: str
     uid: str
     title: str

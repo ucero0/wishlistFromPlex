@@ -3,6 +3,10 @@ from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import exists, func, or_, select
 from app.domain.models.active_download import ActiveDownload
+from app.domain.services.watchlist_subscriber_codec import (
+    subscribers_from_json,
+    subscribers_to_json,
+)
 from app.domain.services.media_identity import (
     normalize_media_type_for_queue_match,
     normalize_title,
@@ -146,6 +150,7 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
         orm.watchlistSource = torrent.watchlist_source
         orm.tmdbMediaId = torrent.tmdb_media_id
         orm.tmdbAccountId = torrent.tmdb_account_id
+        orm.watchlistSubscribers = subscribers_to_json(torrent.watchlist_subscribers)
         orm.guidProwlarr = torrent.prowlarr_guid
         orm.uid = torrent.uid
         orm.title = torrent.title
@@ -189,6 +194,7 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
             watchlist_source=orm.watchlistSource,
             tmdb_media_id=orm.tmdbMediaId,
             tmdb_account_id=orm.tmdbAccountId,
+            watchlist_subscribers=subscribers_from_json(orm.watchlistSubscribers),
             prowlarr_guid=orm.guidProwlarr,
             uid=orm.uid,
             title=orm.title,
@@ -213,6 +219,7 @@ class ActiveDownloadRepository(ActiveDownloadRepositoryPort):
             watchlistSource=domain.watchlist_source,
             tmdbMediaId=domain.tmdb_media_id,
             tmdbAccountId=domain.tmdb_account_id,
+            watchlistSubscribers=subscribers_to_json(domain.watchlist_subscribers),
             guidProwlarr=domain.prowlarr_guid,
             uid=domain.uid,
             title=domain.title,

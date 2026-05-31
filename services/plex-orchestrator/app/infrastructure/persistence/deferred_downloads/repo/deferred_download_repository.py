@@ -11,6 +11,10 @@ from app.domain.services.media_identity import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.deferred_download import DeferredDownload
+from app.domain.services.watchlist_subscriber_codec import (
+    subscribers_from_json,
+    subscribers_to_json,
+)
 from app.domain.ports.repositories.deferred_downloads.deferred_download_repository_port import (
     DeferredDownloadRepositoryPort,
 )
@@ -130,6 +134,7 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
             orm.watchlist_source = item.watchlist_source
             orm.tmdb_media_id = item.tmdb_media_id
             orm.tmdb_account_id = item.tmdb_account_id
+            orm.watchlistSubscribers = subscribers_to_json(item.watchlist_subscribers)
             orm.status = "pending"
         else:
             orm = DeferredDownloadOrm(
@@ -140,6 +145,7 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
                 watchlist_source=item.watchlist_source,
                 tmdb_media_id=item.tmdb_media_id,
                 tmdb_account_id=item.tmdb_account_id,
+                watchlistSubscribers=subscribers_to_json(item.watchlist_subscribers),
                 guid_prowlarr=item.guid_prowlarr,
                 indexer_id=item.indexer_id,
                 torrent_title=item.torrent_title,
@@ -224,6 +230,7 @@ class DeferredDownloadRepository(DeferredDownloadRepositoryPort):
             watchlist_source=orm.watchlist_source,
             tmdb_media_id=orm.tmdb_media_id,
             tmdb_account_id=orm.tmdb_account_id,
+            watchlist_subscribers=subscribers_from_json(orm.watchlistSubscribers),
             guid_prowlarr=orm.guid_prowlarr,
             indexer_id=orm.indexer_id,
             torrent_title=orm.torrent_title,

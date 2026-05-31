@@ -1,5 +1,5 @@
 """ORM model for active downloads tracked in PostgreSQL."""
-from sqlalchemy import Column, DateTime, Index, Integer, String
+from sqlalchemy import Column, DateTime, Index, Integer, String, Text
 from sqlalchemy.sql import func
 
 from app.infrastructure.persistence.base import Base
@@ -18,6 +18,7 @@ class ActiveDownloadOrm(Base):
     watchlistSource = Column(String, nullable=True)
     tmdbMediaId = Column(Integer, nullable=True)
     tmdbAccountId = Column(Integer, nullable=True)
+    watchlistSubscribers = Column(Text, nullable=True)
     guidProwlarr = Column(String, nullable=False, index=True)
     uid = Column(String(40), unique=True, nullable=False, index=True)
     title = Column(String, nullable=False)

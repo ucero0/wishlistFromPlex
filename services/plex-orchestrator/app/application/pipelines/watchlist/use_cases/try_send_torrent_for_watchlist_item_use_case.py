@@ -105,7 +105,9 @@ class TrySendTorrentForWatchlistItemUseCase:
                     if self._remove_watchlist_entry_use_case.should_remove_when_already_queued(
                         queue_reason
                     ):
-                        await self._remove_watchlist_entry_use_case.execute(entry)
+                        await self._remove_watchlist_entry_use_case.execute(
+                            entry, removal_reason="already_queued"
+                        )
                     return False, None, True
 
         ok, _, _ = self._download_volume_space_checker.has_space_for_torrent(

@@ -36,6 +36,12 @@
       "priority": 25
     },
     {
+      "definition": "52bt",
+      "name": "52BT",
+      "flaresolverr": true,
+      "priority": 25
+    },
+    {
       "definition": "thepiratebay",
       "name": "The Pirate Bay",
       "flaresolverr": false,

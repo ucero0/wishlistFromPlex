@@ -51,7 +51,9 @@ class ShouldSkipWatchlistItemQuery:
                 "Removing %s from watchlist because it is already in the library",
                 watchlist.title,
             )
-            await self._remove_watchlist_entry_use_case.execute(entry)
+            await self._remove_watchlist_entry_use_case.execute(
+                entry, removal_reason="already_in_library"
+            )
             return True, "already_in_library"
 
         queued, queue_reason = await self._is_media_already_queued_query.execute_for_watchlist(
@@ -66,7 +68,9 @@ class ShouldSkipWatchlistItemQuery:
             if self._remove_watchlist_entry_use_case.should_remove_when_already_queued(
                 queue_reason
             ):
-                await self._remove_watchlist_entry_use_case.execute(entry)
+                await self._remove_watchlist_entry_use_case.execute(
+                    entry, removal_reason="already_queued"
+                )
             return True, queue_reason or "already_queued"
 
         return False, None
@@ -80,12 +84,16 @@ class ShouldSkipWatchlistItemQuery:
             entry.user_token() or "",
             plex_user_token=entry.plex_user_token,
         )
+        if missing is None:
+            return False, None
         if not missing:
             logger.info(
-                "Removing '%s' from watchlist — all catalog episodes present or queued",
+                "Removing '%s' from watchlist — all catalog episodes owned in Plex",
                 watchlist.title,
             )
-            await self._remove_watchlist_entry_use_case.execute(entry)
+            await self._remove_watchlist_entry_use_case.execute(
+                entry, removal_reason="show_complete"
+            )
             return True, "show_complete"
 
         return False, None

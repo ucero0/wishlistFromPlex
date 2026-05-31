@@ -27,8 +27,9 @@ def filter_missing_for_ahead_buffer(
     When nobody has watched the show, only missing episodes from the first
     ``ahead_episodes`` catalog entries (fixed window from episode 1).
 
-    When any user has progress, only missing episodes in the window
-    immediately after the furthest watched episode (up to ``ahead_episodes``).
+    When any user has progress, download missing episodes at or before that
+    point (backfill gaps such as E01–E02 when progress is E03) plus up to
+    ``ahead_episodes`` missing entries immediately after it.
     """
     if not missing or not catalog:
         return []
@@ -47,8 +48,9 @@ def filter_missing_for_ahead_buffer(
     except StopIteration:
         return []
 
-    window = set(catalog[latest_index + 1 : latest_index + 1 + ahead_episodes])
-    if not window:
-        return []
+    missing_set = set(missing)
+    backfill = set(catalog[: latest_index + 1])
+    ahead = set(catalog[latest_index + 1 : latest_index + 1 + ahead_episodes])
+    window = backfill | ahead
 
     return [ep for ep in missing if ep in window]

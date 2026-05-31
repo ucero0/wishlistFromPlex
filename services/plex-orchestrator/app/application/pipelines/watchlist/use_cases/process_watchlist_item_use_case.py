@@ -80,12 +80,20 @@ class ProcessWatchlistItemUseCase:
             plex_user_token=entry.plex_user_token,
             for_download=False,
         )
-        if not all_missing:
-            logger.info(
-                "All catalog episodes present or queued for '%s'; removing watchlist",
+        if all_missing is None:
+            logger.warning(
+                "Cannot determine missing episodes for '%s'; keeping watchlist",
                 watchlist.title,
             )
-            await self._remove_watchlist_entry_use_case.execute(entry)
+            return WatchlistItemProcessOutcome.NO_TORRENT
+        if not all_missing:
+            logger.info(
+                "All catalog episodes owned in Plex for '%s'; removing watchlist",
+                watchlist.title,
+            )
+            await self._remove_watchlist_entry_use_case.execute(
+                entry, removal_reason="show_complete"
+            )
             return WatchlistItemProcessOutcome.SENT_TO_DELUGE
 
         missing = await self._get_missing_tv_episodes_query.execute(
