@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     deferred_download_process_interval_minutes: int = 15
     ingest_poll_interval_minutes: int = 5
     torrent_unhealthy_min_availability: float = 1.0
+    torrent_unhealthy_min_availability_active_days: int = 1
     torrent_unhealthy_no_transfer_days: int = 5
     # Keep this many unwatched episodes downloaded ahead of any user's progress
     tv_watchlist_ahead_episodes: int = 10

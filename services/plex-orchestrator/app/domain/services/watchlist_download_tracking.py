@@ -1,9 +1,37 @@
 """Map watchlist entries to persisted download tracking fields."""
 from app.domain.models.active_download import ActiveDownload
 from app.domain.models.deferred_download import DeferredDownload
+from app.domain.models.media import MediaItem, MediaType
 from app.domain.models.watchlist_item_for_user import WatchlistItemForUser
 from app.domain.models.watchlist_source import WatchlistSource
 from app.domain.services.tmdb_guid import parse_tmdb_guid
+
+
+def watchlist_item_from_active_download(active: ActiveDownload) -> WatchlistItemForUser:
+    """Rebuild minimal watchlist context from a tracked download row."""
+    source_str = (active.watchlist_source or WatchlistSource.PLEX.value).lower()
+    try:
+        source = WatchlistSource(source_str)
+    except ValueError:
+        source = WatchlistSource.PLEX
+
+    media_type = (
+        MediaType.SHOW if active.type in ("show", "tvshow") else MediaType.MOVIE
+    )
+    return WatchlistItemForUser(
+        item=MediaItem(
+            guid=active.plex_guid,
+            rating_key=active.watchlist_item_id,
+            title=active.title,
+            year=active.year,
+            type=media_type,
+            plex_library_guid=active.plex_library_guid,
+        ),
+        source=source,
+        plex_user_token=active.plex_user_token,
+        tmdb_account_id=active.tmdb_account_id,
+        subscribers=list(active.watchlist_subscribers),
+    )
 
 
 def tmdb_media_id_from_item(entry: WatchlistItemForUser) -> int | None:

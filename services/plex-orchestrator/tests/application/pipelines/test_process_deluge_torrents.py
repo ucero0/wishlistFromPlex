@@ -1,4 +1,5 @@
 """Tests for scheduled Deluge ingest and health maintenance."""
+import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -44,7 +45,7 @@ def _use_case(**overrides):
 
 
 @pytest.mark.asyncio
-async def test_runs_ingest_then_tracking_then_unhealthy_check():
+async def test_runs_ingest_then_unhealthy_then_tracking():
     completed_hash = "a" * 40
     unhealthy_hash = "b" * 40
     completed = Torrent(
@@ -60,23 +61,28 @@ async def test_runs_ingest_then_tracking_then_unhealthy_check():
         progress=10.0,
         availability=0.2,
         time_since_download=FIVE_DAYS_SECONDS + 60,
+        time_added=time.time() - FIVE_DAYS_SECONDS - 60,
     )
-    get_status = AsyncMock(side_effect=[[completed, unhealthy], [unhealthy]])
-    get_active = AsyncMock(
+    get_status = AsyncMock()
+    get_status.execute = AsyncMock(
+        side_effect=[[completed, unhealthy], [unhealthy]],
+    )
+    get_active = AsyncMock()
+    get_active.execute = AsyncMock(
         side_effect=[
             [_active_download(completed_hash), _active_download(unhealthy_hash)],
             [_active_download(unhealthy_hash)],
         ]
     )
-    scan_ingest = AsyncMock(
+    scan_ingest = AsyncMock()
+    scan_ingest.execute = AsyncMock(
         return_value=ScanAndIngestTorrentResult(status="clean", moved=True)
     )
-    handle_unhealthy = AsyncMock(return_value=True)
-    reconcile = AsyncMock(
-        side_effect=[
-            {"updated_count": 2, "removed_count": 1, "skipped": False},
-            {"updated_count": 0, "removed_count": 1, "skipped": False},
-        ]
+    handle_unhealthy = AsyncMock()
+    handle_unhealthy.execute = AsyncMock(return_value=True)
+    reconcile = AsyncMock()
+    reconcile.execute = AsyncMock(
+        return_value={"updated_count": 2, "removed_count": 0, "skipped": False},
     )
     refresh_disk_stats = AsyncMock()
 
@@ -93,6 +99,7 @@ async def test_runs_ingest_then_tracking_then_unhealthy_check():
         "app.application.pipelines.ingest.use_cases.process_deluge_torrents_use_case.settings"
     ) as mock_settings:
         mock_settings.torrent_unhealthy_min_availability = 1.0
+        mock_settings.torrent_unhealthy_min_availability_active_days = 1
         mock_settings.torrent_unhealthy_no_transfer_days = 5
         result = await use_case.execute()
 
@@ -101,13 +108,13 @@ async def test_runs_ingest_then_tracking_then_unhealthy_check():
         ingested=1,
         disk_stats_refreshed=True,
         tracking_updated=2,
-        tracking_removed=2,
+        tracking_removed=0,
         unhealthy_checked=1,
         unhealthy_removed=1,
     )
     scan_ingest.execute.assert_awaited_once_with(completed_hash)
     handle_unhealthy.execute.assert_awaited_once()
-    assert reconcile.await_count == 2
+    assert reconcile.execute.await_count == 1
     refresh_disk_stats.execute.assert_awaited_once()
 
 
@@ -124,8 +131,10 @@ async def test_skips_unhealthy_check_when_not_yet_finished():
             time_since_download=30,
         )
     ]
-    get_status = AsyncMock(side_effect=[torrents, torrents])
-    get_active = AsyncMock(return_value=[_active_download(torrent_hash)])
+    get_status = AsyncMock()
+    get_status.execute = AsyncMock(side_effect=[torrents, torrents])
+    get_active = AsyncMock()
+    get_active.execute = AsyncMock(return_value=[_active_download(torrent_hash)])
     handle_unhealthy = AsyncMock()
 
     use_case = _use_case(
@@ -138,6 +147,7 @@ async def test_skips_unhealthy_check_when_not_yet_finished():
         "app.application.pipelines.ingest.use_cases.process_deluge_torrents_use_case.settings"
     ) as mock_settings:
         mock_settings.torrent_unhealthy_min_availability = 1.0
+        mock_settings.torrent_unhealthy_min_availability_active_days = 1
         mock_settings.torrent_unhealthy_no_transfer_days = 5
         result = await use_case.execute()
 

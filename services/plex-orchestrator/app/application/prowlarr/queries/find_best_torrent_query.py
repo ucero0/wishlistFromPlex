@@ -2,11 +2,7 @@
 import logging
 from typing import List
 from app.domain.ports.external.prowlarr.torrent_search_provider import TorrentSearchProvider
-from app.domain.services.torrent_quality_service import (
-    TorrentQualityService,
-    MIN_SEEDERS,
-    MIN_SEEDERS_RELAXED,
-)
+from app.domain.services.torrent_quality_service import TorrentQualityService, MIN_SEEDERS
 from app.domain.services.tv_show_torrent_title_filter import (
     torrent_title_conflicts_with_show_year,
 )
@@ -125,23 +121,6 @@ class GetBestTorrentsQuery:
             )
         )
 
-        if not processed_results and results:
-            relaxed_results, relaxed_skipped_seeders, _ = self._score_filtered_results(
-                results,
-                media_type=media_type,
-                show_year=show_year,
-                min_seeders=MIN_SEEDERS_RELAXED,
-            )
-            if relaxed_results:
-                logger.info(
-                    "No results with seeders >= %s; relaxed to seeders >= %s (%s result(s))",
-                    MIN_SEEDERS,
-                    MIN_SEEDERS_RELAXED,
-                    len(relaxed_results),
-                )
-                processed_results = relaxed_results
-                skipped_no_seeders = relaxed_skipped_seeders
-
         if skipped_year_mismatch > 0:
             logger.info(
                 "Skipped %s TV result(s) whose title year does not match show year %s",
@@ -152,7 +131,7 @@ class GetBestTorrentsQuery:
             logger.info(
                 "Skipped %s results with seeders below minimum (%s)",
                 skipped_no_seeders,
-                MIN_SEEDERS if processed_results else MIN_SEEDERS_RELAXED,
+                MIN_SEEDERS,
             )
         logger.info(f"Processed {len(processed_results)} valid results after filtering")
 

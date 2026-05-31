@@ -1,4 +1,4 @@
-"""Poll Deluge: ingest completed torrents, sync tracking, then remove unhealthy ones."""
+"""Poll Deluge: ingest completed torrents, remove unhealthy ones, then sync tracking."""
 import logging
 
 from app.application.active_downloads.queries.get_active_download_queries import (
@@ -77,29 +77,27 @@ class ProcessDelugeTorrentsUseCase:
             deluge_torrents, downloads_by_uid, result
         )
 
-        reconcile_result = await self._reconcile.execute()
-        result.tracking_updated = reconcile_result.get("updated_count", 0)
-        result.tracking_removed = reconcile_result.get("removed_count", 0)
-
         try:
             deluge_torrents = await self._get_torrents_status_query.execute()
         except DelugeConnectionError as exc:
             logger.warning(
-                "Deluge unhealthy check skipped after tracking sync: %s", exc.message
+                "Deluge unhealthy check skipped after ingest: %s", exc.message
             )
+            reconcile_result = await self._reconcile.execute()
+            result.tracking_updated = reconcile_result.get("updated_count", 0)
+            result.tracking_removed = reconcile_result.get("removed_count", 0)
             return result
 
         active_downloads = await self._get_all_active_downloads_query.execute()
-        unhealthy_removed = await self._remove_unhealthy_torrents(
+        await self._remove_unhealthy_torrents(
             deluge_torrents,
             _downloads_by_uid(active_downloads),
             result,
         )
 
-        if unhealthy_removed:
-            reconcile_after = await self._reconcile.execute()
-            result.tracking_updated += reconcile_after.get("updated_count", 0)
-            result.tracking_removed += reconcile_after.get("removed_count", 0)
+        reconcile_result = await self._reconcile.execute()
+        result.tracking_updated = reconcile_result.get("updated_count", 0)
+        result.tracking_removed = reconcile_result.get("removed_count", 0)
 
         logger.info(
             "Deluge maintenance: completed=%s ingested=%s errors=%s "
@@ -156,6 +154,9 @@ class ProcessDelugeTorrentsUseCase:
         result: DelugeTorrentMaintenanceResult,
     ) -> bool:
         min_availability = settings.torrent_unhealthy_min_availability
+        min_availability_active_days = (
+            settings.torrent_unhealthy_min_availability_active_days
+        )
         no_transfer_days = settings.torrent_unhealthy_no_transfer_days
         removed_any = False
 
@@ -169,6 +170,7 @@ class ProcessDelugeTorrentsUseCase:
                 torrent,
                 min_availability=min_availability,
                 no_transfer_days=no_transfer_days,
+                min_availability_active_days=min_availability_active_days,
             ):
                 continue
 
@@ -178,6 +180,7 @@ class ProcessDelugeTorrentsUseCase:
                 active,
                 min_availability=min_availability,
                 no_transfer_days=no_transfer_days,
+                min_availability_active_days=min_availability_active_days,
             )
             if removed:
                 result.unhealthy_removed += 1

@@ -26,17 +26,16 @@ def test_keeps_results_with_at_least_two_seeders():
     assert results[0].seeders == 5
 
 
-def test_relaxes_to_one_seeder_when_none_have_two():
+def test_rejects_results_with_fewer_than_two_seeders():
     query = GetBestTorrentsQuery(search_provider=object(), quality_service=TorrentQualityService())
     results = query._process_search_results(
         [_result("Movie 1080p WEB-DL", 1), _result("Movie 720p", 0)],
         media_type="movie",
     )
-    assert len(results) == 1
-    assert results[0].seeders == 1
+    assert results == []
 
 
-def test_returns_empty_when_no_results_pass_even_relaxed():
+def test_returns_empty_when_no_results_pass():
     query = GetBestTorrentsQuery(search_provider=object(), quality_service=TorrentQualityService())
     results = query._process_search_results(
         [_result("Movie 1080p WEB-DL", 0)],

@@ -1,12 +1,15 @@
-"""Handle infected torrent: blacklist, remove from Deluge, re-add to watchlist."""
+"""Handle infected torrent: blacklist, remove from Deluge, retry with a new torrent."""
 import logging
 
 from app.application.blacklist_torrent.use_cases import AddTorrentToBlacklistUseCase
+from app.application.pipelines.ingest.models.retry_active_download_outcome import (
+    RetryActiveDownloadOutcome,
+)
 from app.application.pipelines.ingest.models.scan_and_ingest_torrent_result import (
     ScanAndIngestTorrentResult,
 )
-from app.application.pipelines.watchlist.use_cases.readd_watchlist_after_failure_use_case import (
-    ReaddWatchlistAfterFailureUseCase,
+from app.application.pipelines.ingest.use_cases.retry_active_download_use_case import (
+    RetryActiveDownloadUseCase,
 )
 from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_with_deluge_use_case import (
     ReconcileActiveDownloadsWithDelugeUseCase,
@@ -23,12 +26,12 @@ class HandleInfectedTorrentUseCase:
         self,
         deluge_provider: DelugeProvider,
         add_torrent_to_blacklist_use_case: AddTorrentToBlacklistUseCase,
-        readd_watchlist_after_failure_use_case: ReaddWatchlistAfterFailureUseCase,
+        retry_active_download_use_case: RetryActiveDownloadUseCase,
         reconcile_active_downloads_use_case: ReconcileActiveDownloadsWithDelugeUseCase,
     ):
         self._deluge_provider = deluge_provider
         self._add_torrent_to_blacklist_use_case = add_torrent_to_blacklist_use_case
-        self._readd_watchlist = readd_watchlist_after_failure_use_case
+        self._retry_active_download = retry_active_download_use_case
         self._reconcile_active_downloads_use_case = reconcile_active_downloads_use_case
 
     async def execute(
@@ -48,10 +51,25 @@ class HandleInfectedTorrentUseCase:
         deleted = await self._deluge_provider.remove_torrent(
             torrent_hash, remove_data=True
         )
-        try:
-            await self._readd_watchlist.execute(torrent_download)
-        except Exception as exc:
-            logger.error("Error adding item back to watchlist: %s", exc, exc_info=True)
+        outcome = await self._retry_active_download.execute(
+            torrent_download, blacklist_reason="infected"
+        )
+        if outcome == RetryActiveDownloadOutcome.SUCCESS:
+            logger.info(
+                "Queued replacement torrent for infected download '%s'",
+                torrent_download.title,
+            )
+        elif outcome == RetryActiveDownloadOutcome.DEFERRED:
+            logger.info(
+                "Deferred replacement torrent for infected download '%s'",
+                torrent_download.title,
+            )
+        else:
+            logger.warning(
+                "No replacement torrent queued for infected download '%s' (%s)",
+                torrent_download.title,
+                outcome.value,
+            )
         await self._reconcile_active_downloads()
         return ScanAndIngestTorrentResult(
             status="infected",

@@ -31,11 +31,13 @@ class HandleUnhealthyTorrentUseCase:
         *,
         min_availability: float,
         no_transfer_days: int,
+        min_availability_active_days: int = 1,
     ) -> bool:
         reason = unhealthy_reason(
             torrent,
             min_availability=min_availability,
             no_transfer_days=no_transfer_days,
+            min_availability_active_days=min_availability_active_days,
         )
         if reason is None:
             return False
