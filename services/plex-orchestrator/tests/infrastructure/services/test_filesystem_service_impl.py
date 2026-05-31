@@ -82,3 +82,31 @@ def test_resolve_move_destination_allows_nested_new_show_folders(tmp_path):
         library / "Scrubs (2001)" / "Season 01" / "Scrubs - s01e05 - My ABC's.mkv"
     )
     assert not resolved.exists()
+
+
+def test_copy_file_leaves_source_intact(tmp_path):
+    quarantine = tmp_path / "quarantine"
+    library = tmp_path / "library"
+    quarantine.mkdir()
+    library.mkdir()
+    source = quarantine / "movie.mkv"
+    source.write_bytes(b"video-data")
+    fs = FilesystemServiceImpl(str(quarantine))
+    copied = fs.copy_file(str(source), str(library / "movie.mkv"))
+    assert copied is True
+    assert source.exists()
+    assert (library / "movie.mkv").read_bytes() == b"video-data"
+
+
+def test_copy_directory_leaves_source_intact(tmp_path):
+    quarantine = tmp_path / "quarantine"
+    library = tmp_path / "library"
+    torrent_dir = quarantine / "Show S01"
+    torrent_dir.mkdir(parents=True)
+    (torrent_dir / "episode.mkv").write_bytes(b"ep")
+    library.mkdir()
+    fs = FilesystemServiceImpl(str(quarantine))
+    copied = fs.copy_directory(str(torrent_dir), str(library / "Show S01"))
+    assert copied is True
+    assert torrent_dir.exists()
+    assert (library / "Show S01" / "episode.mkv").exists()

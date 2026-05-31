@@ -1,4 +1,4 @@
-"""Move a clean scanned torrent into the Plex library and trigger partial scan."""
+"""Copy a clean scanned torrent into the Plex library and trigger partial scan."""
 import logging
 from typing import List
 
@@ -111,8 +111,8 @@ class IngestCleanTorrentUseCase:
                 planned_destination=destination_path,
             )
 
-        moved = self._filesystem_service.move(ingest_scan_path, destination_path)
-        if moved and not ingest_is_file:
+        copied = self._filesystem_service.copy(ingest_scan_path, destination_path)
+        if copied and not ingest_is_file:
             renamed = self._destination_resolver.apply_plex_media_names(
                 destination_path,
                 torrent_download,
@@ -125,9 +125,16 @@ class IngestCleanTorrentUseCase:
                     renamed,
                     destination_path,
                 )
-        if moved:
+        if copied:
             await self._maybe_remove_watchlist_after_move(torrent_download)
-            await self._deluge_provider.remove_torrent(torrent_hash, remove_data=False)
+            removed = await self._deluge_provider.remove_torrent(
+                torrent_hash, remove_data=True
+            )
+            if not removed:
+                logger.warning(
+                    "Copied torrent %s to library but Deluge remove (with data) failed",
+                    torrent_hash,
+                )
             await self._update_scan_with_destination(
                 scan_record, destination_path, ingest_is_file, clear_ingest_error=True
             )
@@ -138,25 +145,25 @@ class IngestCleanTorrentUseCase:
             )
             await self._reconcile_active_downloads()
 
-        if moved:
+        if copied:
             message = (
-                "Moved to library (antivirus scan skipped, already clean)"
+                "Copied to library (antivirus scan skipped, already clean)"
                 if scan_skipped
-                else "Files scanned and moved successfully"
+                else "Files scanned and copied to library successfully"
             )
             status = "clean"
             ingest_error = None
             planned_destination = None
         else:
-            move_error = self._filesystem_service.explain_move_failure(
+            copy_error = self._filesystem_service.explain_copy_failure(
                 ingest_scan_path, destination_path
             )
             await self._record_ingest_failure(
-                scan_record, move_error, destination_path
+                scan_record, copy_error, destination_path
             )
             status = "pending_move"
-            message = move_error
-            ingest_error = move_error
+            message = copy_error
+            ingest_error = copy_error
             planned_destination = destination_path
 
         return ScanAndIngestTorrentResult(
@@ -165,8 +172,8 @@ class IngestCleanTorrentUseCase:
             infected=False,
             scanned_files=scanned_files if not scan_skipped else None,
             scan_skipped=scan_skipped,
-            moved=moved,
-            destination_path=destination_path if moved else None,
+            moved=copied,
+            destination_path=destination_path if copied else None,
             ingest_error=ingest_error,
             planned_destination=planned_destination,
         )

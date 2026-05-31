@@ -162,3 +162,21 @@ def test_folder_path_for_plex_scan_file_uses_parent():
         "/media/movies/Dune (2021)/Dune (2021).mkv", True
     )
     assert result.replace("\\", "/") == "/media/movies/Dune (2021)"
+
+
+def test_movie_title_colon_space_replaced_for_naming():
+    resolver = IngestDestinationResolver()
+    path = resolver.resolve(
+        "/media/movies",
+        _movie_torrent(
+            title="Torrente 5: Operation Eurovegas",
+            file_name="Torrente 5.Operación.Eurovegas (2014)[HDTS][Comedia].avi",
+            year=2014,
+        ),
+        "/quarantine/Torrente 5.Operación.Eurovegas (2014)[HDTS][Comedia].avi",
+        is_file=True,
+    )
+    assert path.replace("\\", "/") == (
+        "/media/movies/Torrente 5 Operation Eurovegas (2014)/"
+        "Torrente 5 Operation Eurovegas (2014).avi"
+    )

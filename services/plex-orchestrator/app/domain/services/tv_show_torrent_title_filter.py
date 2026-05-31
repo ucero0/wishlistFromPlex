@@ -8,9 +8,11 @@ from rapidfuzz import fuzz
 
 _YEAR_CANDIDATE_RE = re.compile(r"\b(19\d{2}|20\d{2})\b")
 _SEPARATOR_RE = re.compile(r"[._\-]+")
+_TOKEN_RE = re.compile(r"[a-z0-9]+(?:'s)?", re.IGNORECASE)
 
 # Scene releases usually cite TV years in this window.
 _MIN_TV_YEAR = 1950
+_STOPWORDS = frozenset({"the", "a", "an", "of", "and", "in", "to"})
 
 
 def _max_plausible_tv_year() -> int:
@@ -74,6 +76,49 @@ def _strip_leading_article(text: str) -> str:
     return text
 
 
+def _normalize_token(token: str) -> str:
+    cleaned = token.lower().strip("'\"")
+    if cleaned.endswith("'s"):
+        return cleaned[:-2]
+    return cleaned
+
+
+def _significant_show_tokens(show_title: str) -> list[str]:
+    norm = normalize_title_for_match(show_title)
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for match in _TOKEN_RE.finditer(norm):
+        token = _normalize_token(match.group(0))
+        if not token or token in _STOPWORDS or token in seen:
+            continue
+        seen.add(token)
+        tokens.append(token)
+    return tokens
+
+
+def _token_present_in_text(token: str, text: str) -> bool:
+    if not token:
+        return True
+    for match in _TOKEN_RE.finditer(text):
+        candidate = _normalize_token(match.group(0))
+        if candidate == token:
+            return True
+        if token.endswith("s") and candidate == token[:-1]:
+            return True
+        if candidate.endswith("s") and token == candidate[:-1]:
+            return True
+    return False
+
+
+def _show_tokens_present_before_episode(prefix: str, show_title: str) -> bool:
+    """Every significant show-title word must appear before SxxExx."""
+    show_tokens = _significant_show_tokens(show_title)
+    if not show_tokens:
+        return True
+    prefix_norm = normalize_title_for_match(prefix)
+    return all(_token_present_in_text(token, prefix_norm) for token in show_tokens)
+
+
 def _episode_marker_pattern(season: int, episode: int) -> re.Pattern[str]:
     return re.compile(rf"[Ss]{season:02d}[Ee]{episode:02d}", re.IGNORECASE)
 
@@ -119,12 +164,16 @@ def torrent_title_conflicts_with_show_before_episode(
 
     prefix = title[: match.start()]
     suffix = title[match.end() :]
-    prefix_score = _show_prefix_match_score(prefix, show_title)
-    if prefix_score >= min_prefix_match_score:
+
+    if _show_tokens_present_before_episode(prefix, show_title):
         return False
 
     suffix_score = _show_prefix_match_score(suffix, show_title)
-    if suffix_score >= min_prefix_match_score and prefix_score < 60.0:
+    if suffix_score >= min_prefix_match_score:
+        return True
+
+    prefix_score = _show_prefix_match_score(prefix, show_title)
+    if prefix_score >= min_prefix_match_score:
         return True
 
     return True

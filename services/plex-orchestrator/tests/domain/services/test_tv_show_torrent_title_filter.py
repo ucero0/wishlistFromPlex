@@ -62,6 +62,18 @@ def test_rejects_wrong_show_before_episode():
         1,
         2,
     )
+    assert torrent_title_conflicts_with_show_before_episode(
+        "Ms.Marvel.S01E03.1080p.10bit.DS4K.DSNP.WEBRip.HIN-ENG.DDP5.1.Atmos.ESub.HEVC-The.PunisheR.mkv",
+        "Marvel's The Punisher",
+        1,
+        3,
+    )
+    assert torrent_title_conflicts_with_show_before_episode(
+        "Ms.Marvel.S01E02.1080p.10bit.DS4K.DSNP.WEBRip.HIN-ENG.DDP5.1.Atmos.ESub.HEVC-The.PunisheR.mkv",
+        "Marvels The Punisher",
+        1,
+        2,
+    )
 
 
 def test_accepts_show_title_before_episode():
@@ -82,6 +94,12 @@ def test_accepts_show_title_before_episode():
         "The Punisher",
         1,
         2,
+    )
+    assert not torrent_title_conflicts_with_show_before_episode(
+        "Marvel's The Punisher S01E03 1080p WEB-DL",
+        "Marvel's The Punisher",
+        1,
+        3,
     )
 
 

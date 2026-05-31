@@ -8,6 +8,7 @@ from app.domain.services.tv_show_torrent_title_filter import (
     torrent_title_conflicts_with_show_year,
 )
 from app.domain.models.torrent_search import TorrentSearchResult
+from app.domain.services.torrent_search_title import normalize_torrent_search_query
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class GetBestTorrentsQuery:
             List of TorrentSearchResult objects ordered by quality score (highest first),
             or empty list if no results found
         """
+        query = normalize_torrent_search_query(query)
         results = await self.search_provider.search_torrents(query, media_type)
         if not results:
             return []

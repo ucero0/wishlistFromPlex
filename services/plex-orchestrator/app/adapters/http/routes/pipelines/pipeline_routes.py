@@ -51,7 +51,7 @@ async def scan_torrent(
     3. Persists the scan record
     4. Returns clean/infected/error
 
-    Use **POST /pipelines/ingest/scan-and-ingest** to scan and then move to Plex library.
+    Use **POST /pipelines/ingest/scan-and-ingest** to scan and then copy to Plex library.
     """
     try:
         result = await use_case.execute(
@@ -81,15 +81,15 @@ async def scan_and_ingest_torrent(
     use_case: ScanAndIngestTorrentUseCase = Depends(create_scan_and_ingest_torrent_use_case),
 ):
     """
-    Antivirus scan a torrent; if clean move to Plex library and trigger partial scan.
+    Antivirus scan a torrent; if clean copy to Plex library and trigger partial scan.
 
     Resolves by hash from active downloads or Deluge (manual torrents). Optional
     ``media_type``, ``title``, and ``year`` improve Plex library placement for manual adds.
 
     1. Scans the torrent (antivirus) unless a clean scan is already in the DB (pending move)
-    2. If clean: moves to media path, removes from Deluge, triggers Plex partial scan,
+    2. If clean: copies to media path, removes torrent and data from Deluge, triggers Plex partial scan,
        then reconciles active-download tracking with Deluge (tracked torrents only)
-    3. If move fails or no disk space: status ``pending_move`` — torrent stays in Deluge
+    3. If copy fails or no disk space: status ``pending_move`` — torrent stays in Deluge
     4. If infected: blacklists release, removes torrent (with data); tracked downloads are
        retried via Prowlarr, manual Deluge torrents are removed only
     """

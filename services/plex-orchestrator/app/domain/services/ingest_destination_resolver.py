@@ -122,21 +122,28 @@ class IngestDestinationResolver:
         return normalized in (MediaType.SHOW.value, MediaType.TVSHOW.value)
 
     @staticmethod
+    def _plex_title_for_naming(title: str) -> str:
+        """Normalize Plex titles for library paths (torrent names omit colon-space)."""
+        return title.replace(": ", " ")
+
+    @staticmethod
     def _movie_folder_name(torrent_download: ActiveDownload) -> str:
+        title = IngestDestinationResolver._plex_title_for_naming(torrent_download.title)
         if torrent_download.year:
-            return f"{torrent_download.title} ({torrent_download.year})"
-        return torrent_download.title
+            return f"{title} ({torrent_download.year})"
+        return title
 
     @staticmethod
     def _show_folder_name(torrent_download: ActiveDownload) -> str:
+        title = IngestDestinationResolver._plex_title_for_naming(torrent_download.title)
         if torrent_download.year:
-            return f"{torrent_download.title} ({torrent_download.year})"
-        return torrent_download.title
+            return f"{title} ({torrent_download.year})"
+        return title
 
     @staticmethod
     def _show_file_base_name(torrent_download: ActiveDownload) -> str:
         """Episode filenames use the show title without the disambiguation year."""
-        return torrent_download.title
+        return IngestDestinationResolver._plex_title_for_naming(torrent_download.title)
 
     @staticmethod
     def _season_folder_name(season_num: int) -> str:

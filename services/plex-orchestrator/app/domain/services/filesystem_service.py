@@ -152,8 +152,24 @@ class FilesystemService(Protocol):
         """
         ...
 
+    def copy_file(self, source_path: str, destination_path: str) -> bool:
+        """Copy a file from source to destination."""
+        ...
+
+    def copy_directory(self, source_path: str, destination_path: str) -> bool:
+        """Copy a directory tree from source to destination."""
+        ...
+
+    def copy(self, source_path: str, destination_path: str) -> bool:
+        """Copy a file or directory from source to destination."""
+        ...
+
     def explain_move_failure(self, source_path: str, destination_path: str) -> str:
         """Explain why a move would fail (for ingest error reporting; does not move)."""
+        ...
+
+    def explain_copy_failure(self, source_path: str, destination_path: str) -> str:
+        """Explain why a copy would fail (for ingest error reporting; does not copy)."""
         ...
     
     def delete(self, path: str) -> bool:

@@ -27,6 +27,7 @@ from app.domain.services.torrent_infohash import (
     infohash_from_release,
     normalize_infohash,
 )
+from app.domain.services.torrent_search_title import normalize_title_for_torrent_search
 from app.domain.services.tv_episode_search_query import (
     format_tv_episode_name_search_query,
     format_tv_episode_search_query,
@@ -224,7 +225,7 @@ class RetryActiveDownloadUseCase:
     ) -> list[str]:
         if media_type == "tv":
             if active.season is None or active.episode is None:
-                return [active.title]
+                return [normalize_title_for_torrent_search(active.title)]
             episode = TvEpisode(
                 season=active.season,
                 episode=active.episode,
@@ -235,24 +236,27 @@ class RetryActiveDownloadUseCase:
                     watchlist_item_from_active_download(active).item,
                     episode,
                 )
-            if episode.name:
+            show = normalize_title_for_torrent_search(active.title)
+            episode_name = normalize_title_for_torrent_search(episode.name or "")
+            if episode_name:
                 return [
                     format_tv_episode_name_search_query(
-                        active.title,
+                        show,
                         episode.season,
                         episode.episode,
-                        episode.name,
+                        episode_name,
                     ),
                     format_tv_episode_search_query(
-                        active.title, episode.season, episode.episode
+                        show, episode.season, episode.episode
                     ),
                 ]
             return [
                 format_tv_episode_search_query(
-                    active.title, episode.season, episode.episode
+                    show, episode.season, episode.episode
                 )
             ]
 
+        title = normalize_title_for_torrent_search(active.title)
         if active.year is not None:
-            return [f"{active.title} {active.year}"]
-        return [active.title]
+            return [f"{title} {active.year}"]
+        return [title]

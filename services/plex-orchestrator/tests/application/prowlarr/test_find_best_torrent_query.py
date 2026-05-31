@@ -58,3 +58,42 @@ def test_rejects_tv_result_when_show_not_before_episode():
     )
     assert len(results) == 1
     assert "The Punisher" in results[0].title
+
+
+def test_rejects_ms_marvel_for_marvels_the_punisher():
+    query = GetBestTorrentsQuery(search_provider=object(), quality_service=TorrentQualityService())
+    results = query._process_search_results(
+        [
+            _result(
+                "Ms.Marvel.S01E03.1080p.10bit.DS4K.DSNP.WEBRip.HIN-ENG.DDP5.1.Atmos.ESub.HEVC-The.PunisheR.mkv",
+                10,
+            ),
+            _result("Marvel's The Punisher S01E03 1080p WEB-DL", 5),
+        ],
+        media_type="tv",
+        show_title="Marvel's The Punisher",
+        season=1,
+        episode=3,
+    )
+    assert len(results) == 1
+    assert results[0].title.startswith("Marvel")
+
+
+import pytest
+from unittest.mock import AsyncMock
+
+
+@pytest.mark.asyncio
+async def test_execute_strips_colons_from_search_query():
+    search_provider = AsyncMock()
+    search_provider.search_torrents = AsyncMock(return_value=[])
+    query = GetBestTorrentsQuery(
+        search_provider=search_provider,
+        quality_service=TorrentQualityService(),
+    )
+
+    await query.execute("Torrente 5: Operation Eurovegas 2014")
+
+    search_provider.search_torrents.assert_awaited_once_with(
+        "Torrente 5 Operation Eurovegas 2014", "movie"
+    )

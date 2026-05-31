@@ -3,6 +3,7 @@ import logging
 
 from app.application.tmdb.queries.get_original_title_query import GetOriginalTitleFromTMDBQuery
 from app.domain.models.tv_episode import TvEpisode
+from app.domain.services.torrent_search_title import normalize_title_for_torrent_search
 from app.domain.services.tv_episode_search_query import (
     format_tv_episode_name_search_query,
     format_tv_episode_search_query,
@@ -35,6 +36,7 @@ class WatchlistSearchQueryBuilder:
         if tmdb_result:
             original_title, original_language = tmdb_result
             if original_language == "es":
+                original_title = normalize_title_for_torrent_search(original_title)
                 logger.info(
                     "Using original title '%s' for Spanish movie '%s' (original_language: %s)",
                     original_title,
@@ -42,17 +44,19 @@ class WatchlistSearchQueryBuilder:
                     original_language,
                 )
                 return f"{original_title} {watchlist.year}"
-        return f"{watchlist.title} {watchlist.year}"
+        title = normalize_title_for_torrent_search(watchlist.title or "")
+        return f"{title} {watchlist.year}"
 
     def build_tv_episode_search_queries(
         self, watchlist, episode: TvEpisode
     ) -> list[str]:
         """Strictest first: SxxExx + episode name, then SxxExx only."""
-        show = watchlist.title or ""
-        if episode.name:
+        show = normalize_title_for_torrent_search(watchlist.title or "")
+        episode_name = normalize_title_for_torrent_search(episode.name or "")
+        if episode_name:
             return [
                 format_tv_episode_name_search_query(
-                    show, episode.season, episode.episode, episode.name
+                    show, episode.season, episode.episode, episode_name
                 ),
                 format_tv_episode_search_query(
                     show, episode.season, episode.episode

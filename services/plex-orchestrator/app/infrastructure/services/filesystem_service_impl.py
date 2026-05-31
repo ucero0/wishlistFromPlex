@@ -197,6 +197,47 @@ class FilesystemServiceImpl:
         except Exception:
             return False
 
+    def copy_file(self, source_path: str, destination_path: str) -> bool:
+        try:
+            source = self._resolve_path(source_path)
+            destination = self._resolve_move_destination(destination_path)
+            if not source.exists() or not source.is_file():
+                return False
+            if destination.exists():
+                return False
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(source), str(destination))
+            return True
+        except Exception:
+            return False
+
+    def copy_directory(self, source_path: str, destination_path: str) -> bool:
+        try:
+            source = self._resolve_path(source_path)
+            destination = self._resolve_move_destination(destination_path)
+            if not source.exists() or not source.is_dir():
+                return False
+            if destination.exists():
+                return False
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(str(source), str(destination))
+            return True
+        except Exception:
+            return False
+
+    def copy(self, source_path: str, destination_path: str) -> bool:
+        try:
+            source = self._resolve_path(source_path)
+            if not source.exists():
+                return False
+            if source.is_file():
+                return self.copy_file(source_path, destination_path)
+            if source.is_dir():
+                return self.copy_directory(source_path, destination_path)
+            return False
+        except Exception:
+            return False
+
     def explain_move_failure(self, source_path: str, destination_path: str) -> str:
         """Human-readable reason why ``move`` would fail (does not move files)."""
         try:
@@ -234,6 +275,15 @@ class FilesystemServiceImpl:
             f"Move from {source_path} to {destination_path} failed "
             "(permissions, cross-device move, or filesystem error)"
         )
+
+    def explain_copy_failure(self, source_path: str, destination_path: str) -> str:
+        """Human-readable reason why ``copy`` would fail (does not copy files)."""
+        reason = self.explain_move_failure(source_path, destination_path)
+        if reason.startswith("Move from "):
+            return reason.replace("Move from ", "Copy from ", 1).replace(
+                "cross-device move", "copy", 1
+            )
+        return reason
 
     def delete(self, path: str) -> bool:
         try:
