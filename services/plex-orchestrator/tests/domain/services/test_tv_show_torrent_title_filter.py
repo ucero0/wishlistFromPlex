@@ -1,6 +1,7 @@
 """Tests for TV torrent title year filtering."""
 from app.domain.services.tv_show_torrent_title_filter import (
     extract_tv_years_from_title,
+    torrent_title_conflicts_with_show_before_episode,
     torrent_title_conflicts_with_show_year,
 )
 
@@ -46,3 +47,48 @@ def test_still_detects_show_year_beside_resolution():
 
 def test_skips_filter_when_show_year_unknown():
     assert not torrent_title_conflicts_with_show_year("Scrubs 2026 S01E01", None)
+
+
+def test_rejects_wrong_show_before_episode():
+    assert torrent_title_conflicts_with_show_before_episode(
+        "Ms Marvel S01E02 1080p WEB-DL-thePunisher",
+        "The Punisher",
+        1,
+        2,
+    )
+    assert torrent_title_conflicts_with_show_before_episode(
+        "Ms.Marvel.S01E02.1080p.thePunisher.mkv",
+        "The Punisher",
+        1,
+        2,
+    )
+
+
+def test_accepts_show_title_before_episode():
+    assert not torrent_title_conflicts_with_show_before_episode(
+        "The Punisher S01E02 1080p WEB-DL",
+        "The Punisher",
+        1,
+        2,
+    )
+    assert not torrent_title_conflicts_with_show_before_episode(
+        "The.Punisher.2017.S01E02.1080p.WEB-DL",
+        "The Punisher",
+        1,
+        2,
+    )
+    assert not torrent_title_conflicts_with_show_before_episode(
+        "Marvels The Punisher S01E02 1080p HDTV",
+        "The Punisher",
+        1,
+        2,
+    )
+
+
+def test_rejects_missing_or_wrong_episode_marker():
+    assert torrent_title_conflicts_with_show_before_episode(
+        "The Punisher S01E03 1080p",
+        "The Punisher",
+        1,
+        2,
+    )

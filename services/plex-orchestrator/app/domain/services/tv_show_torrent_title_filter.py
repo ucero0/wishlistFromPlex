@@ -1,10 +1,13 @@
-"""Filter TV torrent titles whose embedded year does not match the watchlist show."""
+"""Filter TV torrent titles by show year and show-name position before SxxExx."""
 from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
 
+from rapidfuzz import fuzz
+
 _YEAR_CANDIDATE_RE = re.compile(r"\b(19\d{2}|20\d{2})\b")
+_SEPARATOR_RE = re.compile(r"[._\-]+")
 
 # Scene releases usually cite TV years in this window.
 _MIN_TV_YEAR = 1950
@@ -56,3 +59,72 @@ def torrent_title_conflicts_with_show_year(title: str, show_year: int | None) ->
     if not years:
         return False
     return show_year not in years
+
+
+def normalize_title_for_match(text: str) -> str:
+    """Lowercase release title with scene separators collapsed to spaces."""
+    cleaned = _SEPARATOR_RE.sub(" ", text or "")
+    return re.sub(r"\s+", " ", cleaned).strip().lower()
+
+
+def _strip_leading_article(text: str) -> str:
+    for article in ("the ", "a ", "an "):
+        if text.startswith(article):
+            return text[len(article) :]
+    return text
+
+
+def _episode_marker_pattern(season: int, episode: int) -> re.Pattern[str]:
+    return re.compile(rf"[Ss]{season:02d}[Ee]{episode:02d}", re.IGNORECASE)
+
+
+def _show_prefix_match_score(prefix: str, show_title: str) -> float:
+    if not prefix or not show_title:
+        return 0.0
+    prefix_norm = normalize_title_for_match(prefix)
+    show_norm = normalize_title_for_match(show_title)
+    if not prefix_norm or not show_norm:
+        return 0.0
+    score = float(fuzz.partial_ratio(show_norm, prefix_norm))
+    alt = float(
+        fuzz.partial_ratio(
+            _strip_leading_article(show_norm),
+            _strip_leading_article(prefix_norm),
+        )
+    )
+    return max(score, alt)
+
+
+def torrent_title_conflicts_with_show_before_episode(
+    title: str,
+    show_title: str,
+    season: int,
+    episode: int,
+    *,
+    min_prefix_match_score: float = 80.0,
+) -> bool:
+    """
+    Reject when the watchlist show is not in the title *before* SxxExx.
+
+    Scene releases should read like ``Show Title [Year] S01E02 ...-Group``.
+    A torrent named ``Ms Marvel S01E02 ...-thePunisher`` is rejected for
+    ``The Punisher S01E02`` because only the release group cites the target show.
+    """
+    if not show_title or not str(show_title).strip():
+        return False
+
+    match = _episode_marker_pattern(season, episode).search(title)
+    if not match:
+        return True
+
+    prefix = title[: match.start()]
+    suffix = title[match.end() :]
+    prefix_score = _show_prefix_match_score(prefix, show_title)
+    if prefix_score >= min_prefix_match_score:
+        return False
+
+    suffix_score = _show_prefix_match_score(suffix, show_title)
+    if suffix_score >= min_prefix_match_score and prefix_score < 60.0:
+        return True
+
+    return True

@@ -78,6 +78,9 @@ class RetryActiveDownloadUseCase:
                 query,
                 media_type=media_type,
                 show_year=active.year if media_type == "tv" else None,
+                show_title=active.title if media_type == "tv" else None,
+                season=active.season if media_type == "tv" else None,
+                episode=active.episode if media_type == "tv" else None,
             )
             if torrent_results:
                 search_query = query

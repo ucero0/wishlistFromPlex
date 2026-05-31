@@ -123,6 +123,9 @@ class ProcessWatchlistItemUseCase:
                     query,
                     media_type="tv",
                     show_year=watchlist.year,
+                    show_title=watchlist.title,
+                    season=episode.season,
+                    episode=episode.episode,
                 )
                 if torrent_search_results:
                     search_query = query

@@ -42,3 +42,19 @@ def test_returns_empty_when_no_results_pass():
         media_type="movie",
     )
     assert results == []
+
+
+def test_rejects_tv_result_when_show_not_before_episode():
+    query = GetBestTorrentsQuery(search_provider=object(), quality_service=TorrentQualityService())
+    results = query._process_search_results(
+        [
+            _result("Ms Marvel S01E02 1080p WEB-DL-thePunisher", 10),
+            _result("The Punisher S01E02 1080p WEB-DL", 5),
+        ],
+        media_type="tv",
+        show_title="The Punisher",
+        season=1,
+        episode=2,
+    )
+    assert len(results) == 1
+    assert "The Punisher" in results[0].title
