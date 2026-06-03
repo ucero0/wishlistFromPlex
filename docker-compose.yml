@@ -89,6 +89,7 @@ services:
       - HEALTH_SERVER_PORT=9999
       - HEALTH_SERVER_ADDRESS=0.0.0.0:9999
       - SERVER_COUNTRIES=${SERVER_COUNTRIES}
+      - SERVER_CATEGORIES=${SERVER_CATEGORIES}
       - FIREWALL=on
       - FIREWALL_INPUT_PORTS=${DELUGE_WEB_PORT:-8112},${DELUGE_PORT:-58846},${PROWLARR_PORT:-9696},9999
       # Gluetun DNS (127.0.0.1): resolves public indexers; Docker DNS (127.0.0.11) NXDOMAIN'd trackers via host resolver.
@@ -137,6 +138,28 @@ services:
       - AUTOHEAL_START_PERIOD=120
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+
+  vpn-stack-sync:
+    image: docker:cli
+    container_name: vpn-stack-sync
+    restart: unless-stopped
+    environment:
+      - COMPOSE_PROJECT_DIR=/stack
+      - COMPOSE_FILE=/stack/docker-compose.yml
+      - GLUETUN_CONTAINER=gluetun
+      - VPN_DEPENDENTS=deluge prowlarr flaresolverr
+      - HEALTH_WAIT_SECONDS=180
+      - SETTLE_SECONDS=15
+      - DEBOUNCE_SECONDS=30
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/stack:ro
+      - ./infra/gluetun/sync-vpn-dependents.sh:/usr/local/bin/sync-vpn-dependents:ro
+      - ./infra/gluetun/vpn-stack-sync.entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    depends_on:
+      gluetun:
+        condition: service_started
 
   deluge:
     image: linuxserver/deluge:latest

@@ -144,7 +144,8 @@ Schema is managed with **Alembic** (`services/plex-orchestrator/alembic/`). On f
 |----------|-------------|
 | `NORDVPN_USER` | NordVPN OpenVPN username |
 | `NORDVPN_PASSWORD` | NordVPN OpenVPN password |
-| `SERVER_COUNTRIES` | Comma-separated countries | e.g. `Switzerland,Spain` |
+| `SERVER_COUNTRIES` | Comma-separated P2P-friendly countries | e.g. `Netherlands,Switzerland,Sweden` |
+| `SERVER_CATEGORIES` | NordVPN server category filter | `P2P` (limits Gluetun to P2P-capable servers) |
 
 Without valid VPN credentials on the default stack, Gluetun stays unhealthy and Deluge/Prowlarr will not work reliably. Skip this section when using `docker-compose.no-vpn.yml`.
 
@@ -525,11 +526,21 @@ curl http://localhost:8000/tmdb/test-connection
 
 ### Recreate VPN-side services together (VPN stack only)
 
-If you recreate **only** Gluetun, Deluge/Prowlarr/FlareSolverr can lose the shared network until recreated:
+Deluge, Prowlarr, and FlareSolverr use `network_mode: service:gluetun`. If Gluetun gets a **new container ID**, dependents must be recreated or FlareSolverr/indexers break.
+
+The **`vpn-stack-sync`** service (see [infra/gluetun/README.md](../infra/gluetun/README.md)) watches Gluetun start events and reconciles dependents automatically after autoheal, the in-container health monitor, or a manual Gluetun recreate.
+
+Manual full recreate (always safe):
 
 ```powershell
 docker compose up -d --force-recreate gluetun deluge prowlarr flaresolverr
 docker compose restart plex-orchestrator
+```
+
+One-shot sync without recreating Gluetun:
+
+```powershell
+docker compose run --rm --entrypoint sync-vpn-dependents vpn-stack-sync once
 ```
 
 ### Prowlarr clients on no-vpn overlay
