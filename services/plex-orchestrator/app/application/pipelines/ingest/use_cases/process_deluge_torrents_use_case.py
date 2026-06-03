@@ -1,4 +1,5 @@
 """Poll Deluge: ingest completed torrents, remove unhealthy ones, then sync tracking."""
+import asyncio
 import logging
 
 from app.application.active_downloads.queries.get_active_download_queries import (
@@ -20,11 +21,21 @@ from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_wi
 from app.application.plex.use_cases.refresh_plex_library_disk_stats_use_case import (
     RefreshPlexLibraryDiskStatsUseCase,
 )
+from app.application.settings.services.torrent_health_config_service import (
+    TorrentHealthConfigService,
+)
 from app.core.config import settings
 from app.domain.errors.deluge import DelugeConnectionError
 from app.domain.models.active_download import ActiveDownload
 from app.domain.models.torrent import Torrent
-from app.domain.services.torrent_health import is_torrent_unhealthy
+from app.domain.services.deluge_path_health import (
+    probe_deluge_path_health,
+    should_skip_unhealthy_removal,
+)
+from app.domain.services.torrent_health import (
+    TorrentHealthThresholds,
+    is_torrent_unhealthy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +57,7 @@ class ProcessDelugeTorrentsUseCase:
         handle_unhealthy_torrent_use_case: HandleUnhealthyTorrentUseCase,
         reconcile_active_downloads_use_case: ReconcileActiveDownloadsWithDelugeUseCase,
         refresh_disk_stats_use_case: RefreshPlexLibraryDiskStatsUseCase,
+        torrent_health_config_service: TorrentHealthConfigService,
     ):
         self._get_torrents_status_query = get_torrents_status_query
         self._get_all_active_downloads_query = get_all_active_downloads_query
@@ -53,6 +65,7 @@ class ProcessDelugeTorrentsUseCase:
         self._handle_unhealthy = handle_unhealthy_torrent_use_case
         self._reconcile = reconcile_active_downloads_use_case
         self._refresh_disk_stats = refresh_disk_stats_use_case
+        self._torrent_health_config = torrent_health_config_service
 
     async def execute(self) -> DelugeTorrentMaintenanceResult:
         result = DelugeTorrentMaintenanceResult()
@@ -101,7 +114,8 @@ class ProcessDelugeTorrentsUseCase:
 
         logger.info(
             "Deluge maintenance: completed=%s ingested=%s errors=%s "
-            "disk_stats_refreshed=%s tracking_updated=%s tracking_removed=%s unhealthy_removed=%s skipped_no_db=%s",
+            "disk_stats_refreshed=%s tracking_updated=%s tracking_removed=%s "
+            "unhealthy_removed=%s vpn_healthy=%s unhealthy_skipped_vpn=%s skipped_no_db=%s",
             result.completed_checked,
             result.ingested,
             result.ingest_errors,
@@ -109,6 +123,8 @@ class ProcessDelugeTorrentsUseCase:
             result.tracking_updated,
             result.tracking_removed,
             result.unhealthy_removed,
+            result.vpn_healthy,
+            result.unhealthy_skipped_vpn_unhealthy,
             result.skipped_no_active_download,
         )
         return result
@@ -153,11 +169,29 @@ class ProcessDelugeTorrentsUseCase:
         downloads_by_uid: dict[str, ActiveDownload],
         result: DelugeTorrentMaintenanceResult,
     ) -> bool:
-        min_availability = settings.torrent_unhealthy_min_availability
-        min_availability_active_days = (
-            settings.torrent_unhealthy_min_availability_active_days
+        health_config = await self._torrent_health_config.get_config()
+        path_health = await asyncio.to_thread(probe_deluge_path_health, settings)
+        result.vpn_healthy = path_health.vpn_healthy
+
+        if should_skip_unhealthy_removal(
+            path_health,
+            skip_when_vpn_down=health_config.skip_when_vpn_unhealthy,
+        ):
+            result.unhealthy_skipped_vpn_unhealthy = True
+            logger.warning(
+                "Skipping unhealthy torrent removal — VPN path unhealthy (%s). "
+                "Fix Gluetun first; see GET /deluge/test-connection (vpn_healthy)",
+                path_health.error,
+            )
+            return False
+
+        strict = (
+            health_config.use_strict_when_vpn_healthy and path_health.vpn_healthy
         )
-        no_transfer_days = settings.torrent_unhealthy_no_transfer_days
+        thresholds = TorrentHealthThresholds.from_config(health_config, strict=strict)
+        if strict:
+            logger.info("VPN path healthy; using strict unhealthy torrent thresholds")
+
         removed_any = False
 
         for torrent in deluge_torrents:
@@ -166,21 +200,14 @@ class ProcessDelugeTorrentsUseCase:
             active = downloads_by_uid.get(_normalize_hash(torrent.hash))
             if active is None:
                 continue
-            if not is_torrent_unhealthy(
-                torrent,
-                min_availability=min_availability,
-                no_transfer_days=no_transfer_days,
-                min_availability_active_days=min_availability_active_days,
-            ):
+            if not is_torrent_unhealthy(torrent, thresholds=thresholds):
                 continue
 
             result.unhealthy_checked += 1
             removed = await self._handle_unhealthy.execute(
                 torrent,
                 active,
-                min_availability=min_availability,
-                no_transfer_days=no_transfer_days,
-                min_availability_active_days=min_availability_active_days,
+                thresholds=thresholds,
             )
             if removed:
                 result.unhealthy_removed += 1

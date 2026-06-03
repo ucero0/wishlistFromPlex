@@ -14,7 +14,12 @@ from app.application.pipelines.watchlist.models.watchlist_download_run_result im
 from app.infrastructure.scheduler.access import get_scheduler_service
 from app.infrastructure.scheduler.scheduler_service import SchedulerService
 
+from app.adapters.http.routes.scheduler.scheduler_settings_routes import (
+    scheduler_settings_routes,
+)
+
 scheduler_routes = APIRouter(prefix="/scheduler", tags=["scheduler"])
+scheduler_routes.include_router(scheduler_settings_routes)
 
 
 def _scheduler_dep() -> SchedulerService:

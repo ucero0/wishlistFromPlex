@@ -13,7 +13,9 @@ from app.application.plex.queries.get_show_catalog_episodes_query import (
 from app.application.pipelines.watchlist.queries.is_episode_already_queued_query import (
     IsEpisodeAlreadyQueuedQuery,
 )
-from app.core.config import settings
+from app.application.settings.services.runtime_settings_service import (
+    runtime_settings_service,
+)
 from app.domain.models.media import MediaItem
 from app.domain.models.tv_episode import TvEpisode
 from app.domain.services.media_library_guid import library_guid_for_media
@@ -76,18 +78,19 @@ class GetMissingTvEpisodesQuery:
         latest_watched = await self._get_latest_watched_episode_query.execute(
             library_guid_for_media(watchlist)
         )
+        ahead_episodes = runtime_settings_service.get_cached().tv_watchlist_ahead_episodes
         buffered = filter_missing_for_ahead_buffer(
             catalog,
             missing,
             latest_watched,
-            ahead_episodes=settings.tv_watchlist_ahead_episodes,
+            ahead_episodes=ahead_episodes,
         )
         if latest_watched is None:
             logger.info(
                 "No watch progress for '%s'; %s episode(s) in first-%s catalog buffer",
                 watchlist.title,
                 len(buffered),
-                settings.tv_watchlist_ahead_episodes,
+                ahead_episodes,
             )
         else:
             logger.info(

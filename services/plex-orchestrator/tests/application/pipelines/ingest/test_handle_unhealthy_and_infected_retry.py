@@ -18,8 +18,10 @@ from app.application.pipelines.ingest.use_cases.handle_unhealthy_torrent_use_cas
 from app.domain.models.active_download import ActiveDownload
 from app.domain.models.scan_result import ScanResult
 from app.domain.models.torrent import Torrent
+from app.domain.services.torrent_health import TorrentHealthThresholds
 
 FIVE_DAYS_SECONDS = 5 * 86400
+THRESHOLDS = TorrentHealthThresholds(grace_hours=0, stall_days=5)
 
 
 def _active() -> ActiveDownload:
@@ -42,6 +44,9 @@ def _unhealthy_torrent() -> Torrent:
         progress=10.0,
         availability=0.0,
         time_since_download=FIVE_DAYS_SECONDS + 60,
+        time_added=1_700_000_000.0 - FIVE_DAYS_SECONDS - 120,
+        num_seeds=0,
+        num_peers=0,
     )
 
 
@@ -58,8 +63,7 @@ async def test_handle_unhealthy_blacklists_removes_and_readds_watchlist():
     handled = await use_case.execute(
         _unhealthy_torrent(),
         _active(),
-        min_availability=1.0,
-        no_transfer_days=5,
+        thresholds=THRESHOLDS,
     )
 
     assert handled is True
@@ -82,9 +86,7 @@ async def test_handle_unhealthy_returns_false_for_healthy_torrent():
         AsyncMock(), AsyncMock(), AsyncMock()
     )
 
-    handled = await use_case.execute(
-        torrent, _active(), min_availability=1.0, no_transfer_days=5
-    )
+    handled = await use_case.execute(torrent, _active(), thresholds=THRESHOLDS)
 
     assert handled is False
 

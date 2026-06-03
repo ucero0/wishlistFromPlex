@@ -59,6 +59,15 @@ class SchedulerService:
         )
         logger.info("Registered %s (interval: %s minutes)", name, interval_minutes)
 
+    def reschedule_interval(self, job_id: str, interval_minutes: int) -> None:
+        """Update an existing interval job without restarting the application."""
+        minutes = max(1, int(interval_minutes))
+        self.scheduler.reschedule_job(
+            job_id,
+            trigger=IntervalTrigger(minutes=minutes),
+        )
+        logger.info("Rescheduled job %s to %s minutes", job_id, minutes)
+
     def register_manual_runner(
         self,
         job_id: str,

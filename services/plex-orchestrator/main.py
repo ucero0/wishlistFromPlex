@@ -28,6 +28,12 @@ from app.adapters.http.routes import (
     blacklist_torrent_routes,
     tracking_routes,
 )
+from app.application.settings.services.runtime_settings_service import (
+    runtime_settings_service,
+)
+from app.application.settings.services.torrent_health_config_service import (
+    torrent_health_config_service,
+)
 from app.adapters.http.routes.tmdb.tmdb_routes import tmdbRoutes
 from app.adapters.http.exception_handlers import external_service_error_handler
 from app.domain.errors.external import ExternalServiceError
@@ -78,6 +84,26 @@ async def lifespan(_app: FastAPI):
                 )
         except Exception as exc:
             logger.warning("Startup TMDB user bootstrap from env failed: %s", exc)
+        try:
+            health_cfg = await torrent_health_config_service.ensure_config_row()
+            logger.info(
+                "Torrent health policy ready (db id=%s, updated_at=%s)",
+                health_cfg.id,
+                health_cfg.updated_at,
+            )
+        except Exception as exc:
+            logger.warning("Startup torrent health config ensure failed: %s", exc)
+    try:
+        runtime_cfg = await runtime_settings_service.ensure_loaded()
+        runtime_settings_service.apply_scheduler_intervals(scheduler_service, runtime_cfg)
+        logger.info(
+            "Runtime settings ready (watchlist=%sm ingest=%sm updated_at=%s)",
+            runtime_cfg.watchlist_download_interval_minutes,
+            runtime_cfg.ingest_poll_interval_minutes,
+            runtime_cfg.updated_at,
+        )
+    except Exception as exc:
+        logger.warning("Startup runtime settings load failed: %s", exc)
     scheduler_service.start()
     logger.info("Startup complete")
     yield
@@ -212,6 +238,8 @@ async def root():
             "deferred_downloads_process": "POST /tracking/deferred-downloads/process",
             "watchlist_downloads_run": "POST /scheduler/watchlist-downloads/run",
             "deluge_maintenance_run": "POST /scheduler/jobs/process_deluge_torrents/run",
+            "deluge_torrent_health": "GET|PUT /deluge/torrent-health",
+            "scheduler_settings": "GET|PUT /scheduler/settings",
             "scheduler_jobs": "GET /scheduler/jobs",
             "deluge": "active",
             "antivirus": "active",

@@ -21,6 +21,9 @@ class ExternalDelugeTorrentStatusResponse(BaseModel):
     distributed_copies: Optional[float] = None
     time_since_download: Optional[float] = None
     time_since_upload: Optional[float] = None
+    last_seen_complete: Optional[float] = None
+    tracker_status: Optional[str] = None
+    active_time: Optional[float] = None
 
     @classmethod
     def fields(cls) -> list[str]:

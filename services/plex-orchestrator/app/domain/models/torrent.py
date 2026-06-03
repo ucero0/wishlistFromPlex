@@ -32,9 +32,14 @@ class Torrent(BaseModel):
     download_speed: int = 0
     eta: Optional[int] = None
     time_added: Optional[float] = None  # Unix timestamp when torrent was added
-    availability: Optional[float] = None  # Deluge distributed_copies
+    availability: Optional[float] = None  # Deluge Avail / libtorrent distributed_copies
     time_since_download: Optional[float] = None  # Seconds since last download; -1 if active
     time_since_upload: Optional[float] = None  # Seconds since last upload; -1 if active
+    last_seen_complete: Optional[float] = None  # Unix time; 0 = never saw 100% in swarm
+    num_peers: int = 0
+    num_seeds: int = 0
+    tracker_status: Optional[str] = None
+    active_time: Optional[float] = None  # Seconds torrent has been active in Deluge
 
     @property
     def is_finished(self) -> bool:

@@ -27,6 +27,10 @@ from app.infrastructure.persistence.plex.models import (  # noqa: F401, E402
     plex_server_config_orm,
     plex_user_orm,
 )
+from app.infrastructure.persistence.settings.models import (  # noqa: F401, E402
+    runtime_settings_orm,
+    torrent_health_config_orm,
+)
 
 config = context.config
 if config.config_file_name is not None:

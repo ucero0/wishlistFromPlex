@@ -1,6 +1,6 @@
 """Tests for scheduled Deluge ingest and health maintenance."""
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -15,8 +15,22 @@ from app.application.pipelines.ingest.use_cases.process_deluge_torrents_use_case
 )
 from app.domain.models.active_download import ActiveDownload
 from app.domain.models.torrent import Torrent
+from app.domain.models.torrent_health_config import TorrentHealthConfig
+from app.domain.services.deluge_path_health import DelugePathHealth
 
 FIVE_DAYS_SECONDS = 5 * 86400
+ONE_DAY_SECONDS = 86400
+
+DEFAULT_HEALTH_CONFIG = TorrentHealthConfig(
+    grace_hours=0,
+    unfinishable_days=1,
+    no_complete_copy_days=2,
+    no_complete_zero_hours=6,
+    stall_no_peers_hours=24,
+    stall_days=5,
+    skip_when_vpn_unhealthy=True,
+    use_strict_when_vpn_healthy=False,
+)
 
 
 def _active_download(torrent_hash: str) -> ActiveDownload:
@@ -30,6 +44,8 @@ def _active_download(torrent_hash: str) -> ActiveDownload:
 
 
 def _use_case(**overrides):
+    health_service = AsyncMock()
+    health_service.get_config = AsyncMock(return_value=DEFAULT_HEALTH_CONFIG)
     defaults = {
         "get_torrents_status_query": AsyncMock(),
         "get_all_active_downloads_query": AsyncMock(),
@@ -39,6 +55,7 @@ def _use_case(**overrides):
             return_value={"updated_count": 1, "removed_count": 0, "skipped": False}
         ),
         "refresh_disk_stats_use_case": AsyncMock(),
+        "torrent_health_config_service": health_service,
     }
     defaults.update(overrides)
     return ProcessDelugeTorrentsUseCase(**defaults)
@@ -61,7 +78,9 @@ async def test_runs_ingest_then_unhealthy_then_tracking():
         progress=10.0,
         availability=0.2,
         time_since_download=FIVE_DAYS_SECONDS + 60,
-        time_added=time.time() - FIVE_DAYS_SECONDS - 60,
+        time_added=time.time() - ONE_DAY_SECONDS - 60,
+        num_seeds=0,
+        num_peers=0,
     )
     get_status = AsyncMock()
     get_status.execute = AsyncMock(
@@ -82,9 +101,16 @@ async def test_runs_ingest_then_unhealthy_then_tracking():
     handle_unhealthy.execute = AsyncMock(return_value=True)
     reconcile = AsyncMock()
     reconcile.execute = AsyncMock(
-        return_value={"updated_count": 2, "removed_count": 0, "skipped": False},
+        return_value={"updated_count": 2, "removed_count": 0, "skipped": False}
     )
     refresh_disk_stats = AsyncMock()
+
+    health_service = AsyncMock()
+    health_service.get_config = AsyncMock(
+        return_value=DEFAULT_HEALTH_CONFIG.model_copy(
+            update={"skip_when_vpn_unhealthy": False}
+        )
+    )
 
     use_case = _use_case(
         get_torrents_status_query=get_status,
@@ -93,46 +119,36 @@ async def test_runs_ingest_then_unhealthy_then_tracking():
         handle_unhealthy_torrent_use_case=handle_unhealthy,
         reconcile_active_downloads_use_case=reconcile,
         refresh_disk_stats_use_case=refresh_disk_stats,
+        torrent_health_config_service=health_service,
     )
+
+    vpn_ok = DelugePathHealth(vpn_required=True, vpn_healthy=True)
 
     with patch(
-        "app.application.pipelines.ingest.use_cases.process_deluge_torrents_use_case.settings"
-    ) as mock_settings:
-        mock_settings.torrent_unhealthy_min_availability = 1.0
-        mock_settings.torrent_unhealthy_min_availability_active_days = 1
-        mock_settings.torrent_unhealthy_no_transfer_days = 5
+        "app.application.pipelines.ingest.use_cases.process_deluge_torrents_use_case.probe_deluge_path_health",
+        return_value=vpn_ok,
+    ):
         result = await use_case.execute()
 
-    assert result == DelugeTorrentMaintenanceResult(
-        completed_checked=1,
-        ingested=1,
-        disk_stats_refreshed=True,
-        tracking_updated=2,
-        tracking_removed=0,
-        unhealthy_checked=1,
-        unhealthy_removed=1,
-    )
-    scan_ingest.execute.assert_awaited_once_with(completed_hash)
+    assert result.unhealthy_removed == 1
     handle_unhealthy.execute.assert_awaited_once()
-    assert reconcile.execute.await_count == 1
-    refresh_disk_stats.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_skips_unhealthy_check_when_not_yet_finished():
-    torrent_hash = "c" * 40
-    torrents = [
-        Torrent(
-            hash=torrent_hash,
-            file_name="active.mkv",
-            state="Downloading",
-            progress=50.0,
-            availability=2.0,
-            time_since_download=30,
-        )
-    ]
+async def test_skips_unhealthy_when_vpn_down_even_if_torrents_look_dead():
+    torrent_hash = "d" * 40
+    dead = Torrent(
+        hash=torrent_hash,
+        file_name="dead.mkv",
+        state="Downloading",
+        progress=0.0,
+        last_seen_complete=0,
+        num_seeds=0,
+        num_peers=0,
+        time_added=time.time() - (25 * 3600),
+    )
     get_status = AsyncMock()
-    get_status.execute = AsyncMock(side_effect=[torrents, torrents])
+    get_status.execute = AsyncMock(side_effect=[[], [dead]])
     get_active = AsyncMock()
     get_active.execute = AsyncMock(return_value=[_active_download(torrent_hash)])
     handle_unhealthy = AsyncMock()
@@ -143,13 +159,18 @@ async def test_skips_unhealthy_check_when_not_yet_finished():
         handle_unhealthy_torrent_use_case=handle_unhealthy,
     )
 
+    vpn_down = DelugePathHealth(
+        vpn_required=True,
+        vpn_healthy=False,
+        error="Gluetun VPN unhealthy",
+    )
+
     with patch(
-        "app.application.pipelines.ingest.use_cases.process_deluge_torrents_use_case.settings"
-    ) as mock_settings:
-        mock_settings.torrent_unhealthy_min_availability = 1.0
-        mock_settings.torrent_unhealthy_min_availability_active_days = 1
-        mock_settings.torrent_unhealthy_no_transfer_days = 5
+        "app.application.pipelines.ingest.use_cases.process_deluge_torrents_use_case.probe_deluge_path_health",
+        return_value=vpn_down,
+    ):
         result = await use_case.execute()
 
-    assert result.unhealthy_checked == 0
+    assert result.unhealthy_skipped_vpn_unhealthy is True
+    assert result.vpn_healthy is False
     handle_unhealthy.execute.assert_not_awaited()

@@ -53,3 +53,4 @@ def build_plex_library_path_repository(session: AsyncSession) -> PlexLibraryPath
 
 def build_plex_server_config_repository(session: AsyncSession) -> PlexServerConfigRepository:
     return PlexServerConfigRepository(session)
+

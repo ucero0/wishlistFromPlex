@@ -38,7 +38,7 @@ Public examples (no key): `GET /health`, some Deluge read-only routes — see ht
 
 | Step | Endpoint | Notes |
 |------|----------|--------|
-| Deluge | `GET /deluge/test-connection` | RPC reachable |
+| Deluge | `GET /deluge/test-connection` | RPC reachable; `torrent_connectivity: good` or `idle` when swarm is healthy |
 | Prowlarr | `GET /prowlarr/test-connection` | set `PROWLARR_API_KEY` in `.env` |
 
 ### 3. Run the pipeline
@@ -46,9 +46,9 @@ Public examples (no key): `GET /health`, some Deluge read-only routes — see ht
 **Automatic (scheduler):**
 
 - Watchlist → search → Deluge: runs on an interval (see scheduler in app startup logs).
-- Library path sync: every `PLEX_LIBRARY_PATHS_SYNC_INTERVAL_HOURS` (default 6). Also refreshes HDD free space into the database.
+- Library path sync: interval from DB (`GET /scheduler/settings`, default 360 min). Also refreshes HDD free space into the database.
 - Deferred downloads: every `DEFERRED_DOWNLOAD_PROCESS_INTERVAL_MINUTES` (default 15).
-- Deluge ingest + health: every `INGEST_POLL_INTERVAL_MINUTES` (default 5). **Refreshes HDD free space before ingest**, then: ingest completed torrents → sync active-download tracking → remove unhealthy torrents (availability below `TORRENT_UNHEALTHY_MIN_AVAILABILITY`, default 1, or `time_since_download` greater than `TORRENT_UNHEALTHY_NO_TRANSFER_DAYS`, default 5). Each individual ingest move also refreshes free space again right before picking a destination folder.
+- Deluge ingest + health: interval from DB (default 5 min). Ingest completed torrents → sync tracking → remove unhealthy torrents. **Policies in DB:** `GET`/`PUT /scheduler/settings`, `GET`/`PUT /deluge/torrent-health`. **VPN check first:** Gluetun `http://gluetun:9999/`. Per-torrent: `unfinishable`, `no_complete_copy`, `stalled`, `error`.
 
 **Manual triggers:**
 
@@ -130,10 +130,22 @@ If infected: torrent is removed and the item can be re-queued on the watchlist. 
 
 | Route | Purpose |
 |-------|---------|
-| `GET /deluge/test-connection` | RPC + VPN health |
+| `GET /deluge/test-connection` | RPC + VPN health; `torrent_connectivity` is informational |
+| `GET /deluge/torrent-health` | Current unhealthy-removal policy (DB; requires `X-API-Key`) |
+| `PUT /deluge/torrent-health` | Update policy (partial JSON body; next maintenance poll applies) |
 | `GET /deluge/torrents` | List torrents |
 | `GET /deluge/torrents/completed` | Completed torrents |
 | `GET /deluge/torrents/downloading` | Active downloads |
+
+### Scheduler (`/scheduler`)
+
+| Route | Purpose |
+|-------|---------|
+| `GET /scheduler/settings` | Job intervals, download buffers, TV ahead buffer (DB; `X-API-Key`) |
+| `PUT /scheduler/settings` | Update policy; **intervals reschedule immediately** (no restart) |
+| `GET /scheduler/jobs` | List jobs and next run time |
+| `POST /scheduler/jobs/{job_id}/run` | Run a job now |
+| `POST /scheduler/watchlist-downloads/run` | Shortcut for watchlist download job |
 
 ### Prowlarr (`/prowlarr`)
 

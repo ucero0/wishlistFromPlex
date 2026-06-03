@@ -13,6 +13,9 @@ from app.application.pipelines.ingest.use_cases.ingest_clean_torrent_use_case im
 from app.application.pipelines.ingest.use_cases.process_deluge_torrents_use_case import (
     ProcessDelugeTorrentsUseCase,
 )
+from app.application.settings.services.torrent_health_config_service import (
+    torrent_health_config_service,
+)
 from app.application.pipelines.ingest.use_cases.retry_active_download_use_case import (
     RetryActiveDownloadUseCase,
 )
@@ -187,4 +190,5 @@ def build_process_deluge_torrents_use_case(
             session
         ),
         refresh_disk_stats_use_case=build_refresh_plex_library_disk_stats_use_case(session),
+        torrent_health_config_service=torrent_health_config_service,
     )

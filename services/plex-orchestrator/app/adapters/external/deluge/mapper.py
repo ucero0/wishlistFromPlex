@@ -17,6 +17,11 @@ def to_domain_torrent(rawTorrent: ExternalDelugeTorrentStatusResponse) -> Torren
             availability=rawTorrent.distributed_copies,
             time_since_download=rawTorrent.time_since_download,
             time_since_upload=rawTorrent.time_since_upload,
+            last_seen_complete=rawTorrent.last_seen_complete,
+            num_peers=rawTorrent.num_peers,
+            num_seeds=rawTorrent.num_seeds,
+            tracker_status=rawTorrent.tracker_status,
+            active_time=rawTorrent.active_time,
         )
 
 def to_domain_list_torrents(rawTorrentsStatus: List[ExternalDelugeTorrentStatusResponse]) -> ListTorrents:

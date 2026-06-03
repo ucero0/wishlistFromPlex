@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
+
+TorrentConnectivity = Literal["idle", "good", "stalled"]
 
 
 class DelugeTorrentStatusResponse(BaseModel):
@@ -16,12 +18,19 @@ class DelugeTorrentStatusResponse(BaseModel):
     total_size: Optional[int] = None
 
 class DelugeConnectionResponse(BaseModel):
-    """HTTP response for Deluge RPC connection test."""
+    """HTTP response for Deluge RPC and swarm connectivity."""
     connected: bool
     status: str
     service: str = "deluge"
     error: str | None = None
     error_type: str | None = None
+    torrent_connectivity: TorrentConnectivity | None = None
+    dht_nodes: int | None = None
+    has_incoming_connections: bool | None = None
+    downloading_count: int | None = None
+    active_download_count: int | None = None
+    total_download_bps: int | None = None
+    total_peer_count: int | None = None
 
 
 class DelugeRemoveRequest(BaseModel):

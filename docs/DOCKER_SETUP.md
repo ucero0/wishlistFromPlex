@@ -457,7 +457,7 @@ Server API calls use the **server admin token** (DB or `PLEX_SERVER_ADMIN_TOKEN`
 
 **Automatic DB updates** (Plex server API via admin token):
 
-- **Scheduled** every `PLEX_LIBRARY_PATHS_SYNC_INTERVAL_HOURS` (default `6`)
+- **Scheduled** on an interval from DB (`GET /scheduler/settings`, default 360 minutes)
 - **Before ingest** when moving a clean torrent
 - **Before** `GET /plex/library-paths*` reads (best-effort refresh)
 
@@ -514,7 +514,7 @@ curl http://localhost:8000/tmdb/test-connection
 
 | Endpoint | Healthy when |
 |----------|----------------|
-| `/deluge/test-connection` | `connected: true` |
+| `/deluge/test-connection` | `connected: true`, `vpn_healthy: true` (Gluetun :9999); `torrent_connectivity` is informational only |
 | `/prowlarr/test-connection` | API key valid |
 | `/plex/test-connection` | Plex server reachable |
 | `/antivirus/health` | ClamAV + scan service up |

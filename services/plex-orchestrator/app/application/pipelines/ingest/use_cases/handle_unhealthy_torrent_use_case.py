@@ -8,7 +8,7 @@ from app.application.pipelines.watchlist.use_cases.readd_watchlist_after_failure
 from app.domain.models.active_download import ActiveDownload
 from app.domain.models.torrent import Torrent
 from app.domain.ports.external.deluge.deluge_provider import DelugeProvider
-from app.domain.services.torrent_health import unhealthy_reason
+from app.domain.services.torrent_health import TorrentHealthThresholds, unhealthy_reason
 
 logger = logging.getLogger(__name__)
 
@@ -29,31 +29,30 @@ class HandleUnhealthyTorrentUseCase:
         torrent: Torrent,
         active_download: ActiveDownload,
         *,
-        min_availability: float,
-        no_transfer_days: int,
-        min_availability_active_days: int = 1,
+        thresholds: TorrentHealthThresholds,
     ) -> bool:
-        reason = unhealthy_reason(
-            torrent,
-            min_availability=min_availability,
-            no_transfer_days=no_transfer_days,
-            min_availability_active_days=min_availability_active_days,
-        )
+        reason = unhealthy_reason(torrent, thresholds=thresholds)
         if reason is None:
             return False
 
         logger.warning(
-            "Removing unhealthy torrent '%s' (%s, availability=%s, "
-            "time_since_download=%s): %s",
+            "Removing unhealthy torrent '%s' (%s, reason=%s, progress=%.1f%%, "
+            "availability=%s, last_seen_complete=%s, seeds=%s, peers=%s, "
+            "tracker=%s, time_since_download=%s)",
             active_download.title,
             torrent.hash[:8],
-            torrent.availability,
-            torrent.time_since_download,
             reason,
+            float(torrent.progress or 0),
+            torrent.availability,
+            torrent.last_seen_complete,
+            torrent.num_seeds,
+            torrent.num_peers,
+            torrent.tracker_status,
+            torrent.time_since_download,
         )
         await self._add_torrent_to_blacklist.execute(
             active_download.prowlarr_guid,
-            reason="unhealthy",
+            reason=f"unhealthy:{reason}",
             name=active_download.title,
             year=active_download.year,
             media_type=active_download.type,

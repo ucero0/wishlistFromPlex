@@ -11,4 +11,6 @@ class DelugeTorrentMaintenanceResult(BaseModel):
     tracking_removed: int = 0
     unhealthy_checked: int = 0
     unhealthy_removed: int = 0
+    unhealthy_skipped_vpn_unhealthy: bool = False
+    vpn_healthy: bool | None = None
     skipped_no_active_download: int = 0

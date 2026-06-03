@@ -5,7 +5,11 @@ from app.application.pipelines.watchlist.queries.get_missing_tv_episodes_query i
     GetMissingTvEpisodesQuery,
 )
 from app.domain.models.media import MediaItem, MediaType
+from app.domain.models.runtime_settings import RuntimeSettings
 from app.domain.models.tv_episode import TvEpisode
+from app.application.settings.services.runtime_settings_service import (
+    runtime_settings_service,
+)
 
 
 class _FakeCatalog:
@@ -54,10 +58,7 @@ async def test_get_missing_all_when_not_for_download():
 
 @pytest.mark.asyncio
 async def test_get_missing_for_download_applies_buffer(monkeypatch):
-    monkeypatch.setattr(
-        "app.application.pipelines.watchlist.queries.get_missing_tv_episodes_query.settings.tv_watchlist_ahead_episodes",
-        2,
-    )
+    runtime_settings_service._cache = RuntimeSettings(tv_watchlist_ahead_episodes=2)
     query = _build_query(TvEpisode(season=1, episode=2))
     watchlist = MediaItem(guid="plex://show/1", title="Show", type=MediaType.SHOW)
     missing = await query.execute(watchlist, "token", for_download=True)
@@ -70,13 +71,8 @@ async def test_get_missing_for_download_applies_buffer(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_missing_for_download_uses_first_catalog_episodes_when_unwatched(
-    monkeypatch,
-):
-    monkeypatch.setattr(
-        "app.application.pipelines.watchlist.queries.get_missing_tv_episodes_query.settings.tv_watchlist_ahead_episodes",
-        2,
-    )
+async def test_get_missing_for_download_uses_first_catalog_episodes_when_unwatched():
+    runtime_settings_service._cache = RuntimeSettings(tv_watchlist_ahead_episodes=2)
     query = _build_query(None)
     watchlist = MediaItem(guid="plex://show/1", title="Show", type=MediaType.SHOW)
     missing = await query.execute(watchlist, "token", for_download=True)

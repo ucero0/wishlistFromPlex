@@ -10,15 +10,13 @@ class Settings(BaseSettings):
     # API Security
     api_key: str
 
-    # Sync Configuration
-    plex_sync_interval_hours: int = 6
-    plex_library_paths_sync_interval_hours: int = 6
     plex_server_url: str = "http://localhost:32400"
     # Owner/admin X-Plex-Token for local Plex Media Server API (library paths, scans, in-library checks)
     plex_server_admin_token: Optional[str] = None
     # Deluge Configuration
     deluge_host: str = "deluge"
     deluge_port: int = 58846  # Deluge daemon port (for RPC)
+    gluetun_health_url: str = "http://gluetun:9999"
     deluge_username: str = "deluge"
     deluge_password: str = "deluge"  # Read from auth file or set via env
 
@@ -39,19 +37,6 @@ class Settings(BaseSettings):
     
     # Deluge quarantine (shared with antivirus container for scans/moves)
     container_deluge_quarantine_path: str = "/downloads/quarantine"
-    # Reserve this much free space on the download volume before adding torrents
-    download_min_free_buffer_gb: float = 10.0
-    # When Prowlarr size is unknown, assume a large release needs this much space
-    download_default_required_gb: float = 50.0
-    deferred_download_process_interval_minutes: int = 15
-    ingest_poll_interval_minutes: int = 5
-    torrent_unhealthy_min_availability: float = 1.0
-    torrent_unhealthy_min_availability_active_days: int = 1
-    torrent_unhealthy_no_transfer_days: int = 5
-    # Keep this many unwatched episodes downloaded ahead of any user's progress
-    tv_watchlist_ahead_episodes: int = 10
-    # Use DB free_bytes for ingest when disk_stats_synced_at is newer than this (hours)
-    plex_library_disk_stats_max_age_hours: int = 6
     # Docker: host paths are visible under this prefix (e.g. /host/mnt/media -> Plex path /mnt/media)
     container_host_fs_prefix: str = ""
 

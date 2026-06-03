@@ -118,6 +118,17 @@ class DelugeClient:
             logger.error("Error disconnecting from Deluge: %s", e)
             return False
 
+    def get_session_status(self, keys: List[str]) -> dict:
+        """Return decoded Deluge session status for the given keys."""
+        self._ensure_connected()
+        try:
+            raw = self.client.core.get_session_status(keys)
+            return decode_rpc(raw)
+        except DelugeConnectionError:
+            raise
+        except Exception as e:
+            raise DelugeOperationError(f"Failed to get Deluge session status: {e}") from e
+
     def get_torrents_status(self) -> List[ExternalDelugeTorrentStatusResponse]:
         """Get the status of all torrents from Deluge."""
         self._ensure_connected()

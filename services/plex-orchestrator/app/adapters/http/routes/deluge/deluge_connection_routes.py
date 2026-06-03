@@ -1,7 +1,7 @@
 """Deluge connection health routes."""
 from fastapi import APIRouter, Depends
 
-from app.adapters.http.mappers.external_service_http_mapper import external_connection_to_json_response
+from app.adapters.http.mappers.deluge_connection_http_mapper import deluge_connection_to_json_response
 from app.application.deluge.queries.test_deluge_connection_query import TestDelugeConnectionQuery
 from app.factories.deluge.deluge_factory import create_test_deluge_connection_query
 
@@ -13,4 +13,4 @@ async def test_deluge_connection(
     deluge_query: TestDelugeConnectionQuery = Depends(create_test_deluge_connection_query),
 ):
     status = await deluge_query.execute()
-    return external_connection_to_json_response(status)
+    return deluge_connection_to_json_response(status)

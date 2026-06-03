@@ -1,6 +1,9 @@
 """Shared infrastructure wiring (filesystem, download volume checks)."""
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.settings.services.runtime_settings_service import (
+    runtime_settings_service,
+)
 from app.core.config import settings
 from app.domain.services.download_volume_space_checker import DownloadVolumeSpaceChecker
 from app.domain.services.plex_library_destination_selector import (
@@ -22,13 +25,14 @@ def build_filesystem_service() -> FilesystemServiceImpl:
 
 
 def build_download_volume_space_checker() -> DownloadVolumeSpaceChecker:
+    runtime = runtime_settings_service.get_cached()
     filesystem = build_filesystem_service()
     return DownloadVolumeSpaceChecker(
         filesystem,
         settings.container_deluge_quarantine_path,
-        min_free_buffer_bytes=_gb_to_bytes(settings.download_min_free_buffer_gb),
+        min_free_buffer_bytes=_gb_to_bytes(runtime.download_min_free_buffer_gb),
         default_required_bytes_when_unknown=_gb_to_bytes(
-            settings.download_default_required_gb
+            runtime.download_default_required_gb
         ),
     )
 
@@ -39,5 +43,5 @@ def build_plex_library_destination_selector(
     return PlexLibraryDestinationSelector(
         build_plex_library_path_repository(session),
         build_filesystem_service(),
-        disk_stats_max_age_hours=settings.plex_library_disk_stats_max_age_hours,
+        disk_stats_max_age_hours=runtime_settings_service.get_cached().plex_library_disk_stats_max_age_hours,
     )
