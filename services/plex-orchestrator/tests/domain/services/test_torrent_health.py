@@ -1,4 +1,4 @@
-"""Tests for libtorrent-aligned torrent health detection."""
+"""Tests for torrent health detection."""
 import time
 
 from app.domain.models.torrent import Torrent
@@ -10,15 +10,14 @@ from app.domain.services.torrent_health import (
 
 FIVE_DAYS_SECONDS = 5 * 86400
 ONE_DAY_SECONDS = 86400
+TWENTY_ONE_MINUTES_SECONDS = 21 * 60
 NOW = 1_700_000_000.0
 THRESHOLDS = TorrentHealthThresholds(
     grace_hours=6,
     min_availability=1.0,
-    unfinishable_days=1,
+    unfinishable_active_minutes=20,
     no_complete_copy_days=2,
-    no_complete_zero_hours=12,
     stall_days=5,
-    stall_no_peers_hours=24,
 )
 
 
@@ -37,8 +36,7 @@ def test_grace_period_blocks_removal():
     assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) is None
 
 
-def test_no_complete_copy_at_zero_percent_with_peers():
-    """0% + never saw complete — peers do not block removal."""
+def test_unfinishable_at_zero_percent_with_no_swarm():
     t = Torrent(
         hash="a" * 40,
         file_name="x.mkv",
@@ -50,16 +48,17 @@ def test_no_complete_copy_at_zero_percent_with_peers():
         num_peers=1,
         time_added=NOW - (13 * 3600),
     )
-    assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) == "no_complete_copy"
+    assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) == "unfinishable"
 
 
-def test_unfinishable_when_availability_below_one():
+def test_unfinishable_when_downloading_active_and_availability_below_one():
     t = Torrent(
         hash="a" * 40,
         file_name="x.mkv",
         state="Downloading",
         progress=10.0,
         availability=0.5,
+        active_time=TWENTY_ONE_MINUTES_SECONDS,
         last_seen_complete=NOW - 3600,
         num_seeds=1,
         num_peers=1,
@@ -68,22 +67,48 @@ def test_unfinishable_when_availability_below_one():
     assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) == "unfinishable"
 
 
-def test_no_complete_copy_for_partial_without_full_copy():
+def test_unfinishable_when_no_peers_and_availability_unknown():
     t = Torrent(
         hash="a" * 40,
         file_name="x.mkv",
         state="Downloading",
-        progress=5.0,
-        last_seen_complete=0,
-        availability=1.2,
+        progress=0.0,
+        availability=None,
         num_seeds=0,
-        num_peers=2,
-        time_added=NOW - (2 * ONE_DAY_SECONDS) - 60,
+        num_peers=0,
+        time_added=NOW - (25 * 3600),
     )
-    assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) == "no_complete_copy"
+    assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) == "unfinishable"
 
 
-def test_stalled_after_day_without_connections():
+def test_not_unfinishable_before_twenty_minutes_active():
+    t = Torrent(
+        hash="a" * 40,
+        file_name="x.mkv",
+        state="Downloading",
+        progress=10.0,
+        availability=0.5,
+        active_time=19 * 60,
+        time_added=NOW - ONE_DAY_SECONDS - 60,
+    )
+    assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) is None
+
+
+def test_not_unhealthy_when_not_downloading_state():
+    t = Torrent(
+        hash="a" * 40,
+        file_name="x.mkv",
+        state="Queued",
+        progress=10.0,
+        availability=0.5,
+        active_time=TWENTY_ONE_MINUTES_SECONDS,
+        time_added=NOW - ONE_DAY_SECONDS - 60,
+    )
+    assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) is None
+
+
+def test_not_unhealthy_when_isolated_but_swarm_looks_finishable():
+    """No peers yet availability >= 1 — wait for idle stall, not early removal."""
     t = Torrent(
         hash="a" * 40,
         file_name="x.mkv",
@@ -95,6 +120,21 @@ def test_stalled_after_day_without_connections():
         num_peers=0,
         time_since_download=7200,
         time_added=NOW - (25 * 3600),
+    )
+    assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) is None
+
+
+def test_stalled_for_partial_without_full_copy():
+    t = Torrent(
+        hash="a" * 40,
+        file_name="x.mkv",
+        state="Downloading",
+        progress=5.0,
+        last_seen_complete=0,
+        availability=1.2,
+        num_seeds=0,
+        num_peers=2,
+        time_added=NOW - (2 * ONE_DAY_SECONDS) - 60,
     )
     assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) == "stalled"
 
@@ -115,12 +155,13 @@ def test_stalled_after_days_without_download_even_with_peers():
     assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) == "stalled"
 
 
-def test_stalled_when_active_long_without_peers():
+def test_stalled_when_active_long_without_peers_but_finishable_availability():
     t = Torrent(
         hash="a" * 40,
         file_name="x.mkv",
         state="Downloading",
         progress=45.0,
+        availability=1.5,
         time_since_download=-1,
         active_time=FIVE_DAYS_SECONDS + 60,
         num_seeds=0,
@@ -130,13 +171,14 @@ def test_stalled_when_active_long_without_peers():
     assert unhealthy_reason(t, thresholds=THRESHOLDS, now=NOW) == "stalled"
 
 
-def test_unfinishable_beats_no_complete_when_both_apply():
+def test_unfinishable_beats_stalled_when_both_apply():
     t = Torrent(
         hash="a" * 40,
         file_name="x.mkv",
         state="Downloading",
         progress=50.0,
         availability=0.2,
+        active_time=TWENTY_ONE_MINUTES_SECONDS,
         last_seen_complete=0,
         time_added=NOW - (2 * ONE_DAY_SECONDS) - 60,
     )

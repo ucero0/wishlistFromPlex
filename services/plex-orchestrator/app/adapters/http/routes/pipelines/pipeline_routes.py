@@ -87,11 +87,11 @@ async def scan_and_ingest_torrent(
     ``media_type``, ``title``, and ``year`` improve Plex library placement for manual adds.
 
     1. Scans the torrent (antivirus) unless a clean scan is already in the DB (pending move)
-    2. If clean: copies to media path, removes torrent and data from Deluge, triggers Plex partial scan,
-       then reconciles active-download tracking with Deluge (tracked torrents only)
+    2. If clean: verifies media integrity (ffprobe), copies to library, removes torrent from Deluge,
+       triggers Plex partial scan, then reconciles active-download tracking
     3. If copy fails or no disk space: status ``pending_move`` — torrent stays in Deluge
-    4. If infected: blacklists release, removes torrent (with data); tracked downloads are
-       retried via Prowlarr, manual Deluge torrents are removed only
+    4. If infected or corrupt: blacklists release, removes torrent (with data); tracked downloads
+       are retried via Prowlarr, manual Deluge torrents are removed only
     """
     try:
         result = await use_case.execute(

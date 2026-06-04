@@ -1,6 +1,9 @@
 """Composition root for scan-and-ingest pipeline."""
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.pipelines.ingest.use_cases.handle_corrupt_media_use_case import (
+    HandleCorruptMediaUseCase,
+)
 from app.application.pipelines.ingest.use_cases.handle_infected_torrent_use_case import (
     HandleInfectedTorrentUseCase,
 )
@@ -32,6 +35,7 @@ from app.application.pipelines.watchlist.services.watchlist_search_builder impor
     WatchlistSearchQueryBuilder,
 )
 from app.composition.antivirus import build_antivirus_provider
+from app.composition.media_integrity import build_verify_media_integrity_use_case
 from app.composition.blacklist_torrent import (
     build_add_torrent_to_blacklist_use_case,
     build_is_blacklisted_by_guid_prowlarr_query,
@@ -119,6 +123,21 @@ def build_scan_torrent_use_case(session: AsyncSession) -> ScanTorrentUseCase:
     )
 
 
+def build_handle_corrupt_media_use_case(
+    session: AsyncSession,
+) -> HandleCorruptMediaUseCase:
+    return HandleCorruptMediaUseCase(
+        deluge_provider=build_deluge_adapter(),
+        add_torrent_to_blacklist_use_case=build_add_torrent_to_blacklist_use_case(
+            session
+        ),
+        retry_active_download_use_case=build_retry_active_download_use_case(session),
+        reconcile_active_downloads_use_case=build_reconcile_active_downloads_with_deluge_use_case(
+            session
+        ),
+    )
+
+
 def build_handle_infected_torrent_use_case(
     session: AsyncSession,
 ) -> HandleInfectedTorrentUseCase:
@@ -137,8 +156,9 @@ def build_handle_infected_torrent_use_case(
 def build_ingest_clean_torrent_use_case(
     session: AsyncSession,
 ) -> IngestCleanTorrentUseCase:
+    filesystem_service = build_filesystem_service()
     return IngestCleanTorrentUseCase(
-        filesystem_service=build_filesystem_service(),
+        filesystem_service=filesystem_service,
         antivirus_repo=build_antivirus_repository(session),
         deluge_provider=build_deluge_adapter(),
         destination_selector=build_plex_library_destination_selector(session),
@@ -150,6 +170,10 @@ def build_ingest_clean_torrent_use_case(
             session
         ),
         remove_watchlist_entry_use_case=build_remove_watchlist_entry_use_case(session),
+        verify_media_integrity_use_case=build_verify_media_integrity_use_case(
+            filesystem_service
+        ),
+        handle_corrupt_media_use_case=build_handle_corrupt_media_use_case(session),
     )
 
 

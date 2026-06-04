@@ -5,6 +5,12 @@ from typing import List
 from app.application.pipelines.ingest.models.scan_and_ingest_torrent_result import (
     ScanAndIngestTorrentResult,
 )
+from app.application.pipelines.ingest.use_cases.handle_corrupt_media_use_case import (
+    HandleCorruptMediaUseCase,
+)
+from app.application.pipelines.ingest.use_cases.verify_media_integrity_use_case import (
+    VerifyMediaIntegrityUseCase,
+)
 from app.application.pipelines.watchlist.use_cases.reconcile_active_downloads_with_deluge_use_case import (
     ReconcileActiveDownloadsWithDelugeUseCase,
 )
@@ -48,6 +54,8 @@ class IngestCleanTorrentUseCase:
         refresh_disk_stats_use_case: RefreshPlexLibraryDiskStatsUseCase,
         reconcile_active_downloads_use_case: ReconcileActiveDownloadsWithDelugeUseCase,
         remove_watchlist_entry_use_case: RemoveWatchlistEntryUseCase,
+        verify_media_integrity_use_case: VerifyMediaIntegrityUseCase,
+        handle_corrupt_media_use_case: HandleCorruptMediaUseCase,
     ):
         self._filesystem_service = filesystem_service
         self._antivirus_repo = antivirus_repo
@@ -59,6 +67,8 @@ class IngestCleanTorrentUseCase:
         self._refresh_disk_stats = refresh_disk_stats_use_case
         self._reconcile_active_downloads_use_case = reconcile_active_downloads_use_case
         self._remove_watchlist_entry_use_case = remove_watchlist_entry_use_case
+        self._verify_media_integrity = verify_media_integrity_use_case
+        self._handle_corrupt_media = handle_corrupt_media_use_case
 
     async def execute(
         self,
@@ -109,6 +119,21 @@ class IngestCleanTorrentUseCase:
                 scan_skipped=scan_skipped,
                 ingest_error=error_detail,
                 planned_destination=destination_path,
+            )
+
+        integrity = self._verify_media_integrity.execute(
+            scan_path, is_file=is_file
+        )
+        if not integrity.is_valid:
+            logger.warning(
+                "Media integrity check failed for '%s' before ingest: %s",
+                torrent_download.title,
+                integrity.summary_message,
+            )
+            return await self._handle_corrupt_media.execute(
+                torrent_hash,
+                torrent_download,
+                integrity,
             )
 
         copied = self._filesystem_service.copy(ingest_scan_path, destination_path)

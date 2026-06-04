@@ -112,6 +112,9 @@ class FilesystemServiceImpl:
     def build_path(self, *path_parts: str) -> str:
         return str(Path(*path_parts))
 
+    def resolve_access_path(self, path: str) -> str:
+        return str(self._resolve_path(path))
+
     def path_exists(self, path: str) -> bool:
         try:
             return self._resolve_path(path).exists()

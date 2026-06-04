@@ -1,4 +1,5 @@
 """Merge Plex and TMDB watchlists from all active users."""
+import logging
 from typing import List
 
 from app.application.plex.queries.get_plex_users_query import GetPlexUserQuery
@@ -9,6 +10,8 @@ from app.domain.models.watchlist_item_for_user import WatchlistItemForUser
 from app.domain.models.watchlist_source import WatchlistSource
 from app.domain.models.watchlist_subscriber import WatchlistSubscriber
 from app.domain.services.tmdb_guid import parse_tmdb_guid
+
+logger = logging.getLogger(__name__)
 
 
 class GetWatchlistsForActiveUsersQuery:
@@ -33,7 +36,17 @@ class GetWatchlistsForActiveUsersQuery:
         for user in plex_users:
             if user.id is None:
                 continue
-            watchlist = await self._get_watchlist_query.execute(user.plex_token)
+            try:
+                watchlist = await self._get_watchlist_query.execute(user.plex_token)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping Plex watchlist for user %s (id=%s): %s",
+                    user.name,
+                    user.id,
+                    exc,
+                    exc_info=True,
+                )
+                continue
             for item in watchlist:
                 entries.append(
                     WatchlistItemForUser(
@@ -56,9 +69,19 @@ class GetWatchlistsForActiveUsersQuery:
         for user in await self._get_tmdb_user_query.execute():
             if user.id is None or user.account_id is None:
                 continue
-            watchlist = await self._get_tmdb_watchlist_query.execute(
-                user.account_id, user.access_token
-            )
+            try:
+                watchlist = await self._get_tmdb_watchlist_query.execute(
+                    user.account_id, user.access_token
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Skipping TMDB watchlist for user %s (account_id=%s): %s",
+                    user.name,
+                    user.account_id,
+                    exc,
+                    exc_info=True,
+                )
+                continue
             for item in watchlist:
                 tmdb_media_id = None
                 parsed = parse_tmdb_guid(item.guid or "")

@@ -1,10 +1,10 @@
 """
-Detect unhealthy Deluge torrents using libtorrent/Deluge semantics.
+Detect unhealthy Deluge torrents (downloading, incomplete).
 
-Signals (see libtorrent torrent_status and Deluge UI columns):
-- availability (distributed_copies): < 1 means the swarm cannot supply a full copy.
-- last_seen_complete: 0 means no peer has ever had 100% in this swarm.
-- time_since_download / peers: stalled = no payload bytes; isolated = no connections.
+Rules (first match wins):
+- error: Deluge error state
+- unfinishable: availability < 1 (or empty swarm) after unfinishable_active_minutes
+- stalled: no payload bytes for stall_days, or partial with no 100% peer ever seen
 """
 import time
 from dataclasses import dataclass
@@ -13,15 +13,11 @@ from typing import Literal
 from app.domain.models.torrent import Torrent
 from app.domain.models.torrent_health_config import TorrentHealthConfig
 
-UnhealthyReason = Literal[
-    "error",
-    "unfinishable",
-    "no_complete_copy",
-    "stalled",
-]
+UnhealthyReason = Literal["error", "unfinishable", "stalled"]
 
 SECONDS_PER_HOUR = 3600
 SECONDS_PER_DAY = 86400
+SECONDS_PER_MINUTE = 60
 ZERO_PROGRESS_CUTOFF = 1.0  # percent
 
 
@@ -31,11 +27,9 @@ class TorrentHealthThresholds:
 
     grace_hours: int = 6
     min_availability: float = 1.0
-    unfinishable_days: int = 1
+    unfinishable_active_minutes: int = 20
     no_complete_copy_days: int = 2
-    no_complete_zero_hours: int = 12
     stall_days: int = 5
-    stall_no_peers_hours: int = 24
 
     @classmethod
     def from_config(
@@ -45,20 +39,16 @@ class TorrentHealthThresholds:
             return cls(
                 grace_hours=config.strict_grace_hours,
                 min_availability=config.min_availability,
-                unfinishable_days=config.strict_unfinishable_days,
+                unfinishable_active_minutes=config.strict_unfinishable_active_minutes,
                 no_complete_copy_days=config.strict_no_complete_copy_days,
-                no_complete_zero_hours=config.strict_no_complete_zero_hours,
                 stall_days=config.strict_stall_days,
-                stall_no_peers_hours=config.strict_stall_no_peers_hours,
             )
         return cls(
             grace_hours=config.grace_hours,
             min_availability=config.min_availability,
-            unfinishable_days=config.unfinishable_days,
+            unfinishable_active_minutes=config.unfinishable_active_minutes,
             no_complete_copy_days=config.no_complete_copy_days,
-            no_complete_zero_hours=config.no_complete_zero_hours,
             stall_days=config.stall_days,
-            stall_no_peers_hours=config.stall_no_peers_hours,
         )
 
 
@@ -66,7 +56,7 @@ def _is_error_state(torrent: Torrent) -> bool:
     return (torrent.state or "").lower() == "error"
 
 
-def _active_seconds(torrent: Torrent, *, now: float | None = None) -> float | None:
+def _seconds_since_added(torrent: Torrent, *, now: float | None = None) -> float | None:
     if torrent.time_added is None:
         return None
     return (now if now is not None else time.time()) - torrent.time_added
@@ -78,8 +68,33 @@ def _is_incomplete(torrent: Torrent) -> bool:
     return float(torrent.progress or 0) < 99.9
 
 
+def _is_downloading(torrent: Torrent) -> bool:
+    return (torrent.state or "").lower() == "downloading"
+
+
 def _is_transferring(torrent: Torrent) -> bool:
     return (torrent.download_speed or 0) > 0
+
+
+def _effective_active_seconds(torrent: Torrent, *, now: float | None = None) -> float | None:
+    """Deluge active_time when present, otherwise time since the torrent was added."""
+    active_time = torrent.active_time
+    if active_time is not None:
+        seconds = float(active_time)
+        if seconds >= 0:
+            return seconds
+    return _seconds_since_added(torrent, now=now)
+
+
+def _has_no_connections(torrent: Torrent) -> bool:
+    return (torrent.num_seeds or 0) == 0 and (torrent.num_peers or 0) == 0
+
+
+def _swarm_cannot_finish(torrent: Torrent, *, min_availability: float) -> bool:
+    """True when libtorrent reports insufficient copies or the swarm is empty."""
+    if torrent.availability is not None:
+        return float(torrent.availability) < min_availability
+    return _has_no_connections(torrent)
 
 
 def _never_seen_complete(torrent: Torrent) -> bool:
@@ -89,52 +104,52 @@ def _never_seen_complete(torrent: Torrent) -> bool:
     return int(value) == 0
 
 
-def _availability(torrent: Torrent) -> float | None:
-    if torrent.availability is None:
-        return None
-    return float(torrent.availability)
-
-
-def _is_unfinishable(torrent: Torrent, *, min_availability: float) -> bool:
-    """Swarm cannot complete the torrent (libtorrent distributed_copies < 1)."""
-    avail = _availability(torrent)
-    return avail is not None and avail < min_availability
-
-
-def _has_no_connections(torrent: Torrent) -> bool:
-    return (torrent.num_seeds or 0) == 0 and (torrent.num_peers or 0) == 0
-
-
 def _seconds_without_download(torrent: Torrent) -> float | None:
-    """Seconds since last payload download; falls back to active_time when unknown."""
     tsd = torrent.time_since_download
     if tsd is not None and float(tsd) >= 0:
         return float(tsd)
     if _is_transferring(torrent):
         return 0.0
-    active_time = torrent.active_time
-    if active_time is not None and float(active_time) > 0:
-        return float(active_time)
-    return None
+    return _effective_active_seconds(torrent)
+
+
+def _is_unfinishable(
+    torrent: Torrent,
+    *,
+    min_availability: float,
+    active_seconds: float,
+    unfinishable_active_minutes: int,
+) -> bool:
+    if not _is_downloading(torrent):
+        return False
+    if active_seconds <= unfinishable_active_minutes * SECONDS_PER_MINUTE:
+        return False
+    return _swarm_cannot_finish(torrent, min_availability=min_availability)
 
 
 def _is_stalled(
     torrent: Torrent,
     *,
-    stall_days: int,
-    stall_no_peers_hours: int,
-    active_seconds: float,
+    thresholds: TorrentHealthThresholds,
+    since_added_seconds: float,
 ) -> bool:
     """
-    No useful download progress: long idle time, or isolated with no peers/seeds.
+    Stuck despite a finishable-looking swarm: idle bytes, or partial with no 100% peer ever.
+    Low availability / empty swarms are handled by unfinishable first.
     """
-    if active_seconds >= stall_no_peers_hours * SECONDS_PER_HOUR and _has_no_connections(
-        torrent
-    ):
-        return True
+    if not _is_downloading(torrent):
+        return False
 
     idle_seconds = _seconds_without_download(torrent)
-    if idle_seconds is not None and idle_seconds >= stall_days * SECONDS_PER_DAY:
+    if idle_seconds is not None and idle_seconds >= thresholds.stall_days * SECONDS_PER_DAY:
+        return True
+
+    if (
+        _never_seen_complete(torrent)
+        and float(torrent.progress or 0) >= ZERO_PROGRESS_CUTOFF
+        and not _swarm_cannot_finish(torrent, min_availability=thresholds.min_availability)
+        and since_added_seconds >= thresholds.no_complete_copy_days * SECONDS_PER_DAY
+    ):
         return True
 
     return False
@@ -146,51 +161,34 @@ def unhealthy_reason(
     thresholds: TorrentHealthThresholds | None = None,
     now: float | None = None,
 ) -> UnhealthyReason | None:
-    """
-    First matching rule wins (libtorrent-aligned).
-
-    unfinishable: availability < min (typically 1.0) — cannot finish with current swarm.
-    no_complete_copy: last_seen_complete == 0 — never saw a full copy in the swarm.
-    stalled: no payload bytes for stall_days, or no peers/seeds for stall_no_peers_hours.
-    """
     t = thresholds or TorrentHealthThresholds()
 
     if _is_error_state(torrent):
         return "error"
 
-    if not _is_incomplete(torrent):
+    if not _is_incomplete(torrent) or not _is_downloading(torrent):
         return None
 
-    active_seconds = _active_seconds(torrent, now=now)
-    if active_seconds is None:
-        return None
-    if active_seconds < t.grace_hours * SECONDS_PER_HOUR:
+    since_added = _seconds_since_added(torrent, now=now)
+    if since_added is None or since_added < t.grace_hours * SECONDS_PER_HOUR:
         return None
 
     if _is_transferring(torrent):
         return None
 
-    if (
-        _is_unfinishable(torrent, min_availability=t.min_availability)
-        and active_seconds >= t.unfinishable_days * SECONDS_PER_DAY
+    active_seconds = _effective_active_seconds(torrent, now=now)
+    if active_seconds is None:
+        return None
+
+    if _is_unfinishable(
+        torrent,
+        min_availability=t.min_availability,
+        active_seconds=active_seconds,
+        unfinishable_active_minutes=t.unfinishable_active_minutes,
     ):
         return "unfinishable"
 
-    if _never_seen_complete(torrent):
-        progress = float(torrent.progress or 0)
-        zero_limit = t.no_complete_zero_hours * SECONDS_PER_HOUR
-        copy_limit = t.no_complete_copy_days * SECONDS_PER_DAY
-        if progress < ZERO_PROGRESS_CUTOFF and active_seconds >= zero_limit:
-            return "no_complete_copy"
-        if progress >= ZERO_PROGRESS_CUTOFF and active_seconds >= copy_limit:
-            return "no_complete_copy"
-
-    if _is_stalled(
-        torrent,
-        stall_days=t.stall_days,
-        stall_no_peers_hours=t.stall_no_peers_hours,
-        active_seconds=active_seconds,
-    ):
+    if _is_stalled(torrent, thresholds=t, since_added_seconds=since_added):
         return "stalled"
 
     return None

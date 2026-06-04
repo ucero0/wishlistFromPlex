@@ -23,10 +23,8 @@ ONE_DAY_SECONDS = 86400
 
 DEFAULT_HEALTH_CONFIG = TorrentHealthConfig(
     grace_hours=0,
-    unfinishable_days=1,
+    unfinishable_active_minutes=20,
     no_complete_copy_days=2,
-    no_complete_zero_hours=6,
-    stall_no_peers_hours=24,
     stall_days=5,
     skip_when_vpn_unhealthy=True,
     use_strict_when_vpn_healthy=False,

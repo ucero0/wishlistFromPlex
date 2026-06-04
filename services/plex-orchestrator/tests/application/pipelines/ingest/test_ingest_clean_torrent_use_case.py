@@ -9,6 +9,7 @@ from app.application.pipelines.ingest.use_cases.ingest_clean_torrent_use_case im
 )
 from app.domain.models.active_download import ActiveDownload
 from app.domain.models.antivirus_scan import AntivirusScan
+from app.domain.models.media_integrity_result import MediaIntegrityResult
 
 
 def _movie_download() -> ActiveDownload:
@@ -53,6 +54,12 @@ def _build_use_case(*, copy_result: bool = True) -> tuple[IngestCleanTorrentUseC
     remove_watchlist = AsyncMock()
     antivirus_repo = AsyncMock()
     antivirus_repo.update = AsyncMock()
+    verify = MagicMock()
+    verify.execute.return_value = MediaIntegrityResult(
+        is_valid=True,
+        checked_files=["/quarantine/Test Movie (2024)/movie.mkv"],
+    )
+    handle_corrupt = AsyncMock()
 
     use_case = IngestCleanTorrentUseCase(
         filesystem_service=filesystem,
@@ -65,6 +72,8 @@ def _build_use_case(*, copy_result: bool = True) -> tuple[IngestCleanTorrentUseC
         refresh_disk_stats_use_case=refresh_disk,
         reconcile_active_downloads_use_case=reconcile,
         remove_watchlist_entry_use_case=remove_watchlist,
+        verify_media_integrity_use_case=verify,
+        handle_corrupt_media_use_case=handle_corrupt,
     )
     return use_case, deluge
 

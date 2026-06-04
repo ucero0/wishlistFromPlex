@@ -58,12 +58,13 @@ class ScanTorrentResponse(BaseModel):
 
 class ScanTorrentAndIngestResponse(BaseModel):
     """Response model for scan + ingest: includes move/delete outcome and destination_path."""
-    status: str  # "clean", "infected", "error", or "pending_move"
+    status: str  # "clean", "infected", "corrupt", "error", or "pending_move"
     message: Optional[str] = None
     infected: bool
     scan_skipped: bool = False
     virus_name: Optional[str] = None
     infected_files: Optional[List[str]] = None
+    corrupt_files: Optional[List[str]] = None
     yara_matches: Optional[List[str]] = None
     scanned_files: Optional[List[str]] = None
     moved: Optional[bool] = None

@@ -48,7 +48,7 @@ Public examples (no key): `GET /health`, some Deluge read-only routes — see ht
 - Watchlist → search → Deluge: runs on an interval (see scheduler in app startup logs).
 - Library path sync: interval from DB (`GET /scheduler/settings`, default 360 min). Also refreshes HDD free space into the database.
 - Deferred downloads: every `DEFERRED_DOWNLOAD_PROCESS_INTERVAL_MINUTES` (default 15).
-- Deluge ingest + health: interval from DB (default 5 min). Ingest completed torrents → sync tracking → remove unhealthy torrents. **Policies in DB:** `GET`/`PUT /scheduler/settings`, `GET`/`PUT /deluge/torrent-health`. **VPN check first:** Gluetun `http://gluetun:9999/`. Per-torrent: `unfinishable`, `no_complete_copy`, `stalled`, `error`.
+- Deluge ingest + health: interval from DB (default 5 min). Ingest completed torrents → sync tracking → remove unhealthy torrents. **Policies in DB:** `GET`/`PUT /scheduler/settings`, `GET`/`PUT /deluge/torrent-health`. **VPN check first:** Gluetun `http://gluetun:9999/`. Per-torrent (downloading only): `unfinishable` (availability < 1 or empty swarm after `unfinishable_active_minutes`), `stalled` (idle bytes or partial with no 100% peer seen), `error`. Policy fields: `GET`/`PUT /deluge/torrent-health` (`grace_hours`, `unfinishable_active_minutes`, `stall_days`, `no_complete_copy_days`, strict variants).
 
 **Manual triggers:**
 
@@ -96,7 +96,9 @@ curl -X POST http://localhost:8000/pipelines/ingest/scan-and-ingest `
   -d '{"torrent_hash":"YOUR_HASH"}'
 ```
 
-If infected: torrent is removed and the item can be re-queued on the watchlist. See [ANTIVIRUS.md](ANTIVIRUS.md).
+Full ingest order: **antivirus scan** → **ffprobe media integrity** → copy to library → remove from Deluge → Plex partial scan.
+
+If **infected** or **corrupt**: torrent is removed, release is blacklisted, and tracked items are re-queued on the watchlist. Corrupt detection uses `ffprobe` in the orchestrator image (see `FFPROBE_BIN`, `MEDIA_INTEGRITY_TIMEOUT_SECONDS` in `.env`). See [ANTIVIRUS.md](ANTIVIRUS.md).
 
 ---
 

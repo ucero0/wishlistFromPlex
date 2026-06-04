@@ -146,7 +146,7 @@ class ProcessDelugeTorrentsUseCase:
 
             result.completed_checked += 1
             ingest_result = await self._scan_and_ingest.execute(torrent.hash)
-            if ingest_result.status in ("clean", "infected", "pending_move"):
+            if ingest_result.status in ("clean", "infected", "corrupt", "pending_move"):
                 result.ingested += 1
                 logger.info(
                     "Ingest poll for '%s' (%s): %s",

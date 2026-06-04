@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Scanner Configuration
     antivirus_host: str = "antivirus"
     antivirus_port: int = 3311  # HTTP scan service port (antivirus daemon is on 3310)
+
+    # Pre-ingest media integrity (ffprobe)
+    ffprobe_bin: str = "ffprobe"
+    media_integrity_timeout_seconds: int = 120
+    media_integrity_min_file_bytes: int = 1024
     
     # Prowlarr Configuration
     prowlarr_host: str = "prowlarr"

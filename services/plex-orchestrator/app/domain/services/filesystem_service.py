@@ -138,6 +138,14 @@ class FilesystemService(Protocol):
         """
         ...
 
+    def resolve_access_path(self, path: str) -> str:
+        """
+        Resolve a Plex/host or quarantine path to a local path for I/O in this process.
+
+        In Docker, Plex library paths like ``/plex2/...`` map under ``CONTAINER_HOST_FS_PREFIX``.
+        """
+        ...
+
     def move(self, source_path: str, destination_path: str) -> bool:
         """
         Move a file or directory from source to destination.

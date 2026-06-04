@@ -10,19 +10,15 @@ class TorrentHealthConfigResponse(BaseModel):
 
     grace_hours: int
     min_availability: float
-    unfinishable_days: int
+    unfinishable_active_minutes: int
     no_complete_copy_days: int
-    no_complete_zero_hours: int
     stall_days: int
-    stall_no_peers_hours: int
     skip_when_vpn_unhealthy: bool
     use_strict_when_vpn_healthy: bool
     strict_grace_hours: int
-    strict_unfinishable_days: int
+    strict_unfinishable_active_minutes: int
     strict_no_complete_copy_days: int
-    strict_no_complete_zero_hours: int
     strict_stall_days: int
-    strict_stall_no_peers_hours: int
     updated_at: datetime | None = None
 
     @classmethod
